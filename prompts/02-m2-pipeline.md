@@ -35,7 +35,9 @@ no alerts or email, no web app beyond the admin review page, no deploy.
    kinds, re-run summarise on the Opus setting (rare, so cheap). Changing any setting must be a
    config change only. Haiku 5.5 has no server-side refusal fallback: a `refusal` stop goes to
    `pending_review`. Send the spec's `fallbacks: "default"` only to Opus 5.5. Set effort
-   explicitly (both models default to `medium`): `low` for classify, `medium` for summarise. Every call writes `llm_calls`
+   explicitly (both models default to `medium`): `low` for classify, `medium` for summarise.
+
+   Every call writes `llm_calls`
    (purpose, model, tokens, cost from current pricing). Fetched text is untrusted data: say so in
    the system prompt, keep it last, validate every output against its schema.
 2. **fetch_post step** for new feed items whose feed text is short (an excerpt): fetch the post
