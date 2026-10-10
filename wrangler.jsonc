@@ -1,0 +1,24 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "stackquake",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "triggers": {
+    // */5: claim and run due jobs. Daily: sync catalog, schedule overdue polls, prune.
+    "crons": ["*/5 * * * *", "0 6 * * *"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "stackquake",
+      // Placeholder until M5 creates the real database. Local dev and tests only.
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [{ "binding": "SNAPSHOTS", "bucket_name": "stackquake-snapshots" }],
+  "vars": {
+    "JOBS_PER_TICK": "10"
+  },
+  "observability": { "enabled": true }
+}

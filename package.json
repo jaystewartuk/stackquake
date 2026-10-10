@@ -1,0 +1,31 @@
+{
+  "name": "stackquake",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:catalog": "node scripts/build-catalog.mjs",
+    "dev": "npm run build:catalog && wrangler dev",
+    "test": "npm run build:catalog && vitest run",
+    "typecheck": "npm run build:catalog && tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "poll": "npm run build:catalog --silent && node scripts/poll.mjs"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.4",
+    "hono": "^4.13.13"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.4.0",
+    "@cloudflare/workers-types": "^5.20261010.1",
+    "@vitest/runner": "^4.1.11",
+    "@vitest/snapshot": "^4.1.11",
+    "drizzle-kit": "^0.31.11",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11",
+    "wrangler": "^4.149.0",
+    "ws": "^8.22.0",
+    "yaml": "^2.9.1"
+  }
+}
