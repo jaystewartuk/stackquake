@@ -7,7 +7,8 @@ export interface FeedItem {
   title: string;
   link: string;
   published: string | null;
-  text: string;
+  /** Plain text of the body. Computed on first access: only new items need it. */
+  readonly text: string;
 }
 
 const ITEM = /<(item|entry)\b[^>]*>([\s\S]*?)<\/\1\s*>/gi;
@@ -59,9 +60,18 @@ export function parseFeed(xml: string, maxItems = 100, maxTextChars = 8_000): Fe
     const guid = tag(block, ["guid", "id"]);
     const id = guid ? (/^https?:\/\//i.test(guid) ? normaliseUrl(decodeEntities(guid)) : decodeEntities(guid)) : link || title;
     const published = tag(block, ["pubDate", "published", "updated", "date"]);
-    const body = tag(block, ["encoded", "content", "description", "summary"]) ?? "";
     if (!id) continue;
-    items.push({ id, title, link, published, text: htmlToText(body).slice(0, maxTextChars) });
+    let text: string | undefined;
+    items.push({
+      id,
+      title,
+      link,
+      published,
+      get text() {
+        text ??= htmlToText(tag(block, ["encoded", "content", "description", "summary"]) ?? "").slice(0, maxTextChars);
+        return text;
+      },
+    });
     if (items.length >= maxItems) break;
   }
   return items;

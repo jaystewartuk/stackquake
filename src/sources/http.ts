@@ -27,6 +27,8 @@ export interface FetchOptions {
 }
 
 const ROBOTS_TTL = DAY;
+/** A stalled request must not hold a cron invocation open. */
+export const REQUEST_TIMEOUT_MS = 20_000;
 const AGENT_TOKEN = "stackquakebot";
 
 export function hostOf(url: string): string {
@@ -49,7 +51,7 @@ function challengeReason(res: Response): string | null {
   return null;
 }
 
-async function readCapped(res: Response, maxBytes: number, truncateOk: boolean): Promise<{ body: Uint8Array; truncated: boolean } | null> {
+export async function readCapped(res: Response, maxBytes: number, truncateOk: boolean): Promise<{ body: Uint8Array; truncated: boolean } | null> {
   const declared = Number(res.headers.get("content-length") ?? "NaN");
   if (!truncateOk && Number.isFinite(declared) && declared > maxBytes) {
     await res.body?.cancel();
@@ -86,7 +88,7 @@ async function readCapped(res: Response, maxBytes: number, truncateOk: boolean):
   return { body, truncated };
 }
 
-async function robotsBody(ctx: Ctx, url: string): Promise<string | { retry: string }> {
+async function robotsBody(ctx: Ctx, url: string): Promise<string | { retry: string } | { blocked: string }> {
   const host = hostOf(url);
   const now = ctx.clock.now();
   const cached = await ctx.db.select().from(robots).where(eq(robots.host, host)).get();
@@ -94,7 +96,14 @@ async function robotsBody(ctx: Ctx, url: string): Promise<string | { retry: stri
 
   let body = "";
   try {
-    const res = await ctx.http(new Request(`${new URL(url).origin}/robots.txt`, { headers: { "user-agent": ctx.config.userAgent }, redirect: "follow" }));
+    const res = await ctx.http(
+      new Request(`${new URL(url).origin}/robots.txt`, { headers: { "user-agent": ctx.config.userAgent }, redirect: "follow", signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) }),
+    );
+    const challenge = challengeReason(res);
+    if (challenge) {
+      await res.body?.cancel();
+      return { blocked: `${challenge} on robots.txt` };
+    }
     if (res.status >= 500 || res.status === 429) {
       await res.body?.cancel();
       return { retry: `robots.txt returned ${res.status}` };
@@ -112,10 +121,18 @@ async function robotsBody(ctx: Ctx, url: string): Promise<string | { retry: stri
   return body;
 }
 
-export async function politeFetch(ctx: Ctx, url: string, opts: FetchOptions): Promise<FetchOutcome> {
+export type CheckedResponse = { type: "response"; res: Response; contentType: string; etag: string | null; lastModified: string | null };
+
+/**
+ * Sends the request and sorts out everything except a 2xx. On "response" the caller owns the
+ * body (and must read or cancel it).
+ */
+export async function politeRequest(ctx: Ctx, url: string, opts: Omit<FetchOptions, "maxBytes" | "truncateOk">): Promise<CheckedResponse | Exclude<FetchOutcome, { type: "ok" }>> {
   if (opts.robots) {
     const body = await robotsBody(ctx, url);
-    if (typeof body !== "string") return { type: "retry", status: 0, reason: body.retry, retryAfterMs: null };
+    if (typeof body !== "string") {
+      return "blocked" in body ? { type: "blocked", status: 429, reason: body.blocked } : { type: "retry", status: 0, reason: body.retry, retryAfterMs: null };
+    }
     if (!robotsAllows(body, AGENT_TOKEN, url)) return { type: "blocked", status: 0, reason: "disallowed by robots.txt" };
   }
 
@@ -126,7 +143,7 @@ export async function politeFetch(ctx: Ctx, url: string, opts: FetchOptions): Pr
 
   let res: Response;
   try {
-    res = await ctx.http(new Request(url, { headers, redirect: "follow" }));
+    res = await ctx.http(new Request(url, { headers, redirect: "follow", signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) }));
   } catch (e) {
     return { type: "retry", status: 0, reason: `network: ${e instanceof Error ? e.message : String(e)}`, retryAfterMs: null };
   }
@@ -153,17 +170,14 @@ export async function politeFetch(ctx: Ctx, url: string, opts: FetchOptions): Pr
     await res.body?.cancel();
     return { type: "retry", status: res.status, reason: `HTTP ${res.status}`, retryAfterMs: null };
   }
+  return { type: "response", res, contentType: (res.headers.get("content-type") ?? "").toLowerCase(), etag: res.headers.get("etag"), lastModified: res.headers.get("last-modified") };
+}
 
-  const read = await readCapped(res, opts.maxBytes, opts.truncateOk ?? false);
-  if (!read) return { type: "too_large", status: res.status, reason: `body over ${opts.maxBytes} bytes` };
-  return {
-    type: "ok",
-    status: res.status,
-    body: read.body,
-    truncated: read.truncated,
-    contentType: (res.headers.get("content-type") ?? "").toLowerCase(),
-    etag: res.headers.get("etag"),
-    lastModified: res.headers.get("last-modified"),
-    url: res.url || url,
-  };
+/** politeRequest plus a capped read of the whole body. */
+export async function politeFetch(ctx: Ctx, url: string, opts: FetchOptions): Promise<FetchOutcome> {
+  const r = await politeRequest(ctx, url, opts);
+  if (r.type !== "response") return r;
+  const read = await readCapped(r.res, opts.maxBytes, opts.truncateOk ?? false);
+  if (!read) return { type: "too_large", status: r.res.status, reason: `body over ${opts.maxBytes} bytes` };
+  return { type: "ok", status: r.res.status, body: read.body, truncated: read.truncated, contentType: r.contentType, etag: r.etag, lastModified: r.lastModified, url: r.res.url || url };
 }

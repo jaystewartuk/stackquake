@@ -1,5 +1,5 @@
 // Catalog entries (SPEC §5.1): validation and sync into the sources table.
-import { and, eq, notInArray, sql } from "drizzle-orm";
+import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 import type { Ctx } from "../context";
 import { catalog, catalogSources, sources, type SourceKind } from "../db/schema";
 import { enqueue, pollJobKey } from "../jobs/queue";
@@ -8,6 +8,7 @@ import { githubUrl } from "../sources/kinds/github";
 import { npmUrl } from "../sources/kinds/npm";
 import { pypiName, pypiUrl } from "../sources/kinds/pypi";
 import { normaliseUrl } from "../sources/normalise";
+import { stableStringify } from "../util";
 
 export type SourceSpec =
   | { kind: "npm"; package: string }
@@ -117,16 +118,23 @@ export function sourceRow(spec: SourceSpec): SourceRow {
 
 /**
  * Upserts catalog entries and their sources, links them, and queues a first poll for new
- * sources. Catalog sources no entry uses any more are disabled. Idempotent.
+ * sources. Catalog sources no entry uses any more are disabled. Idempotent. Entries whose stored
+ * copy is identical are skipped, so the daily run costs one query when nothing changed.
  */
-export async function syncCatalog(ctx: Ctx, entries: CatalogEntry[]): Promise<{ sources: number; created: number }> {
+export async function syncCatalog(ctx: Ctx, entries: CatalogEntry[]): Promise<{ sources: number; created: number; changedEntries: number }> {
   const now = ctx.clock.now();
   const problems = entries.flatMap(validateEntry);
   if (problems.length) throw new Error(`invalid catalog:\n${problems.join("\n")}`);
 
+  const stored = new Map((await ctx.db.select({ id: catalog.id, data: catalog.data }).from(catalog).all()).map((r) => [r.id, stableStringify(r.data)]));
+  const changed = entries.filter((e) => stored.get(e.id) !== stableStringify(e));
+  const ids = new Set(entries.map((e) => e.id));
+  const removed = [...stored.keys()].filter((id) => !ids.has(id));
+  const countLinked = async () => (await ctx.db.selectDistinct({ id: catalogSources.sourceId }).from(catalogSources).all()).length;
+  if (changed.length === 0 && removed.length === 0) return { sources: await countLinked(), created: 0, changedEntries: 0 };
+
   let created = 0;
-  const linked = new Set<number>();
-  for (const entry of entries) {
+  for (const entry of changed) {
     await ctx.db
       .insert(catalog)
       .values({ id: entry.id, name: entry.name, category: entry.category, data: entry, updatedAt: now })
@@ -158,16 +166,17 @@ export async function syncCatalog(ctx: Ctx, entries: CatalogEntry[]): Promise<{ 
         .values({ catalogId: entry.id, sourceId: id, filter })
         .onConflictDoUpdate({ target: [catalogSources.catalogId, catalogSources.sourceId], set: { filter } });
       keep.push(id);
-      linked.add(id);
     }
     await ctx.db.delete(catalogSources).where(and(eq(catalogSources.catalogId, entry.id), notInArray(catalogSources.sourceId, keep)));
   }
-  const ids = entries.map((e) => e.id);
-  if (ids.length) await ctx.db.delete(catalogSources).where(notInArray(catalogSources.catalogId, ids));
+  if (removed.length) {
+    await ctx.db.delete(catalogSources).where(inArray(catalogSources.catalogId, removed));
+    await ctx.db.delete(catalog).where(inArray(catalog.id, removed));
+  }
   // Catalog-made sources that no entry links to any more stop being polled.
   await ctx.db.run(sql`
     UPDATE sources SET state = 'disabled'
     WHERE state = 'active' AND json_extract(config, '$.origin') = 'catalog'
       AND id NOT IN (SELECT source_id FROM catalog_sources)`);
-  return { sources: linked.size, created };
+  return { sources: await countLinked(), created, changedEntries: changed.length };
 }

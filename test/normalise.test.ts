@@ -23,7 +23,7 @@ const page = (opts: { updated: string; ago: string; utm: string; script: string;
 </body></html>`;
 
 async function pageHash(html: string, ignore?: string[]) {
-  const { text, matched } = await pageText(utf8(html), "text/html; charset=utf-8", "main", { exclude: [".feedback"], ignore });
+  const { text, matched } = await pageText(new Response(utf8(html)).body!, "text/html; charset=utf-8", "main", { exclude: [".feedback"], ignore });
   expect(matched).toBe(true);
   const norm = normaliseText(text, { ignore });
   return { norm, hash: await sha256Hex(norm) };
@@ -68,18 +68,44 @@ describe("extractText", () => {
   const body = (html: string) => new Response(html).body!;
 
   it("reports when the selector matches nothing", async () => {
-    const r = await extractText(body("<div>no main here</div>"), { selector: "main", maxChars: 1_000 });
+    const r = await extractText(body("<div>no main here</div>"), { selector: "main", maxChars: 1_000, maxBytes: 10_000 });
     expect(r.matched).toBe(false);
   });
 
   it("supports comma-separated selectors and decodes entities", async () => {
-    const r = await extractText(body(`<div id="a">Fish &amp; chips</div><p>skip</p><div class="b">5&nbsp;GB &#8211; free</div>`), { selector: "#a, .b", maxChars: 1_000 });
+    const r = await extractText(body(`<div id="a">Fish &amp; chips</div><p>skip</p><div class="b">5&nbsp;GB &#8211; free</div>`), { selector: "#a, .b", maxChars: 1_000, maxBytes: 10_000 });
     expect(normaliseText(r.text)).toBe("Fish & chips\n5 GB – free");
   });
 
   it("flags text over the cap as too large", async () => {
-    const r = await extractText(body(`<main>${"x".repeat(5_000)}</main>`), { selector: "main", maxChars: 1_000 });
+    const r = await extractText(body(`<main>${"x".repeat(5_000)}</main>`), { selector: "main", maxChars: 1_000, maxBytes: 100_000 });
     expect(r.tooLarge).toBe(true);
+  });
+
+  it("flags HTML over the byte cap as too large", async () => {
+    const r = await extractText(body(`<html>${"<p>x</p>".repeat(5_000)}<main>late</main></html>`), { selector: "main", maxChars: 1_000, maxBytes: 10_000 });
+    expect(r.tooLarge).toBe(true);
+  });
+
+  it("stops reading once a unique selector has closed", async () => {
+    let pulled = 0;
+    const chunks = ["<main><p>Free: 10 GB</p></main>", ...Array.from({ length: 50 }, () => `<script>${"x".repeat(1_000)}</script>`)];
+    const stream = new ReadableStream<Uint8Array>({
+      pull(c) {
+        if (pulled < chunks.length) c.enqueue(utf8(chunks[pulled++]));
+        else c.close();
+      },
+    });
+    const r = await extractText(stream, { selector: "main", maxChars: 1_000, maxBytes: 10_000 });
+    expect(normaliseText(r.text)).toBe("Free: 10 GB");
+    expect(r.tooLarge).toBe(false);
+    expect(pulled).toBeLessThan(5);
+  });
+
+  it("uses Markdown as is, without front matter", async () => {
+    const md = "---\ntitle: Limits\nlast_updated: 2026-09-16\n---\n\n# Limits\n\nHobby: 100 GB";
+    const r = await pageText(new Response(md).body!, "text/markdown; charset=utf-8", "main", {});
+    expect(normaliseText(r.text)).toBe("# Limits\nHobby: 100 GB");
   });
 });
 
