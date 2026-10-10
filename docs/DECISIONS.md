@@ -95,3 +95,122 @@ Read this after SPEC.md; where they disagree, this file wins.
   GitHub, Snyk or Socket to copy, so they are not the selling point. SPEC §2 now has a
   Positioning section; §7.1 and the M3/M5 rows make the service picker the main onboarding path
   (repo import pre-fills it) and weight catalog growth toward hosted services.
+
+## M2: event pipeline (2026-10-10)
+
+### LLM
+- **Model split as decided before M2**, each step its own setting (wrangler vars):
+  `LLM_MODEL_CLASSIFY` and `LLM_MODEL_SUMMARISE` = `claude-haiku-5-5`,
+  `LLM_MODEL_SUMMARISE_HIGH` = `claude-opus-5-5` for `license`, `eol` and `acquisition` notes.
+  Effort is explicit: `low` for classify, `medium` for summarise. Adaptive thinking (the
+  default on both) is sent explicitly. `fallbacks: "default"` (beta
+  `server-side-fallback-2026-07-01`) only on Opus; Haiku 5.5 has no server-side fallback.
+- **Which model writes a note.** When the kind is known before summarising (deterministic
+  events, classified feed items) and is high-stakes, the note goes straight to the high-stakes
+  model instead of Haiku first: the Haiku call would always be thrown away. Haiku runs first
+  only when the kind is not yet known (page diffs, and posts classified as a lower-stakes
+  kind); if its material note turns out high-stakes, the note is written again on the
+  high-stakes model.
+- **SDK kept.** `@anthropic-ai/sdk` 0.133 adds no measurable CPU per tick: pipeline ticks
+  (classify, summarise, both through the SDK's request and response handling against a local
+  stub) measured 3.0 to 6.7 ms. Bundle: 214 KB gzipped.
+- Structured outputs for both calls; every output is also checked in code (`src/llm/schemas.ts`)
+  for what the API schema cannot say (confidence in 0..1, `YYYY-MM[-DD]` dates). Invalid output
+  or `max_tokens` is retried; API errors are retried by the job runner. After 4 attempts the
+  event goes to `pending_review` with the reason. `stop_reason: "refusal"` goes straight to
+  `pending_review`, never retried.
+- Prompt caching: the system prompt (about 1,300 tokens, above the 512-token minimum) and the
+  product context are separate cached blocks; the fetched text comes last, inside tags, and the
+  system prompt says it is untrusted data.
+- Every call writes `llm_calls` (purpose, model, tokens including cache reads and writes, cost,
+  event, outcome). Prices are in `src/llm/llm.ts`; when a fallback served part of a request,
+  each model in `usage.iterations` is priced at its own rate. The weekly budget guard (SPEC
+  §7.4) is M4 work, as SPEC §12 places it.
+
+### Deviations in the LLM output shapes
+- `applies_when` is `{hosting: [...], use: [...], tier: [...]}` (empty list = any) instead of
+  free-form JSON: structured outputs need closed objects, and lists of enums are easy to
+  match against `deps.profile` in M4.
+- The summarise output adds `kind`, `confidence` and `material` to SPEC §7.4's shape; options
+  carry a `name` and a nullable `catalog_id` (so "pin the current version" can be an option).
+- A feed item the classifier passed but whose note says `material: false` and kind `other` is
+  rejected (a second opinion), like a non-material page diff. SPEC only rejects page diffs.
+- Effective dates may be `YYYY-MM` when the source only gives a month ("another year").
+- Confidence rubric in the prompt: it is about what the note claims, not what the source leaves
+  out (that goes in `uncertain`). Without this, Opus scored explicit announcements and even a
+  registry licence change at 0.85 to 0.88, below the 0.9 auto-publish bar.
+- When a source announces several changes, the note covers the one that affects most users of
+  the product (Deno: the runtime, not Deno Deploy).
+
+### Pipeline
+- New job kinds `fetch_post`, `classify`, `summarise`. A new event queues its first step when it
+  is recorded (feed → `fetch_post`, everything else → `summarise`); the daily run re-queues any
+  `pending_llm` event that lost its job. Each step checks the event is still `pending_llm` first,
+  writes its result, then queues the next step, so retries and duplicate jobs do nothing.
+- Gate tokens: one LLM step per tick (`#llm`); `summarise` also takes `HEAVY` (quote check over
+  up to 200 KB); `fetch_post` takes the post's host and `HEAVY`.
+- `fetch_post` runs when the feed's text is under 2,000 characters. Markdown first, then the
+  HTML's `article`, `main` or `body`; robots.txt and our User-Agent as for every fetch. The text
+  is stored as `post/<sha256>` in R2. If the post is blocked or keeps failing, the pipeline
+  carries on with the feed text and says so in `review_reason`.
+- Classify gets the first 24,000 characters (about 6k tokens) of the post. The feed's own
+  publication date is not stored, so the prompt gives the date first seen.
+- **Quote check** (`src/pipeline/quote.ts`): the quote must appear in the event's stored source
+  texts (post, both page snapshots, or the registry field text) after removing all whitespace,
+  unifying typographic quotes and dashes, and dropping Markdown links, emphasis and list or
+  heading markers. Whitespace is removed entirely, not just collapsed, because HTML extraction
+  splits "See <a>docs</a>." into "See \ndocs\n.". Quotes under 8 characters never count.
+- Registry events: `archived` and repository transfers now carry the field text
+  (`"archived": true`, `"full_name": …`) so they have something to quote. Registry events keep
+  their detected kind; the note can only refine `other`.
+- **Semantic dedupe** (`src/pipeline/dedupe.ts`): feed and page events get a new dedupe key
+  from (catalog entry, kind, normalised title) after classify (post title) and after summarise
+  (note title). On a collision the newer event becomes `rejected` with `duplicate_of` set; if
+  the older one arrives second and the holder is not published, they swap (the holder's key
+  becomes `dup:<id>`). Registry events keep their M1 keys, which already dedupe npm against
+  GitHub; a blog post and a registry event about the same change are not merged.
+- Page-diff events store both snapshot keys in `events.source_keys`. Snapshot pruning can in
+  principle remove them later; by then the event has long been summarised.
+
+### Admin
+- `/admin` is off unless `ADMIN_TOKEN` (at least 16 characters) is set. Login sets a signed
+  session cookie (HMAC with the token, 7 days, HttpOnly, Secure, SameSite=Strict,
+  Path=/admin); every form carries a CSRF token derived from the session. Hono JSX escapes all
+  text; source links render only for http(s) URLs.
+- Approve needs a note and a quote (refused or failed events must be edited first). Edit saves
+  the fields and publishes; the quote check is re-run and stored, but a person's approval can
+  publish a quote that is not found (SPEC: never *auto*-published).
+
+### Catalog
+- Bitwarden gets its forum's announcements feed
+  (`community.bitwarden.com/c/announcements/72.rss`): the 2026-10-09 licence change was posted
+  there, not on the blog. The forum served our bot this time.
+
+### Golden set and eval
+- `testdata/golden/` (see its README): 13 cases, the 8 required by SPEC §11 (case 8 as 5 posts)
+  plus one: the Cloudflare Observability post, first picked as a routine post, moves existing
+  Workers logs to volume-based pricing from 2026-12-01. The classifier caught it; the label was
+  wrong.
+- `npm run eval` replays each case through the real watchers and steps (only HTTP is a fixture)
+  against the live model, inside workerd like the tests.
+- Results with the default split: passed in 5 of 6 runs (before the multi-change rule, one run
+  dated the Deno note 2027-04, the Deno Deploy shutdown; 2 of 2 runs after it passed). Every
+  run: no false positive among the 7 no-event cases, every deal change found with the right
+  kind, every quote found verbatim; precision and recall 1.00 for each kind.
+  About $0.09 per run (Opus notes are $0.011 to $0.05 each, 90% of the cost).
+- All-Haiku (`LLM_MODEL_SUMMARISE_HIGH=claude-haiku-5-5`), 3 runs: same detection and quotes;
+  one run's npm licence note scored 0.80, so it waited for review instead of auto-publishing
+  (the safe failure). About $0.009 per run. Notes read about as well as Opus's; Opus's were
+  slightly fuller (for example Bitwarden's direct downloads), not more correct. **Opus is not
+  measurably better on this set.** It costs about $0.03 per high-stakes note, so at a few such
+  notes a month it is under $1; keep it for now and revisit with more high-stakes cases.
+- Eval spend while building M2: about $0.70.
+
+### CPU (`npm run measure:cpu`, two runs, profiler estimate)
+- Pipeline ticks (fetch_post with a 66 KB HTML post, extract_diff, classify, summarise against
+  local stubs): 3.0 to 6.7 ms.
+- Steady-state poll ticks are unchanged from M1 (same script on `main`): median about 6 ms,
+  ticks with an HTML page or a large feed 11 to 21 ms on both branches (M1 recorded 12 to
+  16 ms). This is the existing M1 risk, not new: watch `exceededCpu` after deploy (M5) and move
+  to Workers Paid if it passes 1% of invocations.
+- First daily run (catalog sync of 10 entries, 43 sources) about 45 ms, once.
