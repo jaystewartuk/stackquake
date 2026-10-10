@@ -1,6 +1,7 @@
 // Job runner (SPEC §7.2): claim a batch, run one step per job, record the outcome.
 import type { Ctx } from "../context";
 import type { Job, JobKind } from "../db/schema";
+import { classifyStep, fetchPostStep, summariseStep } from "../pipeline/steps";
 import { HEAVY } from "../sources/http";
 import { KINDS } from "../sources/kinds";
 import { errorMessage, MINUTE } from "../util";
@@ -43,6 +44,9 @@ export const STEPS: Record<JobKind, StepHandler> = {
     await extractDiff(ctx, source, p.oldSha, p.newSha);
     return { type: "done" };
   },
+  fetch_post: fetchPostStep,
+  classify: classifyStep,
+  summarise: summariseStep,
 };
 
 export interface TickReport {

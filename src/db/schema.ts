@@ -1,5 +1,5 @@
-// D1 / SQLite schema for M1 (SPEC §6). Times are Unix milliseconds.
-// Columns marked "M1 addition" are not in SPEC §6; see the M1 summary for why.
+// D1 / SQLite schema (SPEC §6). Times are Unix milliseconds.
+// Columns marked "M1 addition" or "M2 addition" are not in SPEC §6; docs/DECISIONS.md says why.
 import { sql } from "drizzle-orm";
 import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
@@ -15,7 +15,7 @@ export type EventKind = (typeof EVENT_KINDS)[number];
 export const EVENT_STATUSES = ["pending_llm", "pending_review", "published", "rejected"] as const;
 export type EventStatus = (typeof EVENT_STATUSES)[number];
 
-export const JOB_KINDS = ["poll", "extract_diff"] as const;
+export const JOB_KINDS = ["poll", "extract_diff", "fetch_post", "classify", "summarise"] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
 // Catalog entries as loaded from catalog/*.yaml (M1 addition: SPEC keeps them only as files).
@@ -97,6 +97,16 @@ export const events = sqliteTable(
     note: text("note", { mode: "json" }),
     appliesWhen: text("applies_when", { mode: "json" }),
     dedupeKey: text("dedupe_key").notNull().unique(),
+    // M2 additions.
+    /** Blob keys of the full source text (post, page snapshots) the quote must be found in. */
+    sourceKeys: text("source_keys", { mode: "json" }).$type<string[]>(),
+    /** The classifier's output (feed items); its presence means classify has run. */
+    classification: text("classification", { mode: "json" }),
+    /** Why the event is in pending_review or rejected, for the admin view. */
+    reviewReason: text("review_reason"),
+    quoteFound: integer("quote_found", { mode: "boolean" }),
+    /** Semantic dedupe: the older event this one repeats (status is then `rejected`). */
+    duplicateOf: integer("duplicate_of"),
   },
   (t) => [index("events_status_detected").on(t.status, t.detectedAt)],
 );
@@ -120,6 +130,26 @@ export const jobs = sqliteTable(
   (t) => [index("jobs_run_after").on(t.runAfter)],
 );
 
+// One row per LLM request (SPEC §6), for cost tracking. Extra columns are M2 additions.
+export const llmCalls = sqliteTable(
+  "llm_calls",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    purpose: text("purpose").notNull(),
+    model: text("model").notNull(),
+    inputTokens: integer("input_tokens").notNull(),
+    outputTokens: integer("output_tokens").notNull(),
+    cacheReadTokens: integer("cache_read_tokens").notNull().default(0),
+    cacheWriteTokens: integer("cache_write_tokens").notNull().default(0),
+    costUsd: real("cost_usd").notNull(),
+    eventId: integer("event_id"),
+    /** ok | refusal | incomplete */
+    outcome: text("outcome").notNull(),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [index("llm_calls_created").on(t.createdAt)],
+);
+
 // robots.txt cache, one row per host (M1 addition).
 export const robots = sqliteTable("robots", {
   host: text("host").primaryKey(),
@@ -131,3 +161,4 @@ export type Source = typeof sources.$inferSelect;
 export type Job = typeof jobs.$inferSelect;
 export type Event = typeof events.$inferSelect;
 export type NewEvent = typeof events.$inferInsert;
+export type LlmCall = typeof llmCalls.$inferSelect;

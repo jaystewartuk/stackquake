@@ -4,7 +4,7 @@ import type { Ctx } from "../context";
 import type { Source } from "../db/schema";
 import { changedChars, diffLines, excerpts } from "./diff";
 import { MAX_EVENT_TEXT, recordEvent } from "./events";
-import { catalogLinks, loadSnapshot, scopeOf } from "./poll";
+import { catalogLinks, loadSnapshot, scopeOf, snapshotKey } from "./poll";
 
 export const MIN_CHANGED_CHARS = 20;
 
@@ -23,6 +23,7 @@ export async function extractDiff(ctx: Ctx, source: Source, oldSha: string, newS
   const links = await catalogLinks(ctx, source.id);
   const { id, created } = await recordEvent(ctx, {
     sourceId: source.id,
+    sourceKind: source.kind,
     catalogId: scopeOf(links),
     change: {
       kind: "other",
@@ -31,6 +32,8 @@ export async function extractDiff(ctx: Ctx, source: Source, oldSha: string, newS
       quoteUrl: source.url,
       beforeText,
       afterText,
+      // The quote check looks in the whole page, before and after.
+      sourceKeys: [snapshotKey(newSha), snapshotKey(oldSha)],
     },
   });
   return { type: "event", eventId: id, created, changedChars: chars };

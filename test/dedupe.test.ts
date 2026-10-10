@@ -17,11 +17,13 @@ describe("dedupe", () => {
     // punctuation and case differences do not matter.
     const viaFeed = await recordEvent(ctx, {
       sourceId: feed.id,
+      sourceKind: "feed",
       catalogId: "deno",
       change: { kind: "eol", title: "Deno runtime: development ends in about a year", quoteUrl: "https://deno.com/blog/deno-joins-cloudflare" },
     });
     const viaPage = await recordEvent(ctx, {
       sourceId: page.id,
+      sourceKind: "page",
       catalogId: "deno",
       change: { kind: "eol", title: "Deno runtime — development ends in about a year!", quoteUrl: "https://deno.com/deploy/pricing" },
     });

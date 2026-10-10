@@ -2,13 +2,14 @@ import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { jobs, type Job, type JobKind } from "../src/db/schema";
 import { claimJobs, enqueue, LOCK_MS, RETRY_BACKOFF } from "../src/jobs/queue";
+import { DEFAULT_MODELS } from "../src/context";
 import { HostGate, runTick, type StepHandler } from "../src/jobs/runner";
 import { MINUTE } from "../src/util";
 import { resetDb, testCtx } from "./helpers";
 
 beforeEach(resetDb);
 
-const steps = (handler: StepHandler): Record<JobKind, StepHandler> => ({ poll: handler, extract_diff: handler });
+const steps = (handler: StepHandler): Record<JobKind, StepHandler> => ({ poll: handler, extract_diff: handler, fetch_post: handler, classify: handler, summarise: handler });
 const getJob = async (ctx: ReturnType<typeof testCtx>["ctx"], id: number) => (await ctx.db.select().from(jobs).where(eq(jobs.id, id)).get())!;
 
 describe("job runner", () => {
@@ -59,7 +60,7 @@ describe("job runner", () => {
   });
 
   it("two ticks running at once never run the same job", async () => {
-    const { ctx } = testCtx({ config: { jobsPerTick: 7, userAgent: "t" } });
+    const { ctx } = testCtx({ config: { jobsPerTick: 7, userAgent: "t", models: DEFAULT_MODELS } });
     for (let i = 0; i < 20; i++) await enqueue(ctx, { kind: "extract_diff", dedupeKey: `j${i}` });
     const runs: number[] = [];
     const slow = steps(async (_ctx, job: Job) => {
@@ -148,7 +149,7 @@ describe("Free-plan safety", () => {
 
 describe("crash isolation", () => {
   it("runs a job that did not finish last time alone, handing the others back", async () => {
-    const { ctx, clock } = testCtx({ config: { jobsPerTick: 3, userAgent: "t" } });
+    const { ctx, clock } = testCtx({ config: { jobsPerTick: 3, userAgent: "t", models: DEFAULT_MODELS } });
     for (const k of ["a", "b", "c"]) await enqueue(ctx, { kind: "extract_diff", dedupeKey: k });
     // First tick dies mid-way: all three were claimed, none recorded.
     expect(await claimJobs(ctx, 3)).toHaveLength(3);

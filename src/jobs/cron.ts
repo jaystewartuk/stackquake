@@ -3,7 +3,7 @@ import { syncCatalog, type CatalogEntry } from "../catalog/catalog";
 import type { Ctx } from "../context";
 import { snapshots } from "../db/schema";
 import { DAY } from "../util";
-import { ensurePollJobs, pruneJobs } from "./queue";
+import { ensurePipelineJobs, ensurePollJobs, pruneJobs } from "./queue";
 import { runTick, type TickReport } from "./runner";
 
 export const KEEP_BODIES = 20;
@@ -36,10 +36,11 @@ export async function pruneSnapshots(ctx: Ctx): Promise<{ blobsDeleted: number; 
   return { blobsDeleted: keys.length, rowsDeleted: deleted.length };
 }
 
-/** The daily cron: sync the catalog, schedule overdue polls, prune. */
+/** The daily cron: sync the catalog, schedule overdue polls and stalled pipeline steps, prune. */
 export async function runDaily(ctx: Ctx, entries: CatalogEntry[]) {
   const synced = await syncCatalog(ctx, entries);
   await ensurePollJobs(ctx);
+  await ensurePipelineJobs(ctx);
   const pruned = await pruneSnapshots(ctx);
   await pruneJobs(ctx);
   return { synced, pruned };

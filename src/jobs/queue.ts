@@ -105,6 +105,21 @@ export async function ensurePollJobs(ctx: Ctx): Promise<void> {
 }
 
 /**
+ * Daily: make sure every event still waiting for the LLM has a pipeline job (repairs anything
+ * lost, for example a crash between writing an event and queueing its step).
+ */
+export async function ensurePipelineJobs(ctx: Ctx): Promise<void> {
+  await ctx.db.run(sql`
+    INSERT INTO jobs (kind, event_id, run_after, attempts, dedupe_key)
+    SELECT step, id, ${ctx.clock.now()}, 0, step || ':' || id FROM (
+      SELECT e.id, CASE WHEN s.kind = 'feed' AND e.classification IS NULL THEN 'fetch_post' ELSE 'summarise' END AS step
+      FROM events e JOIN sources s ON s.id = e.source_id
+      WHERE e.status = 'pending_llm' AND NOT EXISTS (SELECT 1 FROM jobs j WHERE j.event_id = e.id))
+    WHERE true
+    ON CONFLICT (dedupe_key) DO NOTHING`);
+}
+
+/**
  * Daily: revive parked polls (a parked recurring job would stop the source for good; the error
  * stays on the job for the admin view) and drop parked one-off jobs after 30 days.
  */

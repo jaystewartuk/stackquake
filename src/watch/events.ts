@@ -1,7 +1,8 @@
 // Event creation with dedupe (SPEC §6 events.dedupe_key, §7.3 step 1).
 import { eq } from "drizzle-orm";
 import type { Ctx } from "../context";
-import { events, type EventKind } from "../db/schema";
+import { events, type EventKind, type SourceKind } from "../db/schema";
+import { enqueueStep, firstStep } from "../pipeline/steps";
 import type { DetectedChange } from "../sources/types";
 import { sha256Hex, truncate } from "../util";
 
@@ -27,13 +28,17 @@ export function dedupeKey(scope: string, kind: EventKind, title: string): Promis
 
 export interface RecordInput {
   sourceId: number;
+  sourceKind: SourceKind;
   /** Catalog entry, or null for sources outside the catalog (scope is then the source). */
   catalogId: string | null;
   change: DetectedChange;
 }
 
-/** Inserts a pending_llm event unless one with the same dedupe key exists. */
-export async function recordEvent(ctx: Ctx, { sourceId, catalogId, change }: RecordInput): Promise<{ id: number; created: boolean }> {
+/**
+ * Inserts a pending_llm event unless one with the same dedupe key exists, and queues its first
+ * pipeline step (M2).
+ */
+export async function recordEvent(ctx: Ctx, { sourceId, sourceKind, catalogId, change }: RecordInput): Promise<{ id: number; created: boolean }> {
   const scope = catalogId ?? `source:${sourceId}`;
   const base = change.dedupeTitle ?? change.title;
   const key = await dedupeKey(scope, change.kind, change.repeatable ? `${base} ${new Date(ctx.clock.now()).toISOString().slice(0, 7)}` : base);
@@ -52,10 +57,14 @@ export async function recordEvent(ctx: Ctx, { sourceId, catalogId, change }: Rec
       beforeText: change.beforeText ? truncate(change.beforeText, MAX_EVENT_TEXT) : null,
       afterText: change.afterText ? truncate(change.afterText, MAX_EVENT_TEXT) : null,
       dedupeKey: key,
+      sourceKeys: change.sourceKeys ?? null,
     })
     .onConflictDoNothing({ target: events.dedupeKey })
     .returning({ id: events.id });
-  if (inserted.length) return { id: inserted[0].id, created: true };
+  if (inserted.length) {
+    await enqueueStep(ctx, firstStep(sourceKind), inserted[0].id);
+    return { id: inserted[0].id, created: true };
+  }
   const existing = await ctx.db.select({ id: events.id }).from(events).where(eq(events.dedupeKey, key)).get();
   return { id: existing!.id, created: false };
 }

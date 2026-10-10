@@ -48,7 +48,8 @@ export function compareGithub(prev: GithubState, next: GithubState, licenceText?
   const url = `https://github.com/${next.fullName}`;
   const out: DetectedChange[] = [];
   if (!prev.archived && next.archived) {
-    out.push({ kind: "archived", title: `${next.fullName}: repository archived`, dedupeTitle: "archived", repeatable: true, quoteUrl: url });
+    // The field itself is the source text the note's quote must come from (M2 quote check).
+    out.push({ kind: "archived", title: `${next.fullName}: repository archived`, dedupeTitle: "archived", repeatable: true, quoteUrl: url, beforeText: '"archived": false', afterText: '"archived": true' });
   }
   if ((prev.spdx ?? "") !== (next.spdx ?? "")) {
     const from = prev.spdx ?? "no licence";
@@ -79,6 +80,8 @@ export function compareGithub(prev: GithubState, next: GithubState, licenceText?
       dedupeTitle: `transferred ${prev.owner} -> ${next.owner}`,
       repeatable: true,
       quoteUrl: url,
+      beforeText: `"full_name": "${prev.fullName}"`,
+      afterText: `"full_name": "${next.fullName}"`,
     });
   }
   return out;

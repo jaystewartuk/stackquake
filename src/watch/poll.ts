@@ -50,7 +50,7 @@ export const scopeOf = (links: CatalogLink[]) => (links.length === 1 ? links[0].
 
 async function record(ctx: Ctx, source: Source, links: CatalogLink[], changes: DetectedChange[]): Promise<number> {
   let created = 0;
-  for (const change of changes) if ((await recordEvent(ctx, { sourceId: source.id, catalogId: scopeOf(links), change })).created) created++;
+  for (const change of changes) if ((await recordEvent(ctx, { sourceId: source.id, sourceKind: source.kind, catalogId: scopeOf(links), change })).created) created++;
   return created;
 }
 

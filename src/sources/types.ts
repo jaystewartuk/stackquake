@@ -21,6 +21,8 @@ export interface DetectedChange {
   beforeText?: string | null;
   afterText?: string | null;
   effectiveDate?: string | null;
+  /** Blob keys of the full source text, for the M2 quote check (page snapshots). */
+  sourceKeys?: string[];
 }
 
 export interface CatalogLink {
