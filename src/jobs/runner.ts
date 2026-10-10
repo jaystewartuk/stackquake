@@ -1,0 +1,83 @@
+// Job runner (SPEC §7.2): claim a batch, run one step per job, record the outcome.
+import type { Ctx } from "../context";
+import type { Job, JobKind } from "../db/schema";
+import { KINDS } from "../sources/kinds";
+import { errorMessage, MINUTE } from "../util";
+import { extractDiff } from "../watch/extract-diff";
+import { getSource, pollSource } from "../watch/poll";
+import { claimJobs, completeJob, deferJob, failJob, rescheduleJob } from "./queue";
+
+export type StepResult = { type: "done" } | { type: "reschedule"; at: number } | { type: "defer" };
+
+/** One request per host per tick (SPEC §5 "Politeness"). */
+export class HostGate {
+  private readonly used = new Set<string>();
+  /** Takes all hosts or none. Synchronous, so jobs running concurrently cannot both win. */
+  take(hosts: string[]): boolean {
+    if (hosts.some((h) => this.used.has(h))) return false;
+    for (const h of hosts) this.used.add(h);
+    return true;
+  }
+}
+
+export type StepHandler = (ctx: Ctx, job: Job, gate: HostGate) => Promise<StepResult>;
+
+export const STEPS: Record<JobKind, StepHandler> = {
+  async poll(ctx, job, gate) {
+    const source = job.sourceId === null ? undefined : await getSource(ctx, job.sourceId);
+    if (!source || source.state !== "active") return { type: "done" };
+    if (!gate.take(KINDS[source.kind].hosts(source))) return { type: "defer" };
+    const report = await pollSource(ctx, source);
+    const after = await getSource(ctx, source.id);
+    return after?.state === "active" ? { type: "reschedule", at: report.nextPollAt } : { type: "done" };
+  },
+  async extract_diff(ctx, job) {
+    const source = job.sourceId === null ? undefined : await getSource(ctx, job.sourceId);
+    const p = job.payload as { oldSha?: string; newSha?: string } | null;
+    if (!source || !p?.oldSha || !p.newSha) return { type: "done" };
+    await extractDiff(ctx, source, p.oldSha, p.newSha);
+    return { type: "done" };
+  },
+};
+
+export interface TickReport {
+  claimed: number;
+  done: number;
+  rescheduled: number;
+  deferred: number;
+  retried: number;
+  parked: number;
+}
+
+const DEFER_MS = 5 * MINUTE;
+
+export async function runJob(ctx: Ctx, job: Job, gate: HostGate, steps: Record<JobKind, StepHandler>, report: TickReport): Promise<void> {
+  let result: StepResult;
+  try {
+    result = await steps[job.kind](ctx, job, gate);
+  } catch (e) {
+    const outcome = await failJob(ctx, job, errorMessage(e));
+    report[outcome === "parked" ? "parked" : "retried"]++;
+    console.error(`job ${job.id} (${job.kind}) failed, ${outcome}: ${errorMessage(e)}`);
+    return;
+  }
+  if (result.type === "done") {
+    await completeJob(ctx, job);
+    report.done++;
+  } else if (result.type === "reschedule") {
+    await rescheduleJob(ctx, job, result.at);
+    report.rescheduled++;
+  } else {
+    await deferJob(ctx, job, DEFER_MS);
+    report.deferred++;
+  }
+}
+
+/** The 5-minute cron: claim up to JOBS_PER_TICK due jobs and run one step for each. */
+export async function runTick(ctx: Ctx, steps: Record<JobKind, StepHandler> = STEPS): Promise<TickReport> {
+  const claimed = await claimJobs(ctx, ctx.config.jobsPerTick);
+  const report: TickReport = { claimed: claimed.length, done: 0, rescheduled: 0, deferred: 0, retried: 0, parked: 0 };
+  const gate = new HostGate();
+  await Promise.all(claimed.map((job) => runJob(ctx, job, gate, steps, report)));
+  return report;
+}
