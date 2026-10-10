@@ -20,7 +20,12 @@
   ],
   "r2_buckets": [{ "binding": "SNAPSHOTS", "bucket_name": "stackquake-snapshots" }],
   "vars": {
-    "JOBS_PER_TICK": "3"
+    "JOBS_PER_TICK": "3",
+    // Model per pipeline step (docs/DECISIONS.md, M2). Changing one is a config change only.
+    "LLM_MODEL_CLASSIFY": "claude-haiku-5-5",
+    "LLM_MODEL_SUMMARISE": "claude-haiku-5-5",
+    "LLM_MODEL_SUMMARISE_HIGH": "claude-opus-5-5"
   },
+  // Secrets (wrangler secret put / .dev.vars): ANTHROPIC_API_KEY, ADMIN_TOKEN, GITHUB_TOKEN.
   "observability": { "enabled": true }
 }

@@ -8,9 +8,6 @@ export interface AppEnv extends Env {
   ANTHROPIC_API_KEY?: string;
   /** Points the Claude client elsewhere (scripts/measure-cpu.mjs uses a local stub). */
   ANTHROPIC_BASE_URL?: string;
-  LLM_MODEL_CLASSIFY?: string;
-  LLM_MODEL_SUMMARISE?: string;
-  LLM_MODEL_SUMMARISE_HIGH?: string;
   /** Protects /admin until M3 adds real auth. Unset: /admin is off. */
   ADMIN_TOKEN?: string;
   /** "1" only under `wrangler dev` (set by scripts/poll.mjs). Enables /__dev routes. */
