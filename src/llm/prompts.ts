@@ -36,6 +36,8 @@ You get one of three kinds of source:
 - A change to a vendor page (pricing, limits, terms): the lines that were removed (BEFORE) and the lines that replaced them (AFTER), with a little unchanged context. Lines are separated by "…" where the page has gaps.
 - Registry or repository metadata (npm, PyPI, GitHub, endoflife.date) that changed: the detected change and the field values.
 
+When one source announces several changes, the note is about the one that affects the most people who depend on the product named in the product context (for a runtime, the runtime itself rather than a hosted add-on). Its kind, title, quote and effective_date all describe that change; mention the others in what_changed.
+
 How to answer:
 - material: for a page change, true only if the change alters what users pay, what they get, a limit or allowance, the terms, the licence, or a support or end date. Rewording, layout, navigation, links, examples, typo fixes, reordering and documentation added for existing behaviour are not material. For posts and metadata, true if the source announces a deal change, otherwise false.
 - kind: as above. For metadata, keep the detected kind unless it is "other".
