@@ -30,11 +30,17 @@ export class R2BlobStore implements BlobStore {
 export const systemClock: Clock = { now: () => Date.now() };
 
 export const CRON_TICK = "*/5 * * * *";
+/**
+ * A second tick, 3 minutes after each first one (docs/DECISIONS.md, M4: capacity). Each cron
+ * invocation has its own 10 ms CPU budget and its own HEAVY token, so this doubles what the
+ * runner can do per day on the Free plan. Minutes ≡ 3 (mod 5) keep clear of the daily run at :07.
+ */
+export const CRON_TICK_2 = "3-58/5 * * * *";
 // Off the 5-minute grid, so the daily prune never overlaps a tick.
 export const CRON_DAILY = "7 6 * * *";
 
 export function cronTask(cron: string): CronTask {
-  if (cron === CRON_TICK) return "tick";
+  if (cron === CRON_TICK || cron === CRON_TICK_2) return "tick";
   if (cron === CRON_DAILY) return "daily";
   throw new Error(`unknown cron ${cron}`);
 }

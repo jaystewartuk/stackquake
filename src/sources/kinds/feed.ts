@@ -46,8 +46,9 @@ export function looksLikeHtml(body: string): boolean {
 
 export const feed: KindHandler = {
   kind: "feed",
-  // SPEC says 1 h. 2 h still meets G1 (24 h) and halves feed load on the Free plan.
-  intervalMs: 2 * HOUR,
+  // SPEC says 1 h. 3 h still meets G1 (24 h) and keeps feed polls inside the runner's HEAVY
+  // budget on the Free plan (docs/DECISIONS.md, M4: capacity).
+  intervalMs: 3 * HOUR,
   gate: (source) => [hostOf(source.url), HEAVY],
   async poll(ctx, { source, prev, links }) {
     const r = await politeFetch(ctx, source.url, {

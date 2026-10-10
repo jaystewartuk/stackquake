@@ -104,9 +104,13 @@ export async function runJob(ctx: Ctx, job: Job, gate: HostGate, steps: Record<J
   }
 }
 
-/** The 5-minute cron: claim up to JOBS_PER_TICK due jobs and run one step for each. */
+/**
+ * The 5-minute cron: claim up to JOBS_PER_TICK due jobs plus up to ALERT_JOBS_PER_TICK alert
+ * jobs (fan-out, delivery, digest), and run one step for each. The separate allowance means a
+ * burst of deliveries never waits behind polls, and never pushes polls back.
+ */
 export async function runTick(ctx: Ctx, steps: Record<JobKind, StepHandler> = STEPS): Promise<TickReport> {
-  const claimed = await claimJobs(ctx, ctx.config.jobsPerTick);
+  const claimed = [...(await claimJobs(ctx, ctx.config.jobsPerTick)), ...(await claimJobs(ctx, ctx.config.alertJobsPerTick, "alerts"))];
   const report: TickReport = { claimed: claimed.length, sources: claimed.map((j) => j.sourceId), kinds: claimed.map((j) => j.kind), done: 0, rescheduled: 0, deferred: 0, retried: 0, parked: 0 };
   const gate = new HostGate();
   // A job that did not finish cleanly last time may be one that kills the invocation (CPU

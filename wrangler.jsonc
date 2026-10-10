@@ -6,8 +6,10 @@
   // Generates src/catalog/catalog.gen.json from catalog/*.yaml before dev and deploy.
   "build": { "command": "node scripts/build-catalog.mjs" },
   "triggers": {
-    // */5: claim and run due jobs. Daily: sync catalog, schedule overdue polls, prune.
-    "crons": ["*/5 * * * *", "7 6 * * *"]
+    // */5 and 3-58/5: claim and run due jobs (two ticks every 5 minutes, each with its own CPU
+    // budget). Daily: sync catalog, schedule overdue polls, digests, budget check, prune.
+    // 3 of the account's 5 Free-plan cron triggers.
+    "crons": ["*/5 * * * *", "3-58/5 * * * *", "7 6 * * *"]
   },
   "d1_databases": [
     {
@@ -21,6 +23,8 @@
   "r2_buckets": [{ "binding": "SNAPSHOTS", "bucket_name": "stackquake-snapshots" }],
   "vars": {
     "JOBS_PER_TICK": "3",
+    // Fan-out, delivery and digest jobs per tick, on top of JOBS_PER_TICK (docs/DECISIONS.md, M4).
+    "ALERT_JOBS_PER_TICK": "3",
     // Model per pipeline step (docs/DECISIONS.md, M2). Changing one is a config change only.
     "LLM_MODEL_CLASSIFY": "claude-haiku-5-5",
     "LLM_MODEL_SUMMARISE": "claude-haiku-5-5",

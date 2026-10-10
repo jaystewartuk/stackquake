@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, lt, lte, notInArray, or, sql } from "drizzle-orm";
 import type { Ctx } from "../context";
 import { jobs, type Job, type JobKind } from "../db/schema";
 import { DAY, HOUR, MINUTE } from "../util";
@@ -33,16 +33,22 @@ export async function enqueue(ctx: Ctx, job: EnqueueInput): Promise<void> {
 
 export const pollJobKey = (sourceId: number) => `poll:${sourceId}`;
 
+/** Fan-out, delivery and digests: claimed from their own per-tick allowance (docs/DECISIONS.md, M4). */
+export const ALERT_JOB_KINDS: JobKind[] = ["fanout", "deliver", "digest"];
+
 /**
  * Atomically locks up to `n` due jobs and returns them. One UPDATE … WHERE id IN (SELECT …)
- * RETURNING statement, so two ticks running at once can never claim the same job.
+ * RETURNING statement, so two ticks running at once can never claim the same job. `pool` picks
+ * alert jobs or everything else.
  */
-export async function claimJobs(ctx: Ctx, n: number): Promise<Job[]> {
+export async function claimJobs(ctx: Ctx, n: number, pool: "alerts" | "other" = "other"): Promise<Job[]> {
+  if (n <= 0) return [];
   const now = ctx.clock.now();
+  const kinds = pool === "alerts" ? inArray(jobs.kind, ALERT_JOB_KINDS) : notInArray(jobs.kind, ALERT_JOB_KINDS);
   const due = ctx.db
     .select({ id: jobs.id })
     .from(jobs)
-    .where(and(lte(jobs.runAfter, now), isNull(jobs.parkedAt), or(isNull(jobs.lockedUntil), lt(jobs.lockedUntil, now))))
+    .where(and(kinds, lte(jobs.runAfter, now), isNull(jobs.parkedAt), or(isNull(jobs.lockedUntil), lt(jobs.lockedUntil, now))))
     .orderBy(asc(jobs.runAfter), asc(jobs.id))
     .limit(n);
   // attempts counts claims; success resets it, a deferral gives it back. run_after moves to the

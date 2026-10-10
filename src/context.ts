@@ -12,6 +12,8 @@ export interface LlmModels {
 
 export interface Config {
   jobsPerTick: number;
+  /** Fan-out, delivery and digest jobs per tick, on top of jobsPerTick. */
+  alertJobsPerTick: number;
   userAgent: string;
   githubToken?: string;
   models: LlmModels;
@@ -51,6 +53,7 @@ export const DEFAULT_MODELS: LlmModels = {
 
 export interface ConfigEnv {
   JOBS_PER_TICK?: string;
+  ALERT_JOBS_PER_TICK?: string;
   GITHUB_TOKEN?: string;
   LLM_MODEL_CLASSIFY?: string;
   LLM_MODEL_SUMMARISE?: string;
@@ -74,8 +77,10 @@ export const GITHUB_RAW = "https://raw.githubusercontent.com";
 
 export function configFromEnv(env: ConfigEnv): Config {
   const n = Number(env.JOBS_PER_TICK ?? "3");
+  const a = Number(env.ALERT_JOBS_PER_TICK ?? "3");
   return {
     jobsPerTick: Number.isInteger(n) && n > 0 ? n : 3,
+    alertJobsPerTick: Number.isInteger(a) && a >= 0 ? a : 3,
     userAgent: USER_AGENT,
     githubToken: env.GITHUB_TOKEN || undefined,
     models: {

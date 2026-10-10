@@ -1,5 +1,6 @@
 // Local-only routes used by `npm run poll` (scripts/poll.mjs drives them under `wrangler dev`).
-import { and, eq, inArray, isNull, lte, ne } from "drizzle-orm";
+import { and, eq, inArray, isNull, lte, ne, sql } from "drizzle-orm";
+import { enqueueFanout } from "./alerts/fanout";
 import { Hono } from "hono";
 import { syncCatalog } from "./catalog/catalog";
 import { CATALOG } from "./catalog/entries";
@@ -100,6 +101,42 @@ devRoutes.post("/seed-pipeline", async (c) => {
   for (const [sha, text] of [[oldSha, before], [newSha, after]]) await ctx.blobs.put(snapshotKey(sha), await gzip(utf8(text)));
   await enqueue(ctx, { kind: "extract_diff", sourceId: page.id, payload: { oldSha, newSha }, dedupeKey: `diff:${page.id}:${oldSha}:${newSha}` });
   await recordEvent(ctx, { sourceId: npm.id, sourceKind: "npm", catalogId: null, change: { kind: "license", title: `${npm.key} (npm): licence changed from MIT to BUSL-1.1`, dedupeTitle: `licence MIT -> BUSL-1.1 ${Date.now()}`, quoteUrl: npm.url, beforeText: '"license": "MIT"', afterText: '"license": "BUSL-1.1" (version 9.0.0)' } });
+  return c.json({ ok: true });
+});
+
+/**
+ * Seeds alert work (used by scripts/measure-cpu.mjs): `users` users, each with a project whose
+ * Redis dep links the npm redis source; every `affectedEvery`-th runs it self-hosted. Then
+ * publishes a self-hosted licence change (urgent: deliveries) and a pricing change for everyone
+ * (held for the digest), and queues their fan-out. The first `digestUsers` affected users get
+ * today as their digest day.
+ */
+devRoutes.post("/seed-alerts", async (c) => {
+  const ctx = makeCtx(c.env);
+  const { users: n, affectedEvery, digestUsers } = await c.req.json<{ users: number; affectedEvery: number; digestUsers: number }>();
+  const now = ctx.clock.now();
+  const today = new Date(now).getUTCDay();
+  const src = (await ctx.db.select().from(sources).where(and(eq(sources.kind, "npm"), eq(sources.key, "redis"))).get())!;
+  await ctx.db.run(sql`WITH RECURSIVE i(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM i WHERE x < ${n})
+    INSERT INTO users (id, email, digest_day, created_at)
+    SELECT 100000 + x, 'measure' || x || '@example.com',
+           CASE WHEN x % ${affectedEvery} = 0 AND x / ${affectedEvery} <= ${digestUsers} THEN ${today} ELSE ${(today + 1) % 7} END, ${now} FROM i`);
+  await ctx.db.run(sql`INSERT INTO projects (id, user_id, name, default_profile, created_at) SELECT id, id, 'Measured', '{}', ${now} FROM users WHERE id > 100000`);
+  await ctx.db.run(sql`INSERT INTO deps (id, project_id, catalog_id, profile, origin, dep_key, created_at)
+    SELECT id, id, 'redis', CASE WHEN (id - 100000) % ${affectedEvery} = 0 THEN '{"hosting":"self_hosted"}' ELSE '{"hosting":"hosted"}' END, 'manual', 'catalog:redis', ${now}
+    FROM projects WHERE id > 100000`);
+  await ctx.db.run(sql`INSERT INTO dep_sources (dep_id, source_id) SELECT id, ${src.id} FROM deps WHERE id > 100000`);
+  const base = { sourceId: src.id, catalogId: "redis", detectedAt: now, publishedAt: now, status: "published" as const, confidence: 0.95, quoteUrl: "https://www.npmjs.com/package/redis" };
+  const note = (kind: "license" | "pricing", title: string, hosting: ("hosted" | "self_hosted")[]) => ({
+    material: true, kind, title, what_changed: "Measured change. ".repeat(10), quote: '"license": "SSPL-1.0"', effective_date: null,
+    applies_when: { hosting, use: [], tier: [] }, who_is_not_affected: null,
+    options: [{ catalog_id: "valkey", name: "Valkey", why: "BSD-licensed fork", effort: "low" }], uncertain: ["Whether older versions change"], confidence: 0.95,
+  });
+  for (const [kind, title, hosting] of [["license", "Redis licence moves to SSPL", ["self_hosted"]], ["pricing", "Redis Cloud prices change", []]] as const) {
+    const n = note(kind, title, [...hosting]);
+    const [e] = await ctx.db.insert(events).values({ ...base, kind, title, quote: n.quote, note: n, appliesWhen: n.applies_when, dedupeKey: `measure:${kind}:${now}` }).returning();
+    await enqueueFanout(ctx, e.id);
+  }
   return c.json({ ok: true });
 });
 

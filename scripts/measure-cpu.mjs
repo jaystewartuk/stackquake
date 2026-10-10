@@ -15,6 +15,7 @@ import { createServer } from "node:net";
 import WebSocket from "ws";
 
 const JOBS_PER_TICK = process.env.JOBS_PER_TICK ?? "3";
+const ALERT_JOBS_PER_TICK = process.env.ALERT_JOBS_PER_TICK ?? "3";
 const persist = ".wrangler/measure";
 rmSync(persist, { recursive: true, force: true });
 
@@ -73,6 +74,7 @@ const stub = createHttpServer((req, res) => {
   req.on("end", () => {
     const gh = ghRoutes.get(decodeURIComponent(req.url));
     if (gh !== undefined) return res.writeHead(200, { "content-type": typeof gh === "string" ? "text/plain" : "application/json" }).end(typeof gh === "string" ? gh : JSON.stringify(gh));
+    if (req.method === "POST" && req.url === "/resend/emails") return res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ id: "stub" }));
     if (req.url === "/post") return res.writeHead(200, { "content-type": "text/html; charset=utf-8" }).end(postHtml);
     if (req.method === "POST" && req.url.startsWith("/v1/messages")) {
       const body = JSON.parse(data);
@@ -96,6 +98,7 @@ const wrangler = spawn(
   "npx",
   ["wrangler", "dev", "--test-scheduled", "--port", String(port), "--ip", "127.0.0.1", "--inspector-port", String(inspectorPort), "--persist-to", persist,
     "--var", `JOBS_PER_TICK:${JOBS_PER_TICK}`, "--var", "DEV_ROUTES:1", "--var", `ANTHROPIC_BASE_URL:http://127.0.0.1:${stubPort}`, "--var", "ANTHROPIC_API_KEY:stub",
+    "--var", `ALERT_JOBS_PER_TICK:${ALERT_JOBS_PER_TICK}`, "--var", `RESEND_API_BASE:http://127.0.0.1:${stubPort}/resend`, "--var", "RESEND_API_KEY:stub", "--var", "LINK_SECRET:measure-link-secret-0123456789",
     "--var", `GITHUB_API_BASE:http://127.0.0.1:${stubPort}/gh`, "--var", `GITHUB_RAW_BASE:http://127.0.0.1:${stubPort}/raw`,
     "--show-interactive-dev-session=false"],
   { stdio: ["ignore", "pipe", "pipe"] },
@@ -195,7 +198,8 @@ const daily = await run("7 6 * * *");
 rows.push({ phase: "daily", ...daily });
 for (const phase of ["first polls", "steady state"]) {
   if (phase === "steady state") await fetch(`${base}/__dev/due`, { method: "POST" });
-  for (let i = 0; i < Math.ceil(60 / Number(JOBS_PER_TICK)) + 10; i++) {
+  // Enough ticks for every source (each tick runs at most one page or feed poll).
+  for (let i = 0; i < daily.result.synced.sources + 10; i++) {
     const r = await run("*/5 * * * *");
     if (r.result.claimed === 0) break;
     rows.push({ phase, ...r });
@@ -216,7 +220,24 @@ for (let i = 0; i < 40; i++) {
   rows.push({ phase: "pipeline", ...r });
   await fetch(`${base}/__dev/due?pipeline=1&within=${24 * 3_600_000}`, { method: "POST" });
 }
+// Alerts: 450 users with Redis; a licence change for the self-hosted ones (fan-out in 3 chunks,
+// then 9 deliveries through a Resend stub) and a pricing change for everyone (held for the
+// digest). The daily run then queues the digests of the 5 users whose digest day is today.
+await fetch(`${base}/__dev/seed-alerts`, { method: "POST", body: JSON.stringify({ users: 450, affectedEvery: 50, digestUsers: 5 }) });
+await fetch(`${base}/__dev/due?pipeline=1`, { method: "POST" });
+for (let i = 0; i < 40; i++) {
+  const r = await run("*/5 * * * *");
+  if (r.result.claimed === 0) break;
+  rows.push({ phase: "alerts", ...r });
+  await fetch(`${base}/__dev/due?pipeline=1&within=${24 * 3_600_000}`, { method: "POST" });
+}
 rows.push({ phase: "daily again", ...(await run("7 6 * * *")) });
+await fetch(`${base}/__dev/due?pipeline=1`, { method: "POST" });
+for (let i = 0; i < 20; i++) {
+  const r = await run("*/5 * * * *");
+  if (r.result.claimed === 0) break;
+  rows.push({ phase: "digest", ...r });
+}
 
 // Web: one HTTP request per measurement, profiled the same way as a tick.
 async function profileFetch(path, init = {}) {
@@ -229,8 +250,10 @@ async function profileFetch(path, init = {}) {
 const session = await (await fetch(`${base}/__dev/session`, { method: "POST", body: JSON.stringify({ email: "measure@example.com" }) })).json();
 const webRows = [];
 const form = (fields) => ({ method: "POST", body: new URLSearchParams({ _csrf: session.csrf, ...fields }), headers: { "content-type": "application/x-www-form-urlencoded", origin: base } });
+let lastProject;
 for (const repo of ["acme/shop", "acme/big"]) {
   const created = await profileFetch("/app/projects", form({ name: repo, repo, next: "import" }));
+  lastProject = /\/app\/projects\/(\d+)/.exec(created.location)[1];
   webRows.push({ what: `POST /app/projects (${repo})`, ...created });
   for (let i = 0; i < 12; i++) {
     const r = await profileFetch(created.location);
@@ -239,16 +262,16 @@ for (const repo of ["acme/shop", "acme/big"]) {
     if (r.status !== 200 || r.body.includes("Import failed")) break;
   }
 }
-const projectPage = await profileFetch("/app/projects/2");
+const projectPage = await profileFetch(`/app/projects/${lastProject}`);
 const depId = /\/app\/deps\/(\d+)/.exec(projectPage.body)?.[1];
-for (const path of ["/app", "/app/projects/2", "/app/projects/2/services", "/app/projects/2/profiles", `/app/deps/${depId}`, "/", "/catalog", "/catalog/supabase", "/events", "/events.rss"]) {
+for (const path of ["/app", `/app/projects/${lastProject}`, `/app/projects/${lastProject}/services`, `/app/projects/${lastProject}/profiles`, `/app/deps/${depId}`, "/", "/catalog", "/catalog/supabase", "/events", "/events.rss"]) {
   for (const pass of [1, 2]) webRows.push({ what: `GET ${path}${pass === 2 ? " (again)" : ""}`, ...(await profileFetch(path)) });
 }
 const keys = new Map((await (await fetch(`${base}/__dev/sources`)).json()).map((s) => [s.id, `${s.kind} ${s.key}`]));
 ws.close();
 wrangler.kill("SIGTERM");
 
-console.log(`JOBS_PER_TICK=${JOBS_PER_TICK}`);
+console.log(`JOBS_PER_TICK=${JOBS_PER_TICK} ALERT_JOBS_PER_TICK=${ALERT_JOBS_PER_TICK}`);
 console.log("phase         claimed done resch defer retry  cpu ms  wall ms  sample µs");
 for (const r of rows) {
   const t = r.result;
@@ -259,6 +282,10 @@ for (const r of rows) {
 const ticks = rows.filter((r) => !r.phase.startsWith("daily"));
 const pipe = rows.filter((r) => r.phase === "pipeline");
 if (pipe.length) console.log(`max CPU per pipeline tick: ${Math.max(...pipe.map((r) => r.cpu)).toFixed(2)} ms`);
+for (const phase of ["alerts", "digest"]) {
+  const list = rows.filter((r) => r.phase === phase);
+  if (list.length) console.log(`max CPU per ${phase} tick: ${Math.max(...list.map((r) => r.cpu)).toFixed(2)} ms`);
+}
 console.log("\nweb request                                              status  cpu ms  wall ms  bytes");
 for (const r of webRows) console.log(`${r.what.slice(0, 56).padEnd(56)} ${String(r.status).padStart(6)} ${r.cpu.toFixed(2).padStart(7)} ${r.wall.toFixed(0).padStart(8)} ${String(r.body.length).padStart(6)}`);
 console.log(`max CPU per web request: ${Math.max(...webRows.map((r) => r.cpu)).toFixed(2)} ms`);

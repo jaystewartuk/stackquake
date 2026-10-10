@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { jobs, type Job, type JobKind } from "../src/db/schema";
 import { claimJobs, enqueue, LOCK_MS, RETRY_BACKOFF } from "../src/jobs/queue";
 import { HostGate, runTick, type StepHandler } from "../src/jobs/runner";
+import { cronTask } from "../src/platform/cloudflare";
 import { MINUTE } from "../src/util";
 import { resetDb, testCtx } from "./helpers";
 
@@ -161,6 +162,28 @@ describe("crash isolation", () => {
     const left = await ctx.db.select().from(jobs).all();
     expect(left.map((j) => j.attempts)).toEqual([1, 1]);
     expect(left.every((j) => j.runAfter <= clock.now())).toBe(true);
+  });
+});
+
+describe("alert job allowance", () => {
+  it("fan-out, delivery and digest jobs have their own per-tick allowance on top of JOBS_PER_TICK", async () => {
+    const { ctx } = testCtx({ config: { ...testCtx().ctx.config, jobsPerTick: 3, alertJobsPerTick: 2 } });
+    // Older polls first, so a shared allowance would never reach the deliveries.
+    for (let i = 0; i < 6; i++) await enqueue(ctx, { kind: "poll", dedupeKey: `p${i}`, runAfter: ctx.clock.now() - 1_000 });
+    for (let i = 0; i < 4; i++) await enqueue(ctx, { kind: "deliver", dedupeKey: `d${i}` });
+    const report = await runTick(ctx, steps(async () => ({ type: "done" })));
+    expect(report.kinds).toEqual(["poll", "poll", "poll", "deliver", "deliver"]);
+    // The rest next tick.
+    expect((await runTick(ctx, steps(async () => ({ type: "done" })))).kinds).toEqual(["poll", "poll", "poll", "deliver", "deliver"]);
+  });
+});
+
+describe("cron triggers", () => {
+  it("both tick crons run the tick; the daily one runs the daily task", () => {
+    expect(cronTask("*/5 * * * *")).toBe("tick");
+    expect(cronTask("3-58/5 * * * *")).toBe("tick");
+    expect(cronTask("7 6 * * *")).toBe("daily");
+    expect(() => cronTask("* * * * *")).toThrow();
   });
 });
 
