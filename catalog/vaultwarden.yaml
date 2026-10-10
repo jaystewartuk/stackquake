@@ -1,0 +1,13 @@
+id: vaultwarden
+name: Vaultwarden
+category: security
+aliases: [bitwarden_rs]
+detect:
+  files: []
+sources:
+  - kind: github_repo
+    repo: dani-garcia/vaultwarden
+  - kind: feed
+    url: https://github.com/dani-garcia/vaultwarden/releases.atom
+alternatives: [bitwarden]
+usage_questions: [self_hosted]

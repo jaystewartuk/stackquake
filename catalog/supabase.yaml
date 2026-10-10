@@ -1,0 +1,23 @@
+id: supabase
+name: Supabase
+category: database
+aliases: [supabase-js]
+detect:
+  files: [supabase/config.toml]
+  npm: ["@supabase/supabase-js"]
+  pypi: [supabase]
+sources:
+  - kind: feed
+    url: https://supabase.com/rss.xml
+    filter: [pricing, free, plan, licen, billing, pause, limit]
+  - kind: page
+    url: https://supabase.com/pricing
+    selector: main
+  - kind: github_repo
+    repo: supabase/supabase
+  - kind: npm
+    package: "@supabase/supabase-js"
+  - kind: pypi
+    package: supabase
+alternatives: [neon, firebase, planetscale]
+usage_questions: [hosted, self_hosted, tier]

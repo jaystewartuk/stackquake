@@ -1,0 +1,18 @@
+id: bun
+name: Bun
+category: runtime
+aliases: [bunjs]
+detect:
+  files: [bun.lockb, bun.lock, bunfig.toml]
+  npm: [bun-types, "@types/bun"]
+sources:
+  - kind: feed
+    url: https://bun.com/rss.xml
+  - kind: github_repo
+    repo: oven-sh/bun
+  - kind: eol
+    product: bun
+  - kind: npm
+    package: bun
+alternatives: [nodejs, deno]
+usage_questions: [commercial]

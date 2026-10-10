@@ -1,0 +1,21 @@
+id: terraform
+name: Terraform
+category: infrastructure
+aliases: [hashicorp terraform, tf]
+detect:
+  files: ["*.tf", .terraform.lock.hcl]
+sources:
+  - kind: github_repo
+    repo: hashicorp/terraform
+  - kind: eol
+    product: terraform
+  # hashicorp.com answers automated clients with a Vercel Security Checkpoint (HTTP 429 + challenge).
+  # Kept so the source shows up as blocked in the admin view rather than silently missing.
+  - kind: feed
+    url: https://www.hashicorp.com/blog/feed.xml
+    filter: [terraform, licen, bsl, pricing, ibm, end of life]
+  - kind: page
+    url: https://www.hashicorp.com/en/license-faq
+    selector: main
+alternatives: [opentofu, pulumi]
+usage_questions: [self_hosted, commercial]

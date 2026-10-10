@@ -1,0 +1,25 @@
+id: vercel
+name: Vercel
+category: hosting
+aliases: [zeit, vercel functions]
+detect:
+  files: [vercel.json, vercel.ts]
+  npm: [vercel, "@vercel/node"]
+sources:
+  # The Atom feed is about 3.7 MB; only the first 1 MB (the newest entries) is read.
+  - kind: feed
+    url: https://vercel.com/atom
+    filter: [pricing, hobby, free, plan, limits, billing, terms]
+  # Vercel serves its docs as Markdown to non-browser clients, so no selector is needed there.
+  - kind: page
+    url: https://vercel.com/docs/plans/hobby
+    selector: main
+  - kind: page
+    url: https://vercel.com/docs/limits
+    selector: main
+  - kind: npm
+    package: vercel
+  - kind: github_repo
+    repo: vercel/vercel
+alternatives: [cloudflare-workers, netlify, fly-io]
+usage_questions: [hosted, commercial, tier]

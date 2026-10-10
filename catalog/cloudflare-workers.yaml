@@ -1,0 +1,23 @@
+id: cloudflare-workers
+name: Cloudflare Workers
+category: hosting
+aliases: [workers, wrangler]
+detect:
+  files: [wrangler.toml, wrangler.json, wrangler.jsonc]
+  npm: [wrangler, "@cloudflare/workers-types"]
+sources:
+  - kind: feed
+    url: https://blog.cloudflare.com/rss/
+    filter: [workers, pricing, free tier, durable objects, d1, r2]
+  - kind: page
+    url: https://developers.cloudflare.com/workers/platform/pricing/
+    selector: main
+  - kind: page
+    url: https://developers.cloudflare.com/workers/platform/limits/
+    selector: main
+  - kind: npm
+    package: wrangler
+  - kind: github_repo
+    repo: cloudflare/workerd
+alternatives: [vercel, deno, fly-io, aws-lambda]
+usage_questions: [hosted, tier]

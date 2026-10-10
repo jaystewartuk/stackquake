@@ -1,0 +1,24 @@
+id: redis
+name: Redis
+category: database
+aliases: [redis-server, redis stack]
+detect:
+  npm: [redis, ioredis]
+  pypi: [redis]
+sources:
+  - kind: feed
+    url: https://redis.io/blog/feed/
+    filter: [licen, agpl, sspl, rsal, open source, pricing, free, end of life, eol]
+  - kind: page
+    url: https://redis.io/legal/licenses/
+    selector: main
+  - kind: github_repo
+    repo: redis/redis
+  - kind: eol
+    product: redis
+  - kind: npm
+    package: redis
+  - kind: pypi
+    package: redis
+alternatives: [valkey, keydb, dragonfly]
+usage_questions: [hosted, self_hosted, commercial]

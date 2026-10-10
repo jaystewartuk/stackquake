@@ -1,0 +1,18 @@
+id: deno
+name: Deno
+category: runtime
+aliases: [deno deploy]
+detect:
+  files: [deno.json, deno.jsonc, deno.lock]
+sources:
+  - kind: feed
+    url: https://deno.com/feed
+  - kind: page
+    url: https://deno.com/deploy/pricing
+    selector: main
+  - kind: github_repo
+    repo: denoland/deno
+  - kind: eol
+    product: deno
+alternatives: [nodejs, bun, cloudflare-workers]
+usage_questions: [hosted, commercial]

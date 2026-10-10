@@ -1,0 +1,15 @@
+id: nodejs
+name: Node.js
+category: runtime
+aliases: [node]
+detect:
+  files: [.nvmrc, .node-version]
+sources:
+  - kind: feed
+    url: https://nodejs.org/en/feed/blog.xml
+  - kind: eol
+    product: nodejs
+  - kind: github_repo
+    repo: nodejs/node
+alternatives: [bun, deno]
+usage_questions: []

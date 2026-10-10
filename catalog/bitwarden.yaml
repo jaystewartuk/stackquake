@@ -1,0 +1,20 @@
+id: bitwarden
+name: Bitwarden
+category: security
+aliases: [bitwarden clients, bitwarden server]
+detect:
+  npm: ["@bitwarden/cli", "@bitwarden/sdk-napi"]
+sources:
+  - kind: feed
+    url: https://bitwarden.com/blog/feed.xml
+  - kind: page
+    url: https://bitwarden.com/pricing/
+    selector: main
+  - kind: github_repo
+    repo: bitwarden/clients
+  - kind: github_repo
+    repo: bitwarden/server
+  - kind: npm
+    package: "@bitwarden/cli"
+alternatives: [vaultwarden, 1password, keepassxc]
+usage_questions: [hosted, self_hosted, commercial]
