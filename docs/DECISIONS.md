@@ -401,3 +401,7 @@ Read this after SPEC.md; where they disagree, this file wins.
 - Detection was narrowed where it was too broad: AWS Lambda no longer matches any use of the
   Terraform AWS provider, or `template.yaml`. Docker Desktop still matches any Dockerfile or
   compose file; users untick it in the picker.
+
+### Checks at the end of M3
+- `npm test`: 179 tests pass; `tsc` is clean. `npm run eval` passes with 37 catalog entries
+  (one run, $0.10).
