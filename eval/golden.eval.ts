@@ -8,7 +8,7 @@ import { eq } from "drizzle-orm";
 import { expect, it } from "vitest";
 import { syncCatalog } from "../src/catalog/catalog";
 import { CATALOG } from "../src/catalog/entries";
-import { DEFAULT_MODELS, GITHUB_API, GITHUB_RAW, USER_AGENT, type Ctx } from "../src/context";
+import { configFromEnv, DEFAULT_MODELS, type Ctx } from "../src/context";
 import { EVENT_KINDS, events, jobs, llmCalls, sources, type Event, type EventKind } from "../src/db/schema";
 import { runTick } from "../src/jobs/runner";
 import { AnthropicLlm } from "../src/llm/anthropic";
@@ -84,7 +84,7 @@ async function runCase(c: Case, llm: Llm): Promise<Result> {
   const started = Date.now();
   const http = new FixtureHttp();
   const clock = new FakeClock();
-  const ctx: Ctx = { db: d1Db(env.DB), blobs: new MemoryBlobStore(), clock, http: http.fetch, llm, mailer: new MemoryMailer(), config: { jobsPerTick: 10, userAgent: USER_AGENT, models, githubApi: GITHUB_API, githubRaw: GITHUB_RAW } };
+  const ctx: Ctx = { db: d1Db(env.DB), blobs: new MemoryBlobStore(), clock, http: http.fetch, llm, mailer: new MemoryMailer(), config: { ...configFromEnv({}), jobsPerTick: 10, models } };
   await syncCatalog(ctx, CATALOG);
   await ctx.db.delete(jobs); // catalog polls; each case polls its own source below
 

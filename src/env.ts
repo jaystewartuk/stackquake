@@ -3,6 +3,8 @@ import { AnthropicLlm } from "./llm/anthropic";
 import type { Llm } from "./llm/llm";
 import { d1Db, R2BlobStore, systemClock } from "./platform/cloudflare";
 import { ConsoleMailer } from "./platform/memory";
+import { DEFAULT_FROM, ResendMailer } from "./platform/resend";
+import type { Http, Mailer } from "./ports";
 
 export interface AppEnv extends Env {
   GITHUB_TOKEN?: string;
@@ -20,6 +22,17 @@ export interface AppEnv extends Env {
   GITHUB_RAW_BASE?: string;
   /** "1" only under `wrangler dev` (set by scripts/poll.mjs). Enables /__dev routes. */
   DEV_ROUTES?: string;
+  /** Resend API key. Unset: mail is printed to the log (ConsoleMailer). */
+  RESEND_API_KEY?: string;
+  /** Sender, e.g. "Stackquake <alerts@stackquake.com>". Before DNS (M5): "Stackquake <onboarding@resend.dev>". */
+  MAIL_FROM?: string;
+  /** Points the Resend client elsewhere (scripts/measure-cpu.mjs uses a local stub). */
+  RESEND_API_BASE?: string;
+  /** HMAC key for one-click links in alerts. */
+  LINK_SECRET?: string;
+  /** AES-GCM key (32 bytes, base64) for Slack webhook URLs. */
+  CHANNEL_KEY?: string;
+  LLM_WEEKLY_BUDGET_USD?: string;
 }
 
 const noLlm: Llm = {
@@ -30,15 +43,20 @@ export function makeLlm(env: AppEnv): Llm {
   return env.ANTHROPIC_API_KEY ? new AnthropicLlm(env.ANTHROPIC_API_KEY, env.ANTHROPIC_BASE_URL ? { baseURL: env.ANTHROPIC_BASE_URL } : {}) : noLlm;
 }
 
-/** Production wiring: D1, R2, the system clock, global fetch and the Claude API. */
+export function makeMailer(env: AppEnv, http: Http): Mailer {
+  return env.RESEND_API_KEY ? new ResendMailer({ apiKey: env.RESEND_API_KEY, from: env.MAIL_FROM || DEFAULT_FROM, http, base: env.RESEND_API_BASE }) : new ConsoleMailer();
+}
+
+/** Production wiring: D1, R2, the system clock, global fetch, the Claude API and Resend. */
 export function makeCtx(env: AppEnv): Ctx {
+  const http: Http = (req) => fetch(req);
   return {
     db: d1Db(env.DB),
     blobs: new R2BlobStore(env.SNAPSHOTS),
     clock: systemClock,
-    http: (req) => fetch(req),
+    http,
     llm: makeLlm(env),
-    mailer: new ConsoleMailer(),
+    mailer: makeMailer(env, http),
     config: configFromEnv(env),
   };
 }

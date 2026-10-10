@@ -22,6 +22,13 @@
       "when": 1791670197283,
       "tag": "0002_m3_webapp",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1791673290746,
+      "tag": "0003_m4_alerts",
+      "breakpoints": true
     }
   ]
 }

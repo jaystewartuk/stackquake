@@ -8,7 +8,7 @@ import { resetDb, testCtx } from "./helpers";
 
 beforeEach(resetDb);
 
-const steps = (handler: StepHandler): Record<JobKind, StepHandler> => ({ poll: handler, extract_diff: handler, fetch_post: handler, classify: handler, summarise: handler, import: handler });
+const steps = (handler: StepHandler): Record<JobKind, StepHandler> => ({ poll: handler, extract_diff: handler, fetch_post: handler, classify: handler, summarise: handler, import: handler, fanout: handler, deliver: handler, digest: handler });
 const getJob = async (ctx: ReturnType<typeof testCtx>["ctx"], id: number) => (await ctx.db.select().from(jobs).where(eq(jobs.id, id)).get())!;
 
 describe("job runner", () => {

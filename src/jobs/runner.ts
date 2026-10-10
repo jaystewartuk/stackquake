@@ -2,6 +2,9 @@
 import { CATALOG } from "../catalog/entries";
 import type { Ctx } from "../context";
 import type { Job, JobKind } from "../db/schema";
+import { deliverStep } from "../alerts/deliver";
+import { digestStep } from "../alerts/digest";
+import { fanoutStep } from "../alerts/fanout";
 import { classifyStep, fetchPostStep, summariseStep } from "../pipeline/steps";
 import { HEAVY } from "../sources/http";
 import { importStep } from "../stack/import";
@@ -11,7 +14,7 @@ import { extractDiff } from "../watch/extract-diff";
 import { getSource, pollSource } from "../watch/poll";
 import { claimJobs, completeJob, deferJob, failJob, parkJob, RETRY_BACKOFF, rescheduleJob } from "./queue";
 
-export type StepResult = { type: "done" } | { type: "reschedule"; at: number } | { type: "defer" };
+export type StepResult = { type: "done" } | { type: "reschedule"; at: number } | { type: "defer"; ms?: number };
 
 /**
  * Per-tick exclusive tokens: one request per website host (SPEC §5 "Politeness") and one
@@ -53,6 +56,9 @@ export const STEPS: Record<JobKind, StepHandler> = {
   fetch_post: fetchPostStep,
   classify: classifyStep,
   summarise: summariseStep,
+  fanout: (ctx, job) => fanoutStep(ctx, job),
+  deliver: (ctx, job) => deliverStep(ctx, job),
+  digest: (ctx, job) => digestStep(ctx, job),
 };
 
 export interface TickReport {
@@ -93,7 +99,7 @@ export async function runJob(ctx: Ctx, job: Job, gate: HostGate, steps: Record<J
     await rescheduleJob(ctx, job, result.at);
     report.rescheduled++;
   } else {
-    await deferJob(ctx, job, DEFER_MS);
+    await deferJob(ctx, job, result.ms ?? DEFER_MS);
     report.deferred++;
   }
 }

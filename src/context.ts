@@ -18,6 +18,15 @@ export interface Config {
   /** GitHub REST API and raw file hosts (repo import). Overridable so measure-cpu can stub them. */
   githubApi: string;
   githubRaw: string;
+  /** Origin for links in email and Slack (no request to take it from in a cron step). */
+  appOrigin: string;
+  /** HMAC key for one-click links in alerts (LINK_SECRET). Unset: alerts go out without them. */
+  linkSecret?: string;
+  /** AES-GCM key for Slack webhook URLs (CHANNEL_KEY, 32 bytes base64). Unset: Slack is off. */
+  channelKey?: string;
+  /** SPEC §7.4: email the admins above this 7-day LLM cost; pause classify above twice it. */
+  llmWeeklyBudgetUsd: number;
+  adminEmails: string[];
 }
 
 /** Everything a step needs. Built once per invocation. */
@@ -48,7 +57,17 @@ export interface ConfigEnv {
   LLM_MODEL_SUMMARISE_HIGH?: string;
   GITHUB_API_BASE?: string;
   GITHUB_RAW_BASE?: string;
+  APP_ORIGIN?: string;
+  LINK_SECRET?: string;
+  CHANNEL_KEY?: string;
+  LLM_WEEKLY_BUDGET_USD?: string;
+  ADMIN_EMAILS?: string;
 }
+
+export const DEFAULT_ORIGIN = "https://stackquake.com";
+export const DEFAULT_WEEKLY_BUDGET_USD = 10;
+
+export const parseEmails = (s: string | undefined) => (s ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
 
 export const GITHUB_API = "https://api.github.com";
 export const GITHUB_RAW = "https://raw.githubusercontent.com";
@@ -66,5 +85,10 @@ export function configFromEnv(env: ConfigEnv): Config {
     },
     githubApi: env.GITHUB_API_BASE || GITHUB_API,
     githubRaw: env.GITHUB_RAW_BASE || GITHUB_RAW,
+    appOrigin: (env.APP_ORIGIN || DEFAULT_ORIGIN).replace(/\/$/, ""),
+    linkSecret: env.LINK_SECRET || undefined,
+    channelKey: env.CHANNEL_KEY || undefined,
+    llmWeeklyBudgetUsd: Number(env.LLM_WEEKLY_BUDGET_USD) > 0 ? Number(env.LLM_WEEKLY_BUDGET_USD) : DEFAULT_WEEKLY_BUDGET_USD,
+    adminEmails: parseEmails(env.ADMIN_EMAILS),
   };
 }

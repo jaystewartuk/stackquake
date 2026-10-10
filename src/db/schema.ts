@@ -15,7 +15,7 @@ export type EventKind = (typeof EVENT_KINDS)[number];
 export const EVENT_STATUSES = ["pending_llm", "pending_review", "published", "rejected"] as const;
 export type EventStatus = (typeof EVENT_STATUSES)[number];
 
-export const JOB_KINDS = ["poll", "extract_diff", "fetch_post", "classify", "summarise", "import"] as const;
+export const JOB_KINDS = ["poll", "extract_diff", "fetch_post", "classify", "summarise", "import", "fanout", "deliver", "digest"] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
 // Catalog entries as loaded from catalog/*.yaml (M1 addition: SPEC keeps them only as files).
@@ -169,6 +169,11 @@ export const users = sqliteTable("users", {
   /** 0 = Sunday … 6 = Saturday. */
   digestDay: integer("digest_day").notNull().default(1),
   createdAt: integer("created_at").notNull(),
+  // M4 additions.
+  /** Off: urgent alerts wait for the weekly digest too ("digest only"). */
+  emailImmediate: integer("email_immediate", { mode: "boolean" }).notNull().default(true),
+  /** When the last weekly digest was sent (the "first digest of the month" rule). */
+  lastDigestAt: integer("last_digest_at"),
 });
 
 /** `id` is the sha256 of the cookie value, so a database leak does not leak live sessions. */
@@ -294,6 +299,72 @@ export const catalogRequests = sqliteTable("catalog_requests", {
   createdAt: integer("created_at").notNull(),
 });
 
+// ---- M4: alerts and channels (SPEC §6, §7.5) ----
+
+export const ALERT_CHANNELS = ["email", "slack", "digest"] as const;
+export type AlertChannel = (typeof ALERT_CHANNELS)[number];
+export const ALERT_STATUSES = ["queued", "sent", "failed", "suppressed"] as const;
+export type AlertStatus = (typeof ALERT_STATUSES)[number];
+export const ALERT_MATCHES = ["affected", "unknown", "not_affected"] as const;
+/** Why an alert waits for the digest. */
+export const HELD_REASONS = ["not_urgent", "rate_limit", "digest_only"] as const;
+export type HeldReason = (typeof HELD_REASONS)[number];
+export const FEEDBACK = ["useful", "not_relevant"] as const;
+export type Feedback = (typeof FEEDBACK)[number];
+
+/**
+ * One per user and event. `channel` is the route chosen at fan-out: "email" or "slack" for an
+ * immediate alert, "digest" for one held for the weekly digest (suppressed ones too).
+ */
+export const alerts = sqliteTable(
+  "alerts",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    userId: integer("user_id").notNull(),
+    eventId: integer("event_id").notNull(),
+    depId: integer("dep_id").notNull(),
+    channel: text("channel", { enum: ALERT_CHANNELS }).notNull(),
+    status: text("status", { enum: ALERT_STATUSES }).notNull(),
+    sentAt: integer("sent_at"),
+    feedback: text("feedback", { enum: FEEDBACK }),
+    // M4 additions beyond SPEC §6.
+    createdAt: integer("created_at").notNull(),
+    match: text("match", { enum: ALERT_MATCHES }).notNull(),
+    /** "Affects you because: …", written at fan-out. */
+    because: text("because").notNull(),
+    held: text("held", { enum: HELD_REASONS }),
+    /** Took one of the user's 3 immediate slots per 24 h (the rate limit counts these). */
+    claimedAt: integer("claimed_at"),
+    emailedAt: integer("emailed_at"),
+    slackAt: integer("slack_at"),
+    /** A Slack post started. Set without slack_at means the invocation died mid-post: never retried. */
+    slackTryAt: integer("slack_try_at"),
+    /** Start of the UTC day of the digest that carried (or is carrying) this alert. */
+    digestAt: integer("digest_at"),
+    feedbackAt: integer("feedback_at"),
+    error: text("error"),
+  },
+  (t) => [uniqueIndex("alerts_user_event").on(t.userId, t.eventId), index("alerts_user_status").on(t.userId, t.status), index("alerts_event").on(t.eventId)],
+);
+
+export const channels = sqliteTable(
+  "channels",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    userId: integer("user_id").notNull(),
+    kind: text("kind", { enum: ["slack"] }).notNull(),
+    /** AES-GCM with CHANNEL_KEY (src/alerts/secretbox.ts). */
+    webhookUrlEnc: text("webhook_url_enc").notNull(),
+    verifiedAt: integer("verified_at"),
+    // M4 additions.
+    /** Last characters of the URL, to tell webhooks apart without showing the secret. */
+    hint: text("hint").notNull(),
+    createdAt: integer("created_at").notNull(),
+    lastError: text("last_error"),
+  },
+  (t) => [index("channels_user").on(t.userId)],
+);
+
 export type Source = typeof sources.$inferSelect;
 export type Job = typeof jobs.$inferSelect;
 export type Event = typeof events.$inferSelect;
@@ -304,3 +375,5 @@ export type Project = typeof projects.$inferSelect;
 export type Dep = typeof deps.$inferSelect;
 export type NewDep = typeof deps.$inferInsert;
 export type Import = typeof imports.$inferSelect;
+export type Alert = typeof alerts.$inferSelect;
+export type Channel = typeof channels.$inferSelect;

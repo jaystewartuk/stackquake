@@ -5,6 +5,7 @@ import { adminRoutes } from "../admin/routes";
 import type { Ctx } from "../context";
 import { devRoutes } from "../dev";
 import type { AppEnv } from "../env";
+import { alertLinks } from "./alert-links";
 import { app as appRoutes } from "./app";
 import { auth } from "./auth";
 import { page } from "./layout";
@@ -30,6 +31,7 @@ export function createApp(makeCtx: (env: AppEnv) => Ctx) {
   });
   web.route("/", auth);
   web.route("/", pub);
+  web.route("/", alertLinks);
   web.route("/app", appRoutes);
   web.route("/admin", adminRoutes);
   web.notFound((c) => (c.get("csrf") !== undefined ? page(c, "Not found", <><h1>Not found</h1><p><a href="/">Home</a></p></>, { status: 404, noindex: true }) : c.text("Not found", 404)));

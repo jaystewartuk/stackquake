@@ -1,4 +1,7 @@
 import { inArray, sql } from "drizzle-orm";
+import { checkBudget } from "../alerts/budget";
+import { enqueueDigests } from "../alerts/digest";
+import { enqueueDeliveries } from "../alerts/fanout";
 import { syncCatalog, type CatalogEntry } from "../catalog/catalog";
 import type { Ctx } from "../context";
 import { snapshots } from "../db/schema";
@@ -37,15 +40,21 @@ export async function pruneSnapshots(ctx: Ctx): Promise<{ blobsDeleted: number; 
   return { blobsDeleted: keys.length, rowsDeleted: deleted.length };
 }
 
-/** The daily cron: sync the catalog, schedule overdue polls and stalled pipeline steps, prune. */
+/**
+ * The daily cron: sync the catalog, schedule overdue polls, stalled pipeline steps and lost
+ * deliveries, queue today's digests, check the LLM budget, prune.
+ */
 export async function runDaily(ctx: Ctx, entries: CatalogEntry[]) {
   const synced = await syncCatalog(ctx, entries);
   await disableOrphanUserSources(ctx);
   await ensurePollJobs(ctx);
   await ensurePipelineJobs(ctx);
+  await enqueueDeliveries(ctx);
+  await enqueueDigests(ctx);
+  const budget = await checkBudget(ctx);
   const pruned = await pruneSnapshots(ctx);
   await pruneJobs(ctx);
-  return { synced, pruned };
+  return { synced, pruned, budget };
 }
 
 export async function runCron(ctx: Ctx, task: "tick" | "daily", entries: CatalogEntry[]): Promise<TickReport | Awaited<ReturnType<typeof runDaily>>> {

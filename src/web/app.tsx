@@ -7,11 +7,14 @@ import { Hono } from "hono";
 import { raw } from "hono/html";
 import type { FC } from "hono/jsx";
 import { CATALOG } from "../catalog/entries";
-import { catalogRequests, deps, imports, jobs, magicLinks, projects, sessions, sources, users, type Dep, type Profile, type Project } from "../db/schema";
+import { encrypt } from "../alerts/secretbox";
+import { postSlack, validSlackWebhook } from "../alerts/slack";
+import { alerts, catalogRequests, channels, deps, FEEDBACK, imports, jobs, magicLinks, projects, sessions, sources, users, type Dep, type Feedback, type Profile, type Project } from "../db/schema";
 import { addCatalogDeps, deleteDeps } from "../stack/deps";
 import { importJobKey, kickImport, latestImport, parseRepoInput, startImport, type ImportState } from "../stack/import";
 import { describeProfile, DIMENSIONS, effectiveProfile, profileFromForm, QUESTIONS, questionsFor, type Dimension } from "../stack/profile";
-import { DAY } from "../util";
+import { MUTE_MS } from "./alert-links";
+import { AlertList, userAlerts } from "./alerts-view";
 import { magicLinkAllowed, normaliseEmail, sendMagicLink, validEmail } from "./auth";
 import { catalogEntry, exactMatch, groupByCategory, searchCatalog, searchText } from "./catalog-view";
 import { EventRow, publishedEvents } from "./events-view";
@@ -22,7 +25,6 @@ import { depName, loadDeps, projectDeps, StackView, WATCHED_ECOSYSTEMS } from ".
 export const app = new Hono<WebEnv>();
 app.use("*", requireUser);
 
-const MUTE_MS = 90 * DAY;
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 const uid = (c: WebContext) => c.get("user")!.id;
@@ -58,6 +60,9 @@ const MESSAGES: Record<string, string> = {
   muted: "Muted for 90 days.",
   unmuted: "Alerts are back on.",
   removed: "Removed.",
+  feedback: "Thanks for the feedback.",
+  slack: "Slack connected. We posted a test message to the channel.",
+  slackremoved: "Slack disconnected.",
 };
 const flash = (c: WebContext) => MESSAGES[c.req.query("msg") ?? ""];
 
@@ -68,6 +73,7 @@ app.get("/", async (c) => {
   const list = await ctx.db.select().from(projects).where(eq(projects.userId, uid(c))).orderBy(asc(projects.id)).all();
   if (!list.length) return c.redirect("/app/projects/new");
   const byProject = await loadDeps(ctx, list);
+  const recent = await userAlerts(ctx, uid(c), { limit: 30 });
   const now = ctx.clock.now();
   return page(
     c,
@@ -80,6 +86,12 @@ app.get("/", async (c) => {
         </a>
       </div>
       <Flash msg={flash(c)} />
+      {recent.length > 0 && (
+        <section class="card">
+          <h2 style="margin-top:0">Alerts</h2>
+          <AlertList list={recent} csrf={c.get("csrf")} back="/app" />
+        </section>
+      )}
       {list.map((p) => {
         const ds = byProject.get(p.id)!;
         return (
@@ -530,6 +542,7 @@ app.get("/deps/:id", async (c) => {
     .orderBy(asc(sources.kind), asc(sources.id))
     .all();
   const evs = await publishedEvents(ctx, { limit: 20, sourceIds: linked.map((s) => s.id) });
+  const depAlerts = await userAlerts(ctx, uid(c), { depId: dep.id, limit: 50 });
   const dims = questionsFor(entry);
   const now = ctx.clock.now();
   const muted = dep.mutedUntil && dep.mutedUntil > now;
@@ -598,7 +611,8 @@ app.get("/deps/:id", async (c) => {
         <p class="muted">{dep.ecosystem && !WATCHED_ECOSYSTEMS.has(dep.ecosystem) && dep.ecosystem !== "eol" ? `We don't watch ${dep.ecosystem} packages yet.` : "No sources yet."}</p>
       )}
       <h2>Alerts</h2>
-      <div class="row">
+      {depAlerts.length > 0 && <AlertList list={depAlerts} csrf={c.get("csrf")} back={`/app/deps/${dep.id}`} showDep={false} />}
+      <div class="row" style="margin-top:.75rem">
         {muted ? (
           <form method="post" action={`/app/deps/${dep.id}/unmute`}>
             <Csrf token={c.get("csrf")} />
@@ -657,10 +671,27 @@ app.post("/deps/:id/delete", async (c) => {
   return c.redirect(`/app/projects/${own.project.id}?msg=removed`);
 });
 
+// ---------- Alerts ----------
+
+app.post("/alerts/:id/feedback", async (c) => {
+  const ctx = c.get("ctx");
+  const form = await c.req.parseBody();
+  const value = str(form.value) as Feedback;
+  if (!FEEDBACK.includes(value)) return c.text("Unknown feedback", 400);
+  await ctx.db
+    .update(alerts)
+    .set({ feedback: value, feedbackAt: ctx.clock.now() })
+    .where(and(eq(alerts.id, idParam(c)), eq(alerts.userId, uid(c))));
+  const back = str(form.back);
+  return c.redirect(`${/^\/app(\/deps\/\d+)?$/.test(back) ? back : "/app"}?msg=feedback`);
+});
+
 // ---------- Settings ----------
 
-app.get("/settings", (c) => {
+app.get("/settings", async (c) => {
   const user = c.get("user")!;
+  const ctx = c.get("ctx");
+  const slack = await ctx.db.select().from(channels).where(and(eq(channels.userId, user.id), eq(channels.kind, "slack"))).get();
   return page(
     c,
     "Settings",
@@ -680,10 +711,14 @@ app.get("/settings", (c) => {
           <button type="submit">Send a confirmation link</button>
         </p>
       </form>
-      <h2>Weekly digest</h2>
+      <h2>Alerts</h2>
       <form method="post" action="/app/settings" class="card">
         <Csrf token={c.get("csrf")} />
-        <label for="digest_day">Send the digest on</label>
+        <label>
+          <input type="checkbox" name="email_immediate" value="1" checked={user.emailImmediate} /> Email urgent changes as they happen
+        </label>
+        <p class="meta">Licence changes, end-of-life within 6 months, shutdowns after an acquisition and free-tier changes. At most 3 a day; anything else waits for the weekly digest. Untick to get the digest only.</p>
+        <label for="digest_day">Send the weekly digest on</label>
         <select id="digest_day" name="digest_day">
           {DAYS.map((d, i) => (
             <option value={String(i)} selected={user.digestDay === i}>
@@ -695,12 +730,41 @@ app.get("/settings", (c) => {
           <button type="submit">Save</button>
         </p>
       </form>
+      <h2>Slack</h2>
+      <div class="card">
+        {!ctx.config.channelKey ? (
+          <p class="muted">Slack alerts are not available on this server yet.</p>
+        ) : slack ? (
+          <form method="post" action="/app/settings/slack/delete">
+            <Csrf token={c.get("csrf")} />
+            <p>
+              Urgent alerts also go to a Slack channel (webhook ending …{slack.hint}, added {fmtDate(slack.createdAt)}).
+              {slack.lastError && <span class="meta"> Last error: {slack.lastError}</span>}
+            </p>
+            <button class="danger" type="submit">
+              Disconnect Slack
+            </button>
+          </form>
+        ) : (
+          <form method="post" action="/app/settings/slack">
+            <Csrf token={c.get("csrf")} />
+            <p class="meta">
+              Post urgent alerts to a channel too. In Slack, create an app with an incoming webhook for the channel and paste its URL (https://hooks.slack.com/services/…). We post a test message first.
+            </p>
+            <label for="slack_url">Incoming webhook URL</label>
+            <input type="url" id="slack_url" name="url" required placeholder="https://hooks.slack.com/services/T…/B…/…" autocomplete="off" />
+            <p>
+              <button type="submit">Connect Slack</button>
+            </p>
+          </form>
+        )}
+      </div>
       <h2>Plan</h2>
-      <p>Free. Paid plans with Slack and private repos come later.</p>
+      <p>Free. Paid plans with private repos come later.</p>
       <h2>Delete account</h2>
       <form method="post" action="/app/settings/delete" class="card">
         <Csrf token={c.get("csrf")} />
-        <p>This removes your account, projects, dependencies, alerts and sessions. Public events stay, since they are not yours. It can't be undone.</p>
+        <p>This removes your account, projects, dependencies, alerts, Slack connection and sessions. Public events stay, since they are not yours. It can't be undone.</p>
         <label for="confirm">Type DELETE to confirm</label>
         <input type="text" id="confirm" name="confirm" autocomplete="off" required />
         <p>
@@ -717,8 +781,39 @@ app.get("/settings", (c) => {
 app.post("/settings", async (c) => {
   const form = await c.req.parseBody();
   const day = Number(form.digest_day);
-  if (Number.isInteger(day) && day >= 0 && day <= 6) await c.get("ctx").db.update(users).set({ digestDay: day }).where(eq(users.id, uid(c)));
+  const set: Partial<typeof users.$inferInsert> = { emailImmediate: form.email_immediate === "1" };
+  if (Number.isInteger(day) && day >= 0 && day <= 6) set.digestDay = day;
+  await c.get("ctx").db.update(users).set(set).where(eq(users.id, uid(c)));
   return c.redirect("/app/settings?msg=saved");
+});
+
+const SlackProblem: FC<{ why: string }> = ({ why }) => (
+  <>
+    <h1>Slack wasn't connected</h1>
+    <p>{why}</p>
+    <p>
+      <a href="/app/settings">Back to settings</a>
+    </p>
+  </>
+);
+
+app.post("/settings/slack", async (c) => {
+  const ctx = c.get("ctx");
+  if (!ctx.config.channelKey) return c.notFound();
+  const form = await c.req.parseBody();
+  const url = validSlackWebhook(str(form.url, 300));
+  if (!url) return page(c, "Slack", <SlackProblem why="That isn't a Slack incoming webhook URL. It should look like https://hooks.slack.com/services/T…/B…/…" />, { status: 400, noindex: true });
+  const test = await postSlack(ctx, url, { text: "Stackquake is connected. Urgent changes to your stack will be posted here." });
+  if (!test.ok) return page(c, "Slack", <SlackProblem why={`Slack didn't accept the test message (${test.error}). Check the URL and that the app is still installed.`} />, { status: 400, noindex: true });
+  const now = ctx.clock.now();
+  await ctx.db.delete(channels).where(and(eq(channels.userId, uid(c)), eq(channels.kind, "slack")));
+  await ctx.db.insert(channels).values({ userId: uid(c), kind: "slack", webhookUrlEnc: await encrypt(ctx.config.channelKey, url), verifiedAt: now, hint: url.slice(-4), createdAt: now });
+  return c.redirect("/app/settings?msg=slack");
+});
+
+app.post("/settings/slack/delete", async (c) => {
+  await c.get("ctx").db.delete(channels).where(and(eq(channels.userId, uid(c)), eq(channels.kind, "slack")));
+  return c.redirect("/app/settings?msg=slackremoved");
 });
 
 app.post("/settings/email", async (c) => {
@@ -738,7 +833,10 @@ app.post("/settings/delete", async (c) => {
   const owned = await ctx.db.select({ id: projects.id }).from(projects).where(eq(projects.userId, user.id)).orderBy(desc(projects.id)).all();
   for (const p of owned) await deleteProject(c, p.id);
   // SPEC §8: user, projects, deps, alerts and channels go; sources and events are global and stay.
-  // (alerts and channels arrive in M4 and must be added here.)
+  await ctx.db.run(sql`DELETE FROM jobs WHERE kind = 'deliver' AND json_extract(payload, '$.alertId') IN (SELECT id FROM alerts WHERE user_id = ${user.id})`);
+  await ctx.db.run(sql`DELETE FROM jobs WHERE kind = 'digest' AND json_extract(payload, '$.userId') = ${user.id}`);
+  await ctx.db.delete(alerts).where(eq(alerts.userId, user.id));
+  await ctx.db.delete(channels).where(eq(channels.userId, user.id));
   await ctx.db.delete(catalogRequests).where(eq(catalogRequests.userId, user.id));
   await ctx.db.delete(magicLinks).where(eq(magicLinks.email, user.email));
   await endSession(c);

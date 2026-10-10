@@ -1,6 +1,6 @@
 import { env } from "cloudflare:test";
 import { sql } from "drizzle-orm";
-import { DEFAULT_MODELS, GITHUB_API, GITHUB_RAW, USER_AGENT, type Ctx } from "../src/context";
+import { configFromEnv, type Ctx } from "../src/context";
 import { sources, type Source, type SourceKind } from "../src/db/schema";
 import { d1Db } from "../src/platform/cloudflare";
 import { FakeLlm } from "../src/llm/fake";
@@ -33,9 +33,13 @@ export class FixtureHttp {
   }
 }
 
+export const TEST_LINK_SECRET = "test-link-secret-0123456789abcdef";
+/** 32 bytes, base64. */
+export const TEST_CHANNEL_KEY = btoa(String.fromCharCode(...Array.from({ length: 32 }, (_, i) => i + 1)));
+
 export async function resetDb() {
   const db = d1Db(env.DB);
-  for (const t of ["llm_calls", "events", "jobs", "snapshots", "catalog_sources", "catalog", "robots", "sources", "users", "sessions", "magic_links", "rate_limits", "projects", "deps", "dep_sources", "imports", "catalog_requests"]) await db.run(sql.raw(`DELETE FROM ${t}`));
+  for (const t of ["llm_calls", "events", "jobs", "snapshots", "catalog_sources", "catalog", "robots", "sources", "users", "sessions", "magic_links", "rate_limits", "projects", "deps", "dep_sources", "imports", "catalog_requests", "alerts", "channels"]) await db.run(sql.raw(`DELETE FROM ${t}`));
 }
 
 export function testCtx(overrides: Partial<Omit<Ctx, "llm">> & { http?: FixtureHttp; llm?: FakeLlm } = {}) {
@@ -50,7 +54,7 @@ export function testCtx(overrides: Partial<Omit<Ctx, "llm">> & { http?: FixtureH
     clock,
     http: http.fetch,
     mailer,
-    config: { jobsPerTick: 10, userAgent: USER_AGENT, models: DEFAULT_MODELS, githubApi: GITHUB_API, githubRaw: GITHUB_RAW },
+    config: { ...configFromEnv({}), jobsPerTick: 10, appOrigin: "https://stackquake.test", linkSecret: TEST_LINK_SECRET, channelKey: TEST_CHANNEL_KEY, adminEmails: ["owner@example.com"] },
     ...overrides,
     llm,
   };

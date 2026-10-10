@@ -5,6 +5,8 @@
 import { and, desc, eq, gt, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import type { FC } from "hono/jsx";
+import { budgetState } from "../alerts/budget";
+import { enqueueFanout } from "../alerts/fanout";
 import { catalogRequests, EVENT_KINDS, events, jobs, llmCalls, sources, users, type Event, type EventKind, type EventStatus } from "../db/schema";
 import type { Note } from "../llm/schemas";
 import { getText } from "../pipeline/post";
@@ -109,6 +111,15 @@ adminRoutes.get("/events", async (c) => {
     .from(llmCalls)
     .where(gt(llmCalls.createdAt, c.get("ctx").clock.now() - 7 * DAY))
     .get();
+  const budget = await budgetState(ctx);
+  // G3: alerts per week and the share marked "not relevant".
+  const [al] = await ctx.db.all<{ sent: number; held: number; suppressed: number; useful: number; not_relevant: number }>(sql`
+    SELECT count(*) FILTER (WHERE status = 'sent') AS sent,
+           count(*) FILTER (WHERE status = 'queued' AND channel = 'digest') AS held,
+           count(*) FILTER (WHERE status = 'suppressed') AS suppressed,
+           count(*) FILTER (WHERE feedback = 'useful') AS useful,
+           count(*) FILTER (WHERE feedback = 'not_relevant') AS not_relevant
+    FROM alerts WHERE created_at > ${ctx.clock.now() - 7 * DAY}`);
   const n = (s: string) => counts.find((r) => r.status === s)?.n ?? 0;
   const flash = c.req.query("msg");
   return page(
@@ -125,7 +136,15 @@ adminRoutes.get("/events", async (c) => {
         ))}
       </nav>
       <p class="meta">
-        LLM, last 7 days: ${(week?.usd ?? 0).toFixed(4)} over {week?.calls ?? 0} calls.
+        LLM, last 7 days: ${(week?.usd ?? 0).toFixed(4)} over {week?.calls ?? 0} calls; weekly budget ${budget.budget.toFixed(2)}.{" "}
+        {budget.paused ? (
+          <strong class="pill bad">over twice the budget: classify paused, admins emailed daily</strong>
+        ) : budget.over ? (
+          <strong class="pill warn">over budget: admins emailed daily; classify pauses at ${(2 * budget.budget).toFixed(2)}</strong>
+        ) : null}
+      </p>
+      <p class="meta">
+        Alerts, last 7 days: {al.sent} sent, {al.held} held for digests, {al.suppressed} suppressed; feedback {al.useful} useful, {al.not_relevant} not relevant.
       </p>
       {flash && <p class="flash error">{flash}</p>}
       {list.length === 0 ? <p>Nothing here.</p> : list.map((e) => <EventCard e={e} csrf={c.get("csrf")} />)}
@@ -148,6 +167,7 @@ adminRoutes.post("/events/:id/approve", async (c) => {
     .db.update(events)
     .set({ status: "published", publishedAt: c.get("ctx").clock.now(), reviewReason: `approved by admin${e.reviewReason ? ` (was: ${e.reviewReason})` : ""}`.slice(0, 1_000) })
     .where(eq(events.id, e.id));
+  await enqueueFanout(c.get("ctx"), e.id);
   return c.redirect("/admin/events");
 });
 
@@ -247,6 +267,7 @@ adminRoutes.post("/events/:id", async (c) => {
       reviewReason: "edited and approved by admin",
     })
     .where(eq(events.id, e.id));
+  await enqueueFanout(ctx, e.id);
   return c.redirect("/admin/events");
 });
 

@@ -2,6 +2,8 @@
 // gate. Each step is its own job, checks the event's state first (so a retry or a duplicate job
 // does nothing), writes its result, then queues the next step.
 import { and, eq, inArray } from "drizzle-orm";
+import { budgetState, PAUSE_RECHECK_MS } from "../alerts/budget";
+import { enqueueFanout } from "../alerts/fanout";
 import type { Ctx } from "../context";
 import { catalog, events, sources, type Event, type Job, type JobKind, type Source, type SourceKind } from "../db/schema";
 import type { HostGate, StepResult } from "../jobs/runner";
@@ -127,6 +129,9 @@ export async function classifyStep(ctx: Ctx, job: Job, gate: HostGate): Promise<
     return { type: "done" };
   }
   if (!gate.take([LLM])) return { type: "defer" };
+  // SPEC §7.4 budget guard: above twice the weekly budget, classification waits (not a failure).
+  // Checked after taking the token, so concurrent steps still claim it in job order.
+  if ((await budgetState(ctx)).paused) return { type: "defer", ms: PAUSE_RECHECK_MS };
 
   const text = (await postText(ctx, event)).slice(0, CLASSIFY_TEXT_CHARS);
   let res: LlmResponse;
@@ -279,6 +284,7 @@ export async function summariseStep(ctx: Ctx, job: Job, gate: HostGate): Promise
       publishedAt: decision.status === "published" ? now : null,
     })
     .where(and(eq(events.id, event.id), eq(events.status, "pending_llm")));
+  if (decision.status === "published") await enqueueFanout(ctx, event.id);
   return { type: "done" };
 }
 
