@@ -105,10 +105,11 @@ export async function upsertDeps(ctx: Ctx, projectId: number, list: DepWrite[], 
       rank = excluded.rank,
       found_in = coalesce(excluded.found_in, found_in)
     RETURNING id`);
+  // json_each, not an IN list: D1 allows 100 bound parameters per statement.
   return ctx.db
     .select()
     .from(deps)
-    .where(inArray(deps.id, written.map((w) => w.id)))
+    .where(sql`${deps.id} IN (SELECT value FROM json_each(${JSON.stringify(written.map((w) => w.id))}))`)
     .all();
 }
 

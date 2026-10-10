@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { depSources, deps, imports, jobs, projects, sources } from "../src/db/schema";
 import { runTick } from "../src/jobs/runner";
-import { claimImportJob, kickImport, MAX_MANIFESTS, parseRepoInput, pickManifests, SHOWN_PACKAGES, startImport } from "../src/stack/import";
+import { claimImportJob, kickImport, MAX_MANIFESTS, MAX_PACKAGES, parseRepoInput, pickManifests, SHOWN_PACKAGES, startImport } from "../src/stack/import";
 import { CATALOG } from "../src/catalog/entries";
 import { MONOREPO, serveRepo } from "./fixtures/repos";
 import { resetDb } from "./helpers";
@@ -191,5 +191,18 @@ describe("import limits and ranking", () => {
       expect(also).toContain(`<strong>${n}</strong>`);
     }
     expect(SHOWN_PACKAGES).toBe(25);
+  });
+
+  it("watches at most 150 packages per project (and stays under D1's 100-parameter limit)", async () => {
+    const { ctx, http } = await webCtx();
+    const names = Array.from({ length: 160 }, (_, i) => `many-${i}`);
+    serveRepo(http, "acme/huge", { "package.json": JSON.stringify({ name: "huge", dependencies: Object.fromEntries(names.map((n) => [n, "1.0.0"])) }) });
+    const b = new Browser(ctx);
+    await b.signIn("dev@example.com");
+    const { projectId, final } = await importVia(b, "acme/huge");
+    expect(final.status).toBe(302);
+    const rows = await ctx.db.select().from(deps).where(eq(deps.projectId, projectId)).all();
+    expect(rows).toHaveLength(MAX_PACKAGES);
+    expect((await ctx.db.select().from(depSources).all()).length).toBe(MAX_PACKAGES);
   });
 });
