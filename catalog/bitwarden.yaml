@@ -7,6 +7,9 @@ detect:
 sources:
   - kind: feed
     url: https://bitwarden.com/blog/feed.xml
+  # The 2026-10-09 licence change was announced here, not on the blog.
+  - kind: feed
+    url: https://community.bitwarden.com/c/announcements/72.rss
   - kind: page
     url: https://bitwarden.com/pricing/
     selector: main

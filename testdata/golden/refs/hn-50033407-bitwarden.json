@@ -1,0 +1,69 @@
+{
+ "id": 50033407,
+ "title": "Bitwarden Dual License Model",
+ "url": "https://community.bitwarden.com/t/published-version-update-in-app-stores/102750",
+ "created_at": "2026-10-10T14:32:50.000Z",
+ "points": 303,
+ "top_comments": [
+  {
+   "author": "figmert",
+   "text": "This was always inevitable when they took funding."
+  },
+  {
+   "author": "petterroea",
+   "text": "Yet another elasticsearch. Or terraform. Or redis. I guess? Oss trying to protect itself from scalpers?"
+  },
+  {
+   "author": "dannyw",
+   "text": "I actually find this somewhat understandable; and I'll be continuing my subscription; as long as all source continues to be available and personal self-hosting remains a viable option. Yes, I'd much prefer full open source, but \"all source available; some restrictions on commercial use\" is still miles better; the OSS funding and incentives problem is still unsolved. Just look at Elasticsearch -> AWS ElasticSearch; or Redis -> ElastiCache; etc. It's like leeching: a big corporation, with far more distribution and brand takes your codebase; and their structural advantages (in terms of distribution) makes it an extremely difficult uphill battle for you to compete. I struggle to think of solutions: yes, they are doing everything by the license; so the main viable solution seems to be... changing the license."
+  },
+  {
+   "author": "solarkraft",
+   "text": "I\u2019m willing to commit money to a project committed to release free builds without these shenanigans."
+  },
+  {
+   "author": "hn3ufz62f7",
+   "text": "Ran Vaultwarden for a team of ~15 for years and that's the part I'd watch here, the clients are the leverage, not the server. If the mobile apps stop being buildable from source the self host story gets a lot thinner."
+  },
+  {
+   "author": "inexcf",
+   "text": "Well seems like Bitwarden is dying. A clear move towards enshittification. I was fine with the premium subscription existing while i was self-hosting Vaultwarden, but now every step seems to make that worse.\nNow new features will be under the commercial license an everything else will be slowly neglected. Time to jump ship."
+  },
+  {
+   "author": "Cider9986",
+   "text": "This is enshittification but I'm not gonna drop Bitwarden unless they do something really bad. I'm already on the F-Droid version from their GitHub for my GrapheneOS phone because that one has no Google services/telemetry. One of the family members I set up with Bitwarden has said it changed their life and they can't imagine not using it. I would guess that would apply to any crossplatform password manager but Bitwarden is quite good and the one that stuck. I probably wouldn't move to one of these [1] because I don't like the UI of Proton Pass, the convenience of KeyPass, and 1Passsword is obvious. I'm interested in AliasVault as it seems to be a more privacy-focused password manager, which is cool, but I'd have to look more into it. [1]  https://www.privacyguides.org/en/passwords  [2]  https://discuss.privacyguides.net/t/aliasvault-open-source-e..."
+  },
+  {
+   "author": "0l",
+   "text": "IMO Bitwarden really isn't that well engineered software, and I now use Keyguard on Android/Vaultwarden server instead. Reminds me of Subsonic, with many competing clients/servers. Hopefully someone will write a third party browser extension as the current one is quite slow/buggy."
+  },
+  {
+   "author": "arjie",
+   "text": "Okay, it\u2019s good they have the open source because if you rewrite the Chrome extension you can get it to load in under 100 ms after you click the button. If you use the standard Chrome extension you\u2019re not having that happen on an M1 Max. Their stuff is far too heavy. Full JS framework to display a small box."
+  },
+  {
+   "author": "mindracer",
+   "text": "This seems like the beginning of the end, what password manager is recommended now?"
+  },
+  {
+   "author": "karel-3d",
+   "text": "I don't understand the point or the motivation. They don't list any. It's very badly explained what actually changes"
+  },
+  {
+   "author": "anilgulecha",
+   "text": "Rust based vaultwarden awaits."
+  },
+  {
+   "author": "rsyring",
+   "text": "Very insightful blog post listed by another user as a sub-comment.  Worth posting as a top-level comment:  https://blog.ppb1701.com/the-quiet-renovation-at-bitwarden  Previously discussed:  https://news.ycombinator.com/item?id=48163389"
+  },
+  {
+   "author": "rvz",
+   "text": "The problem with this license change is that it is unenforceable, now that developers believe they can vibe-code their own. Only a matter of time until we see \"OpenWarden\", just like we saw the migration from Redis to Valkey. But let's be honest. \"enshittification\" here really means  \"I don't want to pay for my tools and I want it completely for free forever.\"  Just look at the reactions towards the single UI change made in Firefox on HN [0] and already the complaints are there. Even if you charge your users $1 to remove tracking it is somehow \"enshittification\" because $1 is too much to pay for software maintenance. The real cost of maintenance is the amount raised in VC capital (Bitwarden raised $100M) or $600M a year (Google paying Firefox). Donations won't cover the capital needed to fund Firefox or Bitwarden's development at all. \"Open source\" is only sustainable when someone else is paying for that maintenance. Small donations will only take you so far until one core developer says that they are underpaid. [0]  https://news.ycombinator.com/item?id=49892721"
+  },
+  {
+   "author": "caaqil",
+   "text": "Unless they pull the LastPass crap, this is not a big deal for regular users."
+  }
+ ]
+}

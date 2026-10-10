@@ -20,7 +20,7 @@ ${KIND_GUIDE}
 
 How to answer:
 - kind: the deal change this post announces, or "other". Most posts are "other". A post only counts if it announces the change itself, not if it merely mentions an older one in passing.
-- confidence: from 0 to 1, how sure you are that the kind is right. Use 0.9 or more only when the post states the change explicitly. Use less than 0.7 when you are guessing.
+- confidence: from 0 to 1, how sure you are that the kind is right. 0.9 or more when the post states the change (or, for "other", clearly announces no deal change); 0.7 to 0.9 when it is implied or the kind is debatable; less than 0.7 when you are guessing.
 - effective_date: when the change takes effect, as YYYY-MM-DD, or YYYY-MM when only the month is known. Work out relative dates ("in six months", "for another year") from the publication date given in the input. Null when the post gives no date.
 - one_line: one plain sentence saying what changed (or what the post is about, for "other").
 - quote: the sentence or sentences in the post that state the change, copied character for character from the post text: one contiguous passage, no ellipses, no added or removed words, at most about 400 characters. Empty string for "other".
@@ -42,12 +42,16 @@ How to answer:
 - title: the product and the change, in a few words, for example "Deno runtime development ends" or "Workers Free plan: daily requests cut to 50,000". No marketing language. At most 80 characters.
 - what_changed: two or three sentences: what changed, from when, and for whom, using only facts in the source. For a page change, give the old and the new values side by side.
 - quote: the sentence or sentences in the source that state the change, copied character for character from the source text (never from these instructions or from the product context): one contiguous passage, no ellipses, no added or removed words, at most about 400 characters. For a page change, quote the AFTER text, or the BEFORE text if something was removed. For a table row, copy the row as it appears, including the | characters. For metadata, quote the field as given.
-- effective_date: when the change takes effect, YYYY-MM-DD, or YYYY-MM when only the month is known. Work out relative dates from the date in the input. Null if the source gives none.
+- effective_date: when the change takes effect, YYYY-MM-DD, or YYYY-MM when only the month is known. Work out relative dates from the date in the input. Null if the source gives none; the date a change was detected is not its effective date.
 - applies_when: which users the change affects. hosting: "hosted" (they use the vendor's service), "self_hosted" (they run the software themselves); use: "commercial", "personal"; tier: "free", "paid". List every value that is affected; an empty list means the change does not depend on that question. Only narrow a list when the source says who is or is not affected.
 - who_is_not_affected: one sentence, only if the source says who is not affected. Otherwise null.
 - options: two or three ways out for someone affected, most practical first. Prefer the alternatives listed in the product context (use their catalog_id); "stay and accept the change" or "pin the current version" can be an option. catalog_id is null for options not in the list. effort: how much work the move is.
 - uncertain: things a reader would want to know that the source does not say (for example whether self-hosting is affected, or the exact date). Empty if nothing important is missing.
-- confidence: from 0 to 1, how sure you are that the kind is right and that every statement in the note is supported by the source. Use 0.9 or more only when the source states the change explicitly.
+- confidence: from 0 to 1, how sure you are that the kind is right and that every statement in your note is supported by the source. It is about what the note claims, not about what the source leaves out: open questions belong in "uncertain" and do not lower it.
+  - 0.95 or more: the source states the change explicitly and the note only restates it (for metadata, the field change itself is the source).
+  - 0.9 to 0.95: the change is explicit, and the note works out something simple from it, such as a date from "in six months".
+  - 0.7 to 0.9: the change is implied, partial, or the kind is debatable.
+  - below 0.7: you are guessing.
 
 Never add facts, numbers or dates that are not in the source. Do not give legal advice and do not say whether anyone is compliant.
 
@@ -91,7 +95,7 @@ export type SummariseSource =
 export function summariseInput(i: { kind: string; url: string; date: string; source: SummariseSource }): string {
   const head = `Detected kind: ${i.kind}
 URL: ${i.url}
-Date: ${i.date}
+${i.source.type === "post" ? "Published (or first seen)" : "Change detected on"}: ${i.date}
 `;
   const s = i.source;
   if (s.type === "post") {

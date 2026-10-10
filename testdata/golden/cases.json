@@ -1,0 +1,302 @@
+{
+  "about": "Golden set for the M2 pipeline (SPEC §11). Real sources saved on 2026-10-10 unless marked synthetic. See README.md.",
+  "cases": [
+    {
+      "id": "01-deno-eol",
+      "spec": 1,
+      "what": "Deno blog post of 2026-10-09: the team joins Cloudflare; the runtime gets one more year of fixes, then development ends.",
+      "type": "feed",
+      "catalog": "deno",
+      "feed": {
+        "url": "https://deno.com/feed",
+        "file": "feeds/deno.atom"
+      },
+      "item": "https://deno.com/blog/cloudflare",
+      "posts": {
+        "https://deno.com/blog/cloudflare": {
+          "file": "posts/deno-cloudflare.html",
+          "type": "text/html; charset=utf-8"
+        }
+      },
+      "expect": {
+        "kind": "eol",
+        "effective_date_prefix": "2027-10",
+        "quote_contains": "end our development of the Deno runtime"
+      }
+    },
+    {
+      "id": "02-bitwarden-license",
+      "spec": 2,
+      "what": "Bitwarden forum announcement of 2026-10-09 (HN 50033407, 'Bitwarden Dual License Model'): store builds become the commercially licensed builds; GPLv3 builds continue on GitHub.",
+      "type": "feed",
+      "catalog": "bitwarden",
+      "feed": {
+        "url": "https://community.bitwarden.com/c/announcements/72.rss",
+        "file": "feeds/bitwarden-announcements.rss"
+      },
+      "item": "https://community.bitwarden.com/t/published-version-update-in-app-stores/102750",
+      "posts": {
+        "https://community.bitwarden.com/t/published-version-update-in-app-stores/102750": {
+          "file": "posts/bitwarden-published-version-update.md",
+          "type": "text/markdown; charset=utf-8"
+        }
+      },
+      "expect": {
+        "kind": "license"
+      }
+    },
+    {
+      "id": "03-cloudflare-free-tier",
+      "spec": 3,
+      "what": "Synthetic edit of the saved Cloudflare Workers pricing page: Free plan requests cut from 100,000 to 50,000 per day (and the 'Last updated' date moves).",
+      "type": "page",
+      "catalog": "cloudflare-workers",
+      "page": {
+        "url": "https://developers.cloudflare.com/workers/platform/pricing/",
+        "selector": "main",
+        "type": "text/markdown; charset=utf-8",
+        "before": "pages/cloudflare-workers-pricing.md",
+        "after": "pages/cloudflare-workers-pricing.free-tier-edit.md"
+      },
+      "expect": {
+        "kind": "free_tier",
+        "note_mentions": [
+          "100,000",
+          "50,000"
+        ]
+      }
+    },
+    {
+      "id": "04-cloudflare-routine-post",
+      "spec": 4,
+      "what": "Routine product announcement on the Cloudflare blog (on-demand CPU profiling for Workers). Passes the catalog keyword filter.",
+      "type": "feed",
+      "catalog": "cloudflare-workers",
+      "feed": {
+        "url": "https://blog.cloudflare.com/rss/",
+        "file": "feeds/cloudflare-blog.rss"
+      },
+      "item": "https://blog.cloudflare.com/workers-on-demand-profiling/",
+      "posts": {
+        "https://blog.cloudflare.com/workers-on-demand-profiling/": {
+          "file": "posts/cloudflare-workers-on-demand-profiling.md",
+          "type": "text/markdown; charset=utf-8"
+        }
+      },
+      "expect": {
+        "kind": null
+      }
+    },
+    {
+      "id": "05-cloudflare-timestamp-only",
+      "spec": 5,
+      "what": "Synthetic: the same pricing page with only the 'Last updated' date changed.",
+      "type": "page",
+      "catalog": "cloudflare-workers",
+      "page": {
+        "url": "https://developers.cloudflare.com/workers/platform/pricing/",
+        "selector": "main",
+        "type": "text/markdown; charset=utf-8",
+        "before": "pages/cloudflare-workers-pricing.md",
+        "after": "pages/cloudflare-workers-pricing.timestamp-only.md"
+      },
+      "expect": {
+        "kind": null,
+        "llm_calls": 0
+      }
+    },
+    {
+      "id": "06-npm-busl",
+      "spec": 6,
+      "what": "Fixture: an npm package's latest version moves from MIT to BUSL-1.1.",
+      "type": "npm",
+      "package": "left-pad-pro",
+      "before": {
+        "name": "left-pad-pro",
+        "version": "1.4.2",
+        "license": "MIT",
+        "repository": {
+          "type": "git",
+          "url": "git+https://github.com/acme/left-pad-pro.git"
+        }
+      },
+      "after": {
+        "name": "left-pad-pro",
+        "version": "2.0.0",
+        "license": "BUSL-1.1",
+        "repository": {
+          "type": "git",
+          "url": "git+https://github.com/acme/left-pad-pro.git"
+        }
+      },
+      "expect": {
+        "kind": "license",
+        "status": "published"
+      }
+    },
+    {
+      "id": "07-github-archived",
+      "spec": 7,
+      "what": "Fixture: a GitHub repository becomes archived.",
+      "type": "github",
+      "repo": "acme/widget",
+      "before": {
+        "full_name": "acme/widget",
+        "owner": {
+          "login": "acme"
+        },
+        "archived": false,
+        "license": {
+          "spdx_id": "MIT"
+        }
+      },
+      "after": {
+        "full_name": "acme/widget",
+        "owner": {
+          "login": "acme"
+        },
+        "archived": true,
+        "license": {
+          "spdx_id": "MIT"
+        }
+      },
+      "license": {
+        "path": "LICENSE",
+        "sha": "0b1c2d",
+        "encoding": "base64",
+        "content": "TUlUIExpY2Vuc2UK"
+      },
+      "expect": {
+        "kind": "archived",
+        "status": "published"
+      }
+    },
+    {
+      "id": "08a-deno-release",
+      "spec": 8,
+      "what": "Deno 2.9 release post.",
+      "type": "feed",
+      "catalog": "deno",
+      "feed": {
+        "url": "https://deno.com/feed",
+        "file": "feeds/deno.atom"
+      },
+      "item": "https://deno.com/blog/v2.9",
+      "posts": {
+        "https://deno.com/blog/v2.9": {
+          "file": "posts/deno-v2.9.html",
+          "type": "text/html; charset=utf-8"
+        }
+      },
+      "expect": {
+        "kind": null
+      }
+    },
+    {
+      "id": "08b-deno-new-product",
+      "spec": 8,
+      "what": "Deno launches Claw Patrol, an open-source project.",
+      "type": "feed",
+      "catalog": "deno",
+      "feed": {
+        "url": "https://deno.com/feed",
+        "file": "feeds/deno.atom"
+      },
+      "item": "https://deno.com/blog/clawpatrol",
+      "posts": {
+        "https://deno.com/blog/clawpatrol": {
+          "file": "posts/deno-clawpatrol.html",
+          "type": "text/html; charset=utf-8"
+        }
+      },
+      "expect": {
+        "kind": null
+      }
+    },
+    {
+      "id": "08c-cloudflare-video-pipelines",
+      "spec": 8,
+      "what": "Cloudflare blog: Streamline, custom video pipelines with Stream and Workers.",
+      "type": "feed",
+      "catalog": "cloudflare-workers",
+      "feed": {
+        "url": "https://blog.cloudflare.com/rss/",
+        "file": "feeds/cloudflare-blog.rss"
+      },
+      "item": "https://blog.cloudflare.com/streamline/",
+      "posts": {
+        "https://blog.cloudflare.com/streamline/": {
+          "file": "posts/cloudflare-streamline.md",
+          "type": "text/markdown; charset=utf-8"
+        }
+      },
+      "expect": {
+        "kind": null
+      }
+    },
+    {
+      "id": "08d-bitwarden-feature",
+      "spec": 8,
+      "what": "Bitwarden blog: Fill assist, an autofill feature.",
+      "type": "feed",
+      "catalog": "bitwarden",
+      "feed": {
+        "url": "https://bitwarden.com/blog/feed.xml",
+        "file": "feeds/bitwarden-blog.rss"
+      },
+      "item": "https://bitwarden.com/blog/fill-assist-improving-autofill-every-time-for-everyone/",
+      "posts": {
+        "https://bitwarden.com/blog/fill-assist-improving-autofill-every-time-for-everyone/": {
+          "file": "posts/bitwarden-fill-assist.html",
+          "type": "text/html; charset=utf-8"
+        }
+      },
+      "expect": {
+        "kind": null
+      }
+    },
+    {
+      "id": "08e-bitwarden-release-notes",
+      "spec": 8,
+      "what": "Bitwarden forum: 2026.9.2 release notes (same feed as case 2).",
+      "type": "feed",
+      "catalog": "bitwarden",
+      "feed": {
+        "url": "https://community.bitwarden.com/c/announcements/72.rss",
+        "file": "feeds/bitwarden-announcements.rss"
+      },
+      "item": "https://community.bitwarden.com/t/2026-9-2-release-notes/102519",
+      "posts": {
+        "https://community.bitwarden.com/t/2026-9-2-release-notes/102519": {
+          "file": "posts/bitwarden-2026-9-2-release-notes.md",
+          "type": "text/markdown; charset=utf-8"
+        }
+      },
+      "expect": {
+        "kind": null
+      }
+    },
+    {
+      "id": "09-cloudflare-observability-pricing",
+      "spec": null,
+      "what": "Extra (not in SPEC §11): Cloudflare Birthday Week post on Observability. Mostly feature news, but section 4 moves existing Workers logs to volume-based pricing from 2026-12-01. First labelled a routine post; the classifier was right.",
+      "type": "feed",
+      "catalog": "cloudflare-workers",
+      "feed": {
+        "url": "https://blog.cloudflare.com/rss/",
+        "file": "feeds/cloudflare-blog.rss"
+      },
+      "item": "https://blog.cloudflare.com/one-observability-platform/",
+      "posts": {
+        "https://blog.cloudflare.com/one-observability-platform/": {
+          "file": "posts/cloudflare-one-observability-platform.md",
+          "type": "text/markdown; charset=utf-8"
+        }
+      },
+      "expect": {
+        "kind": "pricing",
+        "effective_date_prefix": "2026-12"
+      }
+    }
+  ]
+}

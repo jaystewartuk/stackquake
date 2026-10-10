@@ -1,0 +1,49 @@
+{
+ "id": 50019911,
+ "title": "Cloudflare acquires Deno",
+ "url": "https://deno.com/blog/cloudflare",
+ "created_at": "2026-10-09T13:03:48.000Z",
+ "points": 1331,
+ "top_comments": [
+  {
+   "author": "phaser",
+   "text": "I\u2019m happy if this means Deno is able to get a second impulse. I use Deno daily and while it\u2019s true that it\u2019s in this weird position where it\u2019s not sexy like bun or enterprise-y like node, it has a great developer experience. a no-surprises runtime that does a lot of interesting things the right way (like compile to desktop to a browser-less webgpu runtime), the vscode extension is flawless and overall the perfect balance of batteries included without bloat. of course i\u2019m only talking about deno, the technology not deno, the cloud service."
+  },
+  {
+   "author": "theodorejb",
+   "text": "> We will support the Deno runtime for another year with monthly releases containing bug fixes and security updates. After that year we will end our development of the Deno runtime. Deno will remain open source, and we welcome others who want to continue its development. So unless someone else picks up development, Deno will no longer be supported."
+  },
+  {
+   "author": "vmg12",
+   "text": "If this was done to kill celld as a runtime that would be unfortunate. edit: my reaction was too soon, it seems like they will be explicitly working on making workerd an open source self hostable runtime"
+  },
+  {
+   "author": "pimterry",
+   "text": "The Cloudflare side is also worth a read:  https://blog.cloudflare.com/deno-joins-cloudflare/"
+  },
+  {
+   "author": "multisport",
+   "text": "I'm very surprised they are not running with the runtime. That seemed like Deno's secret sauce? The rest of it is very aligned with Cloudflare already, deploy, kv, workers, etc seems like the lower hanging fruit."
+  },
+  {
+   "author": "rattray",
+   "text": "As a bystander, I'm excited by this. I don't know what it'll be, but I have a sense some interesting, powerful, and secure new ways of shipping code could come from this marriage..."
+  },
+  {
+   "author": "rvz",
+   "text": "> We will support the Deno runtime for another year with monthly releases containing bug fixes and security updates. After that year we will end our development of the Deno runtime. Deno will remain open source, and we welcome others who want to continue its development. So Deno is going to be unsupported and will no longer be maintained and will be discontinued. It looks like \"written in Rust\" is not enough for a selling point and lost out to the fierce competition against Bun."
+  },
+  {
+   "author": "tiborsaas",
+   "text": "Congrats on the exit :) Finally, the next step of forking Node is up for grabs: Node > Deno > Done (anyone?)"
+  },
+  {
+   "author": "notnullorvoid",
+   "text": "> We will support the Deno runtime for another year with monthly releases containing bug fixes and security updates. After that year we will end our development of the Deno runtime. Extremely disappointing..."
+  },
+  {
+   "author": "mbStavola",
+   "text": "No idea why CF wouldn't just have them to continue working on Deno indefinitely..."
+  }
+ ]
+}
