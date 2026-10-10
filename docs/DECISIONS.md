@@ -547,8 +547,11 @@ Read this after SPEC.md; where they disagree, this file wins.
   next to `*/5`. Each Cron Trigger is its own invocation with its own 10 ms CPU budget and its own
   HEAVY token, so this doubles the runner on the Free plan with no code change beyond mapping the
   cron: 576 HEAVY slots and 1,728 general claims a day. Claims are atomic, so overlapping ticks
-  never run a job twice. It uses 3 of the account's 5 Free-plan cron triggers (Beckon is not on
-  Workers); if another Worker on the account needs one, drop this cron and poll feeds every 4 h.
+  never run a job twice. It uses 3 of the account's 5 Free-plan cron triggers. Checked
+  2026-10-11: the account's other Workers use 1 (`another-project`, `*/5`; `another-project` and
+  `another-worker` have none), so production Stackquake makes 4 of 5 and a
+  staging Worker can have at most 1. If another Worker needs one, drop this cron and poll feeds
+  every 4 h.
 - **Feeds every 3 h** (was 2 h; SPEC says 1 h). Still 8× inside G1's 24 h. With both changes,
   catalog HEAVY polls are 280 + 50 = 330 a day of 576 (57%), leaving room for pipeline steps,
   imports and a 40-entry catalog in M5.

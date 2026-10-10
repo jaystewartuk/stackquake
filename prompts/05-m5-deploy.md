@@ -32,8 +32,8 @@ Implement milestone M5 only (§12). No billing, plans or landing page (M6).
 1. **Deploy** staging and production Workers (wrangler environments): real D1 databases and R2
    buckets (replace the placeholder `database_id`), migrations applied, secrets set, the custom
    domains (`stackquake.com` for production, a `staging.` subdomain for staging), crons only where
-   they should run (decide whether staging runs the cron at all: it shares the account's 5 cron
-   triggers, and M4 uses 3 per Worker; record the decision). Generate fresh `LINK_SECRET` and
+   they should run (the account has 5 Free-plan cron triggers: `another-project` uses 1, production
+   Stackquake 3, so staging gets at most 1, or none; decide and record it). Generate fresh `LINK_SECRET` and
    `CHANNEL_KEY` per environment.
 2. **DNS for Resend** on stackquake.com (SPF, DKIM, and a DMARC record; ask first, then do it in
    the Cloudflare dashboard via Chrome). Verify the domain in Resend, create a production key
