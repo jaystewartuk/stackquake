@@ -7,7 +7,6 @@ detect:
 sources:
   - kind: github_repo
     repo: dani-garcia/vaultwarden
-  - kind: feed
-    url: https://github.com/dani-garcia/vaultwarden/releases.atom
+  # No feed: github.com/robots.txt disallows "/*.atom$", so releases.atom is off limits.
 alternatives: [bitwarden]
 usage_questions: [self_hosted]

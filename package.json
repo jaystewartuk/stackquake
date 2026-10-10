@@ -10,7 +10,8 @@
     "typecheck": "npm run build:catalog && tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
-    "poll": "npm run build:catalog --silent && node scripts/poll.mjs"
+    "poll": "npm run build:catalog --silent && node scripts/poll.mjs",
+    "measure:cpu": "npm run build:catalog --silent && node scripts/measure-cpu.mjs"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.4",

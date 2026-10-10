@@ -1,5 +1,5 @@
 // Local-only routes used by `npm run poll` (scripts/poll.mjs drives them under `wrangler dev`).
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, lte } from "drizzle-orm";
 import { Hono } from "hono";
 import { syncCatalog } from "./catalog/catalog";
 import { CATALOG } from "./catalog/entries";
@@ -8,7 +8,7 @@ import { makeCtx, type AppEnv } from "./env";
 import { completeJob } from "./jobs/queue";
 import { KINDS } from "./sources/kinds";
 import { extractDiff } from "./watch/extract-diff";
-import { pollSafely, type PollReport } from "./watch/poll";
+import { loadSnapshot, pollSafely, type PollReport } from "./watch/poll";
 
 export const devRoutes = new Hono<{ Bindings: AppEnv }>();
 
@@ -69,11 +69,30 @@ devRoutes.post("/poll", async (c) => {
     .from(events)
     .where(inArray(events.sourceId, ids))
     .all();
+  // --show: the stored canonical text of each source, to check selectors and normalisation.
+  const shown: Record<number, string | null> = {};
+  if (c.req.query("show") === "1") {
+    for (const r of reports) shown[r.sourceId] = r.sha256 ? await loadSnapshot(ctx, r.sha256) : null;
+  }
   return c.json({
+    shown,
     reports: reports.sort((a, b) => a.sourceId - b.sourceId),
     diffs: diffResults,
     events: newEvents.filter((e) => e.detectedAt >= since),
   });
+});
+
+/**
+ * Makes queued polls due now (used by scripts/measure-cpu.mjs). With ?within=ms, only jobs due
+ * within that window (deferred ones) are moved.
+ */
+devRoutes.post("/due", async (c) => {
+  const ctx = makeCtx(c.env);
+  const now = ctx.clock.now();
+  const within = Number(c.req.query("within") ?? "Infinity");
+  const cond = Number.isFinite(within) ? and(eq(jobs.kind, "poll"), lte(jobs.runAfter, now + within)) : eq(jobs.kind, "poll");
+  await ctx.db.update(jobs).set({ runAfter: now, lockedUntil: null }).where(cond);
+  return c.json({ ok: true });
 });
 
 devRoutes.get("/sources", async (c) => {
