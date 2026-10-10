@@ -13,3 +13,4 @@ sources:
     repo: nodejs/node
 alternatives: [bun, deno]
 usage_questions: []
+common: true

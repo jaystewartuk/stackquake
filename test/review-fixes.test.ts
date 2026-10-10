@@ -83,7 +83,7 @@ describe("jobs and catalog", () => {
 
   it("re-baselines a page whose extraction rules change", async () => {
     const { ctx } = testCtx();
-    const entry = (ignore?: string[]): CatalogEntry => ({ id: "x", name: "X", category: "c", sources: [{ kind: "page", url: "https://x.example/p", selector: "main", ignore }] });
+    const entry = (ignore?: string[]): CatalogEntry => ({ id: "x", name: "X", category: "hosting", sources: [{ kind: "page", url: "https://x.example/p", selector: "main", ignore }] });
     await syncCatalog(ctx, [entry()]);
     await ctx.db.update(sources).set({ etag: '"v1"', lastSha: "abc", lastState: { chars: 1 } });
     await syncCatalog(ctx, [entry(["Build \\d+"])]);

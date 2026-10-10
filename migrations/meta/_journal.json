@@ -15,6 +15,13 @@
       "when": 1791667737177,
       "tag": "0001_m2_pipeline",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1791670197283,
+      "tag": "0002_m3_webapp",
+      "breakpoints": true
     }
   ]
 }

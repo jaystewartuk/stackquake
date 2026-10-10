@@ -16,3 +16,4 @@ sources:
     product: deno
 alternatives: [nodejs, bun, cloudflare-workers]
 usage_questions: [hosted, commercial]
+common: true

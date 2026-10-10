@@ -24,3 +24,5 @@ sources:
     repo: vercel/vercel
 alternatives: [cloudflare-workers, netlify, fly-io]
 usage_questions: [hosted, commercial, tier]
+common: true
+single_vendor: true

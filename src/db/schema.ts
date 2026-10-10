@@ -15,7 +15,7 @@ export type EventKind = (typeof EVENT_KINDS)[number];
 export const EVENT_STATUSES = ["pending_llm", "pending_review", "published", "rejected"] as const;
 export type EventStatus = (typeof EVENT_STATUSES)[number];
 
-export const JOB_KINDS = ["poll", "extract_diff", "fetch_post", "classify", "summarise"] as const;
+export const JOB_KINDS = ["poll", "extract_diff", "fetch_post", "classify", "summarise", "import"] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
 // Catalog entries as loaded from catalog/*.yaml (M1 addition: SPEC keeps them only as files).
@@ -157,8 +157,150 @@ export const robots = sqliteTable("robots", {
   fetchedAt: integer("fetched_at").notNull(),
 });
 
+// ---- M3: users, auth and stacks (SPEC §6) ----
+
+export const users = sqliteTable("users", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  email: text("email").notNull().unique(),
+  githubId: integer("github_id").unique(),
+  name: text("name"),
+  plan: text("plan").notNull().default("free"),
+  stripeCustomerId: text("stripe_customer_id"),
+  /** 0 = Sunday … 6 = Saturday. */
+  digestDay: integer("digest_day").notNull().default(1),
+  createdAt: integer("created_at").notNull(),
+});
+
+/** `id` is the sha256 of the cookie value, so a database leak does not leak live sessions. */
+export const sessions = sqliteTable(
+  "sessions",
+  {
+    id: text("id").primaryKey(),
+    userId: integer("user_id").notNull(),
+    expiresAt: integer("expires_at").notNull(),
+    createdAt: integer("created_at").notNull(), // M3 addition
+  },
+  (t) => [index("sessions_user").on(t.userId)],
+);
+
+export const magicLinks = sqliteTable("magic_links", {
+  tokenHash: text("token_hash").primaryKey(),
+  email: text("email").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+  usedAt: integer("used_at"),
+  // M3 additions: set when the link confirms an email change for a signed-in user.
+  userId: integer("user_id"),
+  createdAt: integer("created_at").notNull(),
+});
+
+/** Fixed-window counters (M3 addition): magic-link requests per email and per IP. */
+export const rateLimits = sqliteTable("rate_limits", {
+  key: text("key").primaryKey(),
+  windowStart: integer("window_start").notNull(),
+  count: integer("count").notNull(),
+});
+
+export const HOSTING_VALUES = ["hosted", "self_hosted"] as const;
+export const USE_VALUES = ["commercial", "personal"] as const;
+export const TIER_VALUES = ["free", "paid"] as const;
+
+/** A usage profile (SPEC §7.1). A missing key means unknown, which counts as "assume affected". */
+export interface Profile {
+  hosting?: (typeof HOSTING_VALUES)[number];
+  use?: (typeof USE_VALUES)[number];
+  tier?: (typeof TIER_VALUES)[number];
+}
+
+export const projects = sqliteTable(
+  "projects",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    userId: integer("user_id").notNull(),
+    name: text("name").notNull(),
+    repoFullName: text("repo_full_name"),
+    githubInstallationId: integer("github_installation_id"),
+    defaultProfile: text("default_profile", { mode: "json" }).$type<Profile>().notNull().default(sql`'{}'`),
+    lastImportAt: integer("last_import_at"),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [index("projects_user").on(t.userId)],
+);
+
+export const DEP_ORIGINS = ["import", "manual"] as const;
+
+export const deps = sqliteTable(
+  "deps",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    projectId: integer("project_id").notNull(),
+    catalogId: text("catalog_id"),
+    /** npm | pypi | go | crates | gem | composer for packages; "eol" for runtimes outside the catalog. */
+    ecosystem: text("ecosystem"),
+    package: text("package"),
+    versionSpec: text("version_spec"),
+    eolProduct: text("eol_product"),
+    eolCycle: text("eol_cycle"),
+    profile: text("profile", { mode: "json" }).$type<Profile>().notNull().default(sql`'{}'`),
+    mutedUntil: integer("muted_until"),
+    origin: text("origin", { enum: DEP_ORIGINS }).notNull(),
+    // M3 additions.
+    /**
+     * `catalog:<id>`, `<ecosystem>:<package>` or `eol:<product>`. SPEC's UNIQUE(project_id,
+     * catalog_id, ecosystem, package) does not work in SQLite, where NULLs are all distinct.
+     */
+    depKey: text("dep_key").notNull(),
+    /** Packages only: importance rank within the project (1 = most important); top 25 are shown. */
+    rank: integer("rank"),
+    /** Where import found it (manifest paths), for the dep page. */
+    foundIn: text("found_in", { mode: "json" }).$type<string[]>(),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [uniqueIndex("deps_project_key").on(t.projectId, t.depKey)],
+);
+
+export const depSources = sqliteTable(
+  "dep_sources",
+  {
+    depId: integer("dep_id").notNull(),
+    sourceId: integer("source_id").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.depId, t.sourceId] }), index("dep_sources_source").on(t.sourceId)],
+);
+
+export const IMPORT_STATUSES = ["running", "done", "failed"] as const;
+
+/** A public repo import (M3 addition): a small state machine run one step per request or tick. */
+export const imports = sqliteTable(
+  "imports",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    projectId: integer("project_id").notNull(),
+    repo: text("repo").notNull(),
+    status: text("status", { enum: IMPORT_STATUSES }).notNull(),
+    step: text("step").notNull(),
+    state: text("state", { mode: "json" }).$type<Record<string, unknown>>().notNull(),
+    error: text("error"),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [index("imports_project").on(t.projectId)],
+);
+
+/** Free text from the picker that matched no catalog entry (SPEC §7.1, admin view). */
+export const catalogRequests = sqliteTable("catalog_requests", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id"),
+  text: text("text").notNull(),
+  createdAt: integer("created_at").notNull(),
+});
+
 export type Source = typeof sources.$inferSelect;
 export type Job = typeof jobs.$inferSelect;
 export type Event = typeof events.$inferSelect;
 export type NewEvent = typeof events.$inferInsert;
 export type LlmCall = typeof llmCalls.$inferSelect;
+export type User = typeof users.$inferSelect;
+export type Project = typeof projects.$inferSelect;
+export type Dep = typeof deps.$inferSelect;
+export type NewDep = typeof deps.$inferInsert;
+export type Import = typeof imports.$inferSelect;

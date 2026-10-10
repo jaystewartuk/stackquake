@@ -4,6 +4,7 @@ category: database
 aliases: [redis-server, redis stack]
 detect:
   npm: [redis, ioredis]
+  docker: [redis, redis/redis-stack]
   pypi: [redis]
 sources:
   - kind: feed
@@ -22,3 +23,4 @@ sources:
     package: redis
 alternatives: [valkey, keydb, dragonfly]
 usage_questions: [hosted, self_hosted, commercial]
+common: true

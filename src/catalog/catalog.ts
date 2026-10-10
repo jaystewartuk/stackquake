@@ -3,6 +3,7 @@ import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 import type { Ctx } from "../context";
 import { catalog, catalogSources, sources, type SourceKind } from "../db/schema";
 import { enqueue, pollJobKey } from "../jobs/queue";
+import { relinkCatalogDeps } from "../stack/deps";
 import { eolUrl, parseEolKey } from "../sources/kinds/eol";
 import { githubUrl } from "../sources/kinds/github";
 import { npmUrl } from "../sources/kinds/npm";
@@ -18,15 +19,34 @@ export type SourceSpec =
   | { kind: "feed"; url: string; filter?: string[] }
   | { kind: "page"; url: string; selector: string; exclude?: string[]; ignore?: string[] };
 
+/** Picker groups (SPEC §7.1), in display order. */
+export const CATEGORIES = ["hosting", "database", "storage", "auth", "email", "payments", "ai", "monitoring", "ci", "runtime", "infrastructure", "security", "self_hosted"] as const;
+export type Category = (typeof CATEGORIES)[number];
+
+/**
+ * Usage-profile questions (SPEC §7.1). `hosted` and `self_hosted` both mean "ask hosted or
+ * self-hosted?"; `commercial` asks commercial or personal; `tier` asks free tier or paid.
+ */
+export const USAGE_QUESTIONS = ["hosted", "self_hosted", "commercial", "tier"] as const;
+
 export interface CatalogEntry {
   id: string;
   name: string;
-  category: string;
+  category: Category;
   aliases?: string[];
-  detect?: { files?: string[]; npm?: string[]; pypi?: string[] };
+  /**
+   * How repo import finds the entry. `files`: file names or path suffixes, `*` globs within one
+   * path segment, a trailing `/` for a directory. `docker`: image names without tag
+   * (`postgres`, `valkey/valkey`). `terraform`: provider sources (`cloudflare/cloudflare`).
+   */
+  detect?: { files?: string[]; npm?: string[]; pypi?: string[]; docker?: string[]; terraform?: string[] };
   sources: SourceSpec[];
   alternatives?: string[];
-  usage_questions?: string[];
+  usage_questions?: (typeof USAGE_QUESTIONS)[number][];
+  /** Shown first in its picker group. */
+  common?: boolean;
+  /** One company runs it and there is no drop-in second provider (dashboard risk group). */
+  single_vendor?: boolean;
   notes?: string;
 }
 
@@ -42,8 +62,19 @@ export function validateEntry(e: unknown): string[] {
   const where = `catalog ${String(o.id ?? "?")}`;
   if (!str(o.id) || !/^[a-z0-9][a-z0-9-]*$/.test(o.id as string)) errs.push(`${where}: id must be kebab-case`);
   if (!str(o.name)) errs.push(`${where}: name is required`);
-  if (!str(o.category)) errs.push(`${where}: category is required`);
+  if (!(CATEGORIES as readonly unknown[]).includes(o.category)) errs.push(`${where}: category must be one of ${CATEGORIES.join(", ")}`);
   for (const k of ["aliases", "alternatives", "usage_questions"]) if (!strList(o[k])) errs.push(`${where}: ${k} must be a list of strings`);
+  for (const q of (o.usage_questions as unknown[] | undefined) ?? []) if (!(USAGE_QUESTIONS as readonly unknown[]).includes(q)) errs.push(`${where}: unknown usage question ${String(q)}`);
+  for (const k of ["common", "single_vendor"]) if (o[k] !== undefined && typeof o[k] !== "boolean") errs.push(`${where}: ${k} must be true or false`);
+  if (o.detect !== undefined) {
+    const d = o.detect as Record<string, unknown>;
+    if (!d || typeof d !== "object") errs.push(`${where}: detect must be a map`);
+    else
+      for (const [k, v] of Object.entries(d)) {
+        if (!["files", "npm", "pypi", "docker", "terraform"].includes(k)) errs.push(`${where}: unknown detect key ${k}`);
+        else if (!strList(v)) errs.push(`${where}: detect.${k} must be a list of strings`);
+      }
+  }
   if (!Array.isArray(o.sources) || o.sources.length === 0) errs.push(`${where}: sources must be a non-empty list`);
   for (const [i, s] of ((o.sources as unknown[]) ?? []).entries()) {
     const src = s as Record<string, unknown>;
@@ -188,10 +219,13 @@ export async function syncCatalog(ctx: Ctx, entries: CatalogEntry[]): Promise<{ 
     await ctx.db.delete(catalogSources).where(inArray(catalogSources.catalogId, removed));
     await ctx.db.delete(catalog).where(inArray(catalog.id, removed));
   }
-  // Catalog-made sources that no entry links to any more stop being polled.
+  // Users' deps on these entries follow the entry's new source list.
+  await relinkCatalogDeps(ctx, [...changed.map((e) => e.id), ...removed]);
+  // Catalog-made sources that no entry and no user's dep links to any more stop being polled.
   await ctx.db.run(sql`
     UPDATE sources SET state = 'disabled'
     WHERE state = 'active' AND json_extract(config, '$.origin') = 'catalog'
-      AND id NOT IN (SELECT source_id FROM catalog_sources)`);
+      AND id NOT IN (SELECT source_id FROM catalog_sources)
+      AND id NOT IN (SELECT source_id FROM dep_sources)`);
   return { sources: await countLinked(), created, changedEntries: changed.length };
 }

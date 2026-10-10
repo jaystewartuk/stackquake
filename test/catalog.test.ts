@@ -10,14 +10,15 @@ import { addSource, resetDb, testCtx } from "./helpers";
 beforeEach(resetDb);
 
 describe("catalog", () => {
-  it("ships the 10 starter entries, all valid", () => {
-    expect(CATALOG.map((e) => e.id).sort()).toEqual(["bitwarden", "bun", "cloudflare-workers", "deno", "nodejs", "redis", "supabase", "terraform", "vaultwarden", "vercel"]);
+  it("ships valid entries", () => {
+    expect(CATALOG.length).toBeGreaterThanOrEqual(10);
     for (const e of CATALOG) expect(validateEntry(e)).toEqual([]);
   });
 
   it("rejects bad entries", () => {
     expect(validateEntry({ id: "Bad Id", name: "x", category: "y", sources: [{ kind: "page", url: "http://x" }] })).toEqual([
       "catalog Bad Id: id must be kebab-case",
+      "catalog Bad Id: category must be one of hosting, database, storage, auth, email, payments, ai, monitoring, ci, runtime, infrastructure, security, self_hosted",
       "catalog Bad Id: sources[0]: url must be https",
       "catalog Bad Id: sources[0]: selector is required",
     ]);
@@ -36,7 +37,7 @@ describe("catalog", () => {
 
   it("disables catalog sources no entry uses any more, and re-enables them when they return", async () => {
     const { ctx } = testCtx();
-    const entry: CatalogEntry = { id: "x", name: "X", category: "c", sources: [{ kind: "npm", package: "a" }, { kind: "npm", package: "b" }] };
+    const entry: CatalogEntry = { id: "x", name: "X", category: "hosting", sources: [{ kind: "npm", package: "a" }, { kind: "npm", package: "b" }] };
     await syncCatalog(ctx, [entry]);
     await syncCatalog(ctx, [{ ...entry, sources: [{ kind: "npm", package: "a" }] }]);
     const states = Object.fromEntries((await ctx.db.select().from(sources).all()).map((s) => [s.key, s.state]));

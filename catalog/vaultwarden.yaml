@@ -1,9 +1,9 @@
 id: vaultwarden
 name: Vaultwarden
-category: security
+category: self_hosted
 aliases: [bitwarden_rs]
 detect:
-  files: []
+  docker: [vaultwarden/server]
 sources:
   - kind: github_repo
     repo: dani-garcia/vaultwarden

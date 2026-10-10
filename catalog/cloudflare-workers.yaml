@@ -21,3 +21,5 @@ sources:
     repo: cloudflare/workerd
 alternatives: [vercel, deno, fly-io, aws-lambda]
 usage_questions: [hosted, tier]
+common: true
+single_vendor: true

@@ -21,3 +21,4 @@ sources:
     package: supabase
 alternatives: [neon, firebase, planetscale]
 usage_questions: [hosted, self_hosted, tier]
+common: true
