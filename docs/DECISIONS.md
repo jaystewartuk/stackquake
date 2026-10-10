@@ -498,7 +498,7 @@ Read this after SPEC.md; where they disagree, this file wins.
   30-day expiry. GET shows what will happen and a button; only the POST acts (mail scanners and
   Slack's unfurler fetch links). No sign-in needed: the signature is the authorisation. The POST
   still needs the pre-sign-in CSRF cookie the GET set.
-- Without `LINK_SECRET`, alerts go out without the links (logged nowhere; set it in M5).
+- Without `LINK_SECRET`, alerts go out without the links. Set it in every deployed environment (M5).
 - Signed-in users have the same "Useful" / "Not relevant" buttons on the dashboard and dep page
   (`POST /app/alerts/:id/feedback`, scoped to their own alerts).
 
@@ -537,3 +537,64 @@ Read this after SPEC.md; where they disagree, this file wins.
 ### Account deletion
 - Also deletes the user's alerts, Slack channel, and their pending `deliver` and `digest` jobs.
   Deleting a project or dep keeps the user's alerts (shown as "removed dependency").
+
+### Runner capacity (measured, then decided)
+- **The HEAVY token was already oversubscribed before M4.** One HEAVY step per tick is 288 a
+  day. The catalog's 35 feeds every 2 h are 420 polls a day and its 50 pages 50 more, all HEAVY,
+  before any summarise, diff, post fetch or import step. Feeds were falling behind and every
+  deferred HEAVY job wasted a claim. M5 grows the catalog further.
+- **A second tick cron**, `3-58/5 * * * *` (minutes 3, 8, 13…, clear of the daily run at :07),
+  next to `*/5`. Each Cron Trigger is its own invocation with its own 10 ms CPU budget and its own
+  HEAVY token, so this doubles the runner on the Free plan with no code change beyond mapping the
+  cron: 576 HEAVY slots and 1,728 general claims a day. Claims are atomic, so overlapping ticks
+  never run a job twice. It uses 3 of the account's 5 Free-plan cron triggers (Beckon is not on
+  Workers); if another Worker on the account needs one, drop this cron and poll feeds every 4 h.
+- **Feeds every 3 h** (was 2 h; SPEC says 1 h). Still 8× inside G1's 24 h. With both changes,
+  catalog HEAVY polls are 280 + 50 = 330 a day of 576 (57%), leaving room for pipeline steps,
+  imports and a 40-entry catalog in M5.
+- **Alert jobs get their own allowance**: each tick claims up to `JOBS_PER_TICK` (3) jobs of
+  other kinds, plus up to `ALERT_JOBS_PER_TICK` (**2**) fan-out, delivery or digest jobs. A burst
+  of deliveries (one event, hundreds of affected users) neither waits behind polls nor pushes them
+  back: 2 × 576 = 1,152 alert jobs a day. 2, not 3: with 3 general jobs (median 5 ms) plus 3
+  alert jobs (about 1–2 ms each) a tick would sit near 10 ms.
+- Not done: API polls (npm, PyPI, GitHub, endoflife.date) stay in the general allowance. Their
+  CPU depends on the body (a full npm document for a big package is a large JSON.parse), so they
+  are not "light" in the CPU sense, only in the politeness sense. Users' packages (up to 150 per
+  imported project, 4 polls a day each) are the next capacity limit: roughly 1,200 package polls
+  a day fit next to the catalog. Past that, poll packages every 12–24 h or move to Workers Paid,
+  where JOBS_PER_TICK can be far higher.
+
+### CPU (`npm run measure:cpu`, profiler estimate, which over-states)
+- Seeded load: 450 users with Redis, one self-hosted licence change for every 50th (fan-out in 3
+  chunks of 200, then 9 deliveries through a Resend stub) and a pricing change for all (held), then
+  the digests of 5 users.
+- Fan-out and delivery ticks: 4.2–9.0 ms (one chunk of 200 deps is about 2 ms; a delivery,
+  including rendering, three HMAC links and the Resend call, about 1 ms; the 9.0 ms tick was two
+  first chunks plus a delivery, in a run with 3 alert jobs per tick). Digest ticks (3 digests):
+  4.4–5.4 ms. Daily run with digests queued and the budget check: 3.3–4.1 ms.
+- Web: every page under 5 ms; the dashboard with the alerts section 2.7–4.9 ms.
+- Unchanged risks from M1–M3: poll ticks median 5.8 ms, p90 14 ms, max 65 ms (marketing pages,
+  as M3 recorded); one pipeline tick (post fetch plus two summarise steps) measured 16.8 ms this
+  run against 3–7 ms in M2, so treat the profiler's single readings as noisy. The first daily run
+  (catalog sync of 148 sources) about 150–175 ms, once. Check `exceededCpu` after deploy (M5).
+- The measure script's poll phases now run until every source has been polled (they used to stop
+  after 30 ticks and spill polls into the "pipeline" rows), and its web phase finds the imported
+  project's id instead of assuming 2.
+
+### Resend: one real email
+- 2026-10-11: created a Resend API key `stackquake-dev` (sending access) in the owner's Resend
+  account through Chrome, saved it to `.dev.vars` with `MAIL_FROM=Stackquake <onboarding@resend.dev>`,
+  and sent the sample Deno alert with `POST /__dev/test-email` under `wrangler dev`. Resend's log
+  shows it **Delivered** to user@example.com, subject "[Stackquake] Deno: Deno runtime development
+  ends in about a year". Production needs its own key, restricted to stackquake.com, after the
+  DNS records (M5).
+
+### Checks at the end of M4
+- `npm test`: 244 tests pass (65 new: E2, E3 and E4 end to end; the rate limit; urgency rules;
+  signed-link expiry and tampering; mute; the digest send/skip rule; Slack URL validation;
+  idempotent fan-out and delivery; chunking; shared-feed filters; Slack and Resend failures;
+  settings, links and account deletion). `tsc` is clean.
+- `npm run eval` passes with the pipeline changes (publish → fan-out, the classify budget check):
+  one run, $0.099.
+- Test helper fix: `testCtx({ http })` used to put the FixtureHttp object itself in `ctx.http`
+  (no test had passed one before).
