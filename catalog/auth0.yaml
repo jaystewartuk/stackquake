@@ -1,0 +1,24 @@
+id: auth0
+name: Auth0
+category: auth
+aliases: [okta auth0, auth0.com]
+detect:
+  npm: [auth0, "@auth0/auth0-react", "@auth0/nextjs-auth0", "@auth0/auth0-spa-js"]
+  pypi: [auth0-python]
+  terraform: [auth0/auth0]
+sources:
+  - kind: feed
+    url: https://auth0.com/blog/rss.xml
+    filter: [pricing, free, plan, deprecat, end of life, sunset, okta]
+  - kind: page
+    url: https://auth0.com/pricing
+    selector: main
+  - kind: page
+    url: https://auth0.com/docs/troubleshoot/product-lifecycle/deprecations-and-migrations
+    selector: main
+  - kind: npm
+    package: auth0
+alternatives: [clerk, firebase, supabase]
+usage_questions: [hosted, commercial, tier]
+common: true
+single_vendor: true

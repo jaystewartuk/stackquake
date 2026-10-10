@@ -1,0 +1,23 @@
+id: aws-lambda
+name: AWS Lambda
+category: hosting
+aliases: [lambda, aws lambda functions, serverless lambda]
+detect:
+  files: [samconfig.toml, serverless.yml, serverless.yaml]
+  npm: ["@types/aws-lambda", "@aws-sdk/client-lambda", aws-lambda]
+sources:
+  - kind: feed
+    url: https://aws.amazon.com/about-aws/whats-new/recent/feed/
+    filter: [lambda, free tier]
+  - kind: page
+    url: https://aws.amazon.com/lambda/pricing/
+    selector: main
+  - kind: page
+    url: https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtimes.html
+    selector: main
+  - kind: page
+    url: https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html
+    selector: main
+alternatives: [cloudflare-workers, vercel, netlify]
+usage_questions: [hosted, tier]
+single_vendor: true

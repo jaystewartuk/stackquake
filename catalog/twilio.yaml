@@ -1,0 +1,24 @@
+id: twilio
+name: Twilio
+category: infrastructure
+aliases: [twilio sms, twilio voice, twilio api]
+detect:
+  npm: [twilio]
+  pypi: [twilio]
+sources:
+  - kind: feed
+    url: https://www.twilio.com/en-us/blog/feed
+    filter: [pricing, price, fee, free, trial, a2p, 10dlc, sunset, deprecat, end of life, acqui]
+  - kind: page
+    url: https://www.twilio.com/en-us/pricing
+    selector: main
+  - kind: page
+    url: https://www.twilio.com/en-us/sms/pricing/us
+    selector: main
+  - kind: npm
+    package: twilio
+  - kind: pypi
+    package: twilio
+alternatives: [sendgrid]
+usage_questions: [hosted, commercial, tier]
+single_vendor: true

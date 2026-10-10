@@ -1,0 +1,23 @@
+id: neon
+name: Neon
+category: database
+aliases: [neon postgres, neondb, neon.tech]
+detect:
+  npm: ["@neondatabase/serverless", neonctl]
+  pypi: [neon-api]
+sources:
+  - kind: feed
+    url: https://neon.com/blog/rss.xml
+    filter: [pricing, free, plan, billing, limit, acqui, databricks, autosuspend]
+  - kind: page
+    url: https://neon.com/pricing
+    selector: main
+  - kind: page
+    url: https://neon.com/docs/introduction/plans
+    selector: main
+  - kind: npm
+    package: "@neondatabase/serverless"
+  - kind: github_repo
+    repo: neondatabase/neon
+alternatives: [supabase, planetscale, cloudflare-d1, postgres]
+usage_questions: [hosted, self_hosted, tier]

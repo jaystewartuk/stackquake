@@ -1,0 +1,19 @@
+id: docker-desktop
+name: Docker Desktop
+category: infrastructure
+aliases: [docker, docker hub]
+detect:
+  files: [Dockerfile, docker-compose.yml, docker-compose.yaml, compose.yml, compose.yaml]
+sources:
+  - kind: feed
+    url: https://www.docker.com/blog/feed/
+    filter: [pricing, subscription, licen, plan, rate limit, pull limit, docker desktop, docker hub]
+  - kind: page
+    url: https://www.docker.com/pricing/
+    selector: main
+  - kind: page
+    url: https://docs.docker.com/subscription/desktop-license/
+    selector: main
+usage_questions: [commercial, tier]
+common: true
+single_vendor: true

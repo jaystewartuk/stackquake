@@ -1,0 +1,25 @@
+id: openai-api
+name: OpenAI API
+category: ai
+aliases: [openai, gpt api, chatgpt api]
+detect:
+  npm: [openai, "@ai-sdk/openai"]
+  pypi: [openai, langchain-openai]
+sources:
+  - kind: feed
+    url: https://openai.com/news/rss.xml
+    filter: [pricing, price, api, deprecat, sunset, retire, terms, free]
+  - kind: page
+    url: https://developers.openai.com/api/docs/deprecations
+    selector: main
+  - kind: page
+    url: https://developers.openai.com/api/docs/pricing
+    selector: main
+  - kind: npm
+    package: openai
+  - kind: pypi
+    package: openai
+alternatives: [anthropic-api, cloudflare-workers-ai]
+usage_questions: [hosted, commercial, tier]
+common: true
+single_vendor: true

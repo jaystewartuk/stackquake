@@ -1,0 +1,22 @@
+id: railway
+name: Railway
+category: hosting
+aliases: [railway.app]
+detect:
+  files: [railway.json, railway.toml]
+  npm: ["@railway/cli"]
+sources:
+  - kind: feed
+    url: https://blog.railway.com/rss.xml
+    filter: [pricing, free, plan, trial, billing, limit, usage]
+  - kind: page
+    url: https://railway.com/pricing
+    selector: main
+  - kind: page
+    url: https://docs.railway.com/reference/pricing/plans
+    selector: main
+  - kind: github_repo
+    repo: railwayapp/cli
+alternatives: [render, fly-io, heroku]
+usage_questions: [hosted, tier]
+single_vendor: true

@@ -1,0 +1,17 @@
+id: cloudflare-workers-ai
+name: Cloudflare Workers AI
+category: ai
+aliases: [workers ai, cloudflare ai]
+sources:
+  - kind: feed
+    url: https://blog.cloudflare.com/rss/
+    filter: [workers ai, ai gateway, inference, neurons, pricing]
+  - kind: page
+    url: https://developers.cloudflare.com/workers-ai/platform/pricing/
+    selector: main
+  - kind: page
+    url: https://developers.cloudflare.com/workers-ai/platform/limits/
+    selector: main
+alternatives: [openai-api, anthropic-api]
+usage_questions: [hosted, tier]
+single_vendor: true

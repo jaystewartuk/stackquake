@@ -1,0 +1,25 @@
+id: anthropic-api
+name: Anthropic API
+category: ai
+aliases: [anthropic, claude api, claude]
+detect:
+  npm: ["@anthropic-ai/sdk", "@ai-sdk/anthropic", "@anthropic-ai/claude-agent-sdk"]
+  pypi: [anthropic, langchain-anthropic]
+sources:
+  - kind: page
+    url: https://platform.claude.com/docs/en/about-claude/pricing
+    selector: main
+  - kind: page
+    url: https://platform.claude.com/docs/en/about-claude/model-deprecations
+    selector: main
+  - kind: page
+    url: https://platform.claude.com/docs/en/api/rate-limits
+    selector: main
+  - kind: npm
+    package: "@anthropic-ai/sdk"
+  - kind: pypi
+    package: anthropic
+alternatives: [openai-api, cloudflare-workers-ai]
+usage_questions: [hosted, commercial, tier]
+common: true
+single_vendor: true

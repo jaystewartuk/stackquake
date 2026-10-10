@@ -1,0 +1,19 @@
+id: postgres
+name: PostgreSQL
+category: database
+aliases: [postgresql, postgres]
+detect:
+  docker: [postgres, postgis/postgis, pgvector/pgvector]
+  npm: [pg, postgres, pg-promise]
+  pypi: [psycopg2, psycopg2-binary, psycopg, asyncpg]
+sources:
+  - kind: feed
+    url: https://www.postgresql.org/news.rss
+    filter: [end of life, eol, unsupported, licen]
+  - kind: eol
+    product: postgresql
+  - kind: github_repo
+    repo: postgres/postgres
+alternatives: [neon, supabase, planetscale]
+usage_questions: [hosted, self_hosted]
+common: true

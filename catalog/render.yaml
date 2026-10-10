@@ -1,0 +1,22 @@
+id: render
+name: Render
+category: hosting
+aliases: [render.com]
+detect:
+  files: [render.yaml]
+sources:
+  - kind: feed
+    url: https://render.com/changelog/feed.xml
+    filter: [pricing, free, plan, billing, limit, instance, postgres, deprecat]
+  - kind: feed
+    url: https://render.com/blog/feed.xml
+    filter: [pricing, free, plan, billing]
+  - kind: page
+    url: https://render.com/pricing
+    selector: main
+  - kind: page
+    url: https://render.com/docs/free
+    selector: main
+alternatives: [fly-io, railway, heroku, netlify]
+usage_questions: [hosted, tier]
+single_vendor: true

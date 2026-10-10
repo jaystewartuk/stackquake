@@ -1,0 +1,24 @@
+id: mongodb
+name: MongoDB
+category: database
+aliases: [mongo, mongodb atlas, atlas]
+detect:
+  docker: [mongo, mongodb/mongodb-community-server]
+  npm: [mongodb, mongoose]
+  pypi: [pymongo, motor, mongoengine]
+sources:
+  - kind: feed
+    url: https://www.mongodb.com/blog/rss
+    filter: [licen, sspl, pricing, free tier, atlas, end of life, eol, deprecat]
+  - kind: page
+    url: https://www.mongodb.com/docs/atlas/reference/free-shared-limitations/
+    selector: main
+  - kind: page
+    url: https://www.mongodb.com/legal/licensing/server-side-public-license
+    selector: main
+  - kind: eol
+    product: mongodb
+  - kind: github_repo
+    repo: mongodb/mongo
+alternatives: [postgres, firebase, supabase]
+usage_questions: [hosted, self_hosted, commercial, tier]

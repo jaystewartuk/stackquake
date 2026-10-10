@@ -1,0 +1,22 @@
+id: stripe
+name: Stripe
+category: payments
+aliases: [stripe payments, stripe billing, stripe checkout]
+detect:
+  npm: [stripe, "@stripe/stripe-js", "@stripe/react-stripe-js"]
+  pypi: [stripe]
+sources:
+  - kind: feed
+    url: https://stripe.com/blog/feed.rss
+    filter: [pricing, fee, price, terms, billing, tax, acqui]
+  # stripe.com/pricing is not watched: it redirects by visitor country and language (/mx/pricing,
+  # /es-us/pricing), so the text depends on where the poll runs and would flip between polls.
+  - kind: npm
+    package: stripe
+  - kind: pypi
+    package: stripe
+  - kind: github_repo
+    repo: stripe/stripe-node
+usage_questions: [hosted, commercial]
+common: true
+single_vendor: true

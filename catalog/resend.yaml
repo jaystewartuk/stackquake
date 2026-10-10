@@ -1,0 +1,21 @@
+id: resend
+name: Resend
+category: email
+aliases: [resend.com, resend email]
+detect:
+  npm: [resend, "@react-email/components"]
+  pypi: [resend]
+sources:
+  - kind: page
+    url: https://resend.com/pricing
+    selector: main
+  - kind: npm
+    package: resend
+  - kind: pypi
+    package: resend
+  - kind: github_repo
+    repo: resend/resend-node
+alternatives: [sendgrid, twilio]
+usage_questions: [hosted, commercial, tier]
+common: true
+single_vendor: true

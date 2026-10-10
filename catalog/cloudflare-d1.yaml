@@ -1,0 +1,17 @@
+id: cloudflare-d1
+name: Cloudflare D1
+category: database
+aliases: [d1, d1 database]
+sources:
+  - kind: feed
+    url: https://blog.cloudflare.com/rss/
+    filter: [d1, sqlite, pricing, free tier]
+  - kind: page
+    url: https://developers.cloudflare.com/d1/platform/pricing/
+    selector: main
+  - kind: page
+    url: https://developers.cloudflare.com/d1/platform/limits/
+    selector: main
+alternatives: [supabase, neon, planetscale, firebase]
+usage_questions: [hosted, tier]
+single_vendor: true

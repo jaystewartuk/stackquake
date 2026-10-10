@@ -1,0 +1,22 @@
+id: firebase
+name: Firebase
+category: database
+aliases: [firestore, firebase auth, firebase hosting, google firebase]
+detect:
+  files: [firebase.json, .firebaserc, firestore.rules, firestore.indexes.json]
+  npm: [firebase, firebase-admin, firebase-tools]
+  pypi: [firebase-admin]
+sources:
+  - kind: feed
+    url: https://firebase.blog/rss.xml
+    filter: [pricing, free, spark, blaze, plan, billing, deprecat, shut down, sunset]
+  - kind: page
+    url: https://firebase.google.com/pricing
+    selector: main
+  - kind: npm
+    package: firebase
+  - kind: github_repo
+    repo: firebase/firebase-tools
+alternatives: [supabase, cloudflare-d1, clerk]
+usage_questions: [hosted, tier]
+single_vendor: true

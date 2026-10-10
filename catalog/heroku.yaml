@@ -1,0 +1,22 @@
+id: heroku
+name: Heroku
+category: hosting
+aliases: [heroku dynos, heroku postgres]
+detect:
+  files: [Procfile, app.json, heroku.yml, runtime.txt]
+  npm: [heroku]
+sources:
+  - kind: feed
+    url: https://www.heroku.com/blog/feed/
+    filter: [pricing, free, plan, eco, dyno, deprecat, end of life, sunset, sales]
+  - kind: page
+    url: https://www.heroku.com/pricing
+    selector: main
+  - kind: page
+    url: https://devcenter.heroku.com/articles/limits
+    selector: article
+  - kind: github_repo
+    repo: heroku/cli
+alternatives: [render, fly-io, railway]
+usage_questions: [hosted, tier]
+single_vendor: true

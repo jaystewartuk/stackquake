@@ -1,0 +1,24 @@
+id: sentry
+name: Sentry
+category: monitoring
+aliases: [getsentry, sentry.io]
+detect:
+  npm: ["@sentry/node", "@sentry/browser", "@sentry/react", "@sentry/nextjs", "@sentry/cli"]
+  pypi: [sentry-sdk]
+  files: [sentry.properties, .sentryclirc, sentry.client.config.ts, sentry.server.config.ts]
+sources:
+  - kind: feed
+    url: https://blog.sentry.io/feed.xml
+    filter: [pricing, plan, free, licen, fsl, open source, quota, billing]
+  - kind: page
+    url: https://sentry.io/pricing/
+    selector: main
+  - kind: npm
+    package: "@sentry/node"
+  - kind: pypi
+    package: sentry-sdk
+  - kind: github_repo
+    repo: getsentry/sentry
+alternatives: [posthog]
+usage_questions: [hosted, self_hosted, commercial, tier]
+common: true

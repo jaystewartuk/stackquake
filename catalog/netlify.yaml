@@ -1,0 +1,25 @@
+id: netlify
+name: Netlify
+category: hosting
+aliases: [netlify functions, netlify edge]
+detect:
+  files: [netlify.toml, _redirects, _headers]
+  npm: [netlify-cli, "@netlify/functions", "@netlify/edge-functions"]
+sources:
+  - kind: feed
+    url: https://www.netlify.com/changelog/feed.xml
+    filter: [pricing, plan, free, credit, limit, billing, usage, bandwidth, build minutes]
+  - kind: feed
+    url: https://www.netlify.com/feed.xml
+    filter: [pricing, plan, free, credit, limit, billing]
+  - kind: page
+    url: https://www.netlify.com/pricing/
+    selector: main
+  - kind: npm
+    package: netlify-cli
+  - kind: github_repo
+    repo: netlify/cli
+alternatives: [vercel, cloudflare-workers, render]
+usage_questions: [hosted, commercial, tier]
+common: true
+single_vendor: true

@@ -1,0 +1,22 @@
+id: sendgrid
+name: SendGrid
+category: email
+aliases: [twilio sendgrid, sendgrid email]
+detect:
+  npm: ["@sendgrid/mail", "@sendgrid/client"]
+  pypi: [sendgrid]
+sources:
+  # sendgrid.com/pricing now redirects to the Twilio SendGrid landing page; the Email API
+  # product page carries the plan and free-tier summary.
+  - kind: page
+    url: https://www.twilio.com/en-us/products/email-api
+    selector: main
+  - kind: npm
+    package: "@sendgrid/mail"
+  - kind: pypi
+    package: sendgrid
+  - kind: github_repo
+    repo: sendgrid/sendgrid-nodejs
+alternatives: [resend, twilio]
+usage_questions: [hosted, commercial, tier]
+single_vendor: true

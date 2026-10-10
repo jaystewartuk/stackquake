@@ -1,0 +1,21 @@
+id: fly-io
+name: Fly.io
+category: hosting
+aliases: [fly, flyctl, fly machines]
+detect:
+  files: [fly.toml]
+sources:
+  - kind: feed
+    url: https://fly.io/blog/feed.xml
+    filter: [pricing, free, plan, billing, trial, price, volumes, shutdown]
+  - kind: page
+    url: https://fly.io/docs/about/pricing/
+    selector: main
+  - kind: page
+    url: https://fly.io/docs/about/free-trial/
+    selector: main
+  - kind: github_repo
+    repo: superfly/flyctl
+alternatives: [render, railway, heroku, cloudflare-workers]
+usage_questions: [hosted, tier]
+single_vendor: true

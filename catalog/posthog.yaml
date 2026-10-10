@@ -1,0 +1,22 @@
+id: posthog
+name: PostHog
+category: monitoring
+aliases: [posthog analytics, product analytics]
+detect:
+  npm: [posthog-js, posthog-node, posthog-react-native]
+  pypi: [posthog]
+sources:
+  - kind: feed
+    url: https://posthog.com/changelog.rss
+    filter: [pricing, free, plan, billing, limit, deprecat, sunset, remov]
+  - kind: page
+    url: https://posthog.com/pricing
+    selector: article
+  - kind: npm
+    package: posthog-js
+  - kind: pypi
+    package: posthog
+  - kind: github_repo
+    repo: PostHog/posthog
+alternatives: [sentry]
+usage_questions: [hosted, self_hosted, commercial, tier]

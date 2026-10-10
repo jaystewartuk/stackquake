@@ -1,0 +1,19 @@
+id: clerk
+name: Clerk
+category: auth
+aliases: [clerk.com, clerk auth]
+detect:
+  npm: ["@clerk/nextjs", "@clerk/clerk-js", "@clerk/clerk-react", "@clerk/backend", "@clerk/express"]
+  pypi: [clerk-backend-api]
+sources:
+  - kind: page
+    url: https://clerk.com/pricing
+    selector: main
+  - kind: npm
+    package: "@clerk/nextjs"
+  - kind: github_repo
+    repo: clerk/javascript
+alternatives: [auth0, firebase, supabase]
+usage_questions: [hosted, commercial, tier]
+common: true
+single_vendor: true

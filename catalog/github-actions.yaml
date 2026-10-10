@@ -1,0 +1,21 @@
+id: github-actions
+name: GitHub Actions
+category: ci
+aliases: [actions, gha, github workflows]
+detect:
+  files: [".github/workflows/"]
+sources:
+  - kind: feed
+    url: https://github.blog/changelog/label/actions/feed/
+    filter: [pricing, billing, free, minutes, runner, deprecat, sunset, limit, price]
+  - kind: page
+    url: https://docs.github.com/en/billing/managing-billing-for-github-actions/about-billing-for-github-actions
+    selector: main
+  - kind: page
+    url: https://docs.github.com/en/actions/administering-github-actions/usage-limits-billing-and-administration
+    selector: main
+  - kind: github_repo
+    repo: actions/runner
+usage_questions: [hosted, commercial, tier]
+common: true
+single_vendor: true

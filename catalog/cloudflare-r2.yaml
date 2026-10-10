@@ -1,0 +1,18 @@
+id: cloudflare-r2
+name: Cloudflare R2
+category: storage
+aliases: [r2, r2 storage]
+sources:
+  - kind: feed
+    url: https://blog.cloudflare.com/rss/
+    filter: [r2, egress, object storage, pricing, free tier]
+  - kind: page
+    url: https://developers.cloudflare.com/r2/pricing/
+    selector: main
+  - kind: page
+    url: https://developers.cloudflare.com/r2/platform/limits/
+    selector: main
+alternatives: [supabase, firebase]
+usage_questions: [hosted, tier]
+common: true
+single_vendor: true

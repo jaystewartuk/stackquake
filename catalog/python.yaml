@@ -1,0 +1,17 @@
+id: python
+name: Python
+category: runtime
+aliases: [cpython, python3]
+detect:
+  files: [.python-version, runtime.txt, Pipfile, pyproject.toml, requirements.txt]
+  docker: [python]
+sources:
+  - kind: feed
+    url: https://pythoninsider.blogspot.com/feeds/posts/default
+    filter: [end of life, eol, security, licen, release candidate, final release]
+  - kind: eol
+    product: python
+  - kind: github_repo
+    repo: python/cpython
+usage_questions: []
+common: true

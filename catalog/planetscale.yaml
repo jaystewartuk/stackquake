@@ -1,0 +1,23 @@
+id: planetscale
+name: PlanetScale
+category: database
+aliases: [planet scale, vitess]
+detect:
+  npm: ["@planetscale/database"]
+  files: [.pscale.yml]
+sources:
+  - kind: feed
+    url: https://planetscale.com/blog/rss.xml
+    filter: [pricing, free, hobby, plan, billing, postgres, limit]
+  - kind: page
+    url: https://planetscale.com/pricing
+    selector: main
+    # The Markdown answer carries a "Generated at" timestamp.
+    ignore: ["Generated at: `[^`]*`"]
+  - kind: npm
+    package: "@planetscale/database"
+  - kind: github_repo
+    repo: planetscale/cli
+alternatives: [neon, supabase, cloudflare-d1]
+usage_questions: [hosted, tier]
+single_vendor: true
