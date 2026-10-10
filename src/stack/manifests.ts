@@ -337,6 +337,7 @@ function parseTerraform(text: string): Found {
   const f = emptyFound();
   for (const m of text.matchAll(/source\s*=\s*"([\w.-]+\/[\w.-]+(?:\/[\w.-]+)?)"/g)) {
     // registry.terraform.io/hashicorp/aws → hashicorp/aws; module sources with more parts or "./" are skipped.
+    if (m[1].startsWith(".")) continue;
     const parts = m[1].split("/");
     const src = parts.length === 3 && parts[0].includes(".") ? parts.slice(1).join("/") : parts.length === 2 ? m[1] : null;
     if (src) f.providers.push(src.toLowerCase());
