@@ -1,5 +1,6 @@
 // Shared page shell. Server-rendered; the only client JS is the picker's search filter.
 // Everything fetched from sources is rendered as text (JSX escapes it).
+import { raw } from "hono/html";
 import type { Child, FC, PropsWithChildren } from "hono/jsx";
 import type { User } from "../db/schema";
 import { isAdmin, type WebContext } from "./session";
@@ -26,7 +27,8 @@ h1{font-size:1.6rem;line-height:1.2;margin:.2rem 0 1rem;letter-spacing:-.015em} 
 .spread{display:flex;justify-content:space-between;gap:1rem;align-items:baseline;flex-wrap:wrap}
 button,.btn{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--fg);padding:.45rem .9rem;text-decoration:none;display:inline-block}
 button.primary,.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg);font-weight:600}
-button.link{border:0;background:none;padding:0;color:var(--muted);text-decoration:underline}
+button.link{border:0;background:none;padding:0;color:var(--muted);font-size:inherit} button.link:hover{color:var(--fg)}
+nav.main form{display:flex} nav.main button.link{line-height:inherit}
 button.danger{border-color:var(--bad);color:var(--bad)}
 input[type=text],input[type=email],input[type=url],input[type=search],select,textarea{font:inherit;width:100%;padding:.5rem .65rem;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg)}
 label{display:block;font-weight:600;margin:.8rem 0 .3rem}
@@ -39,7 +41,7 @@ form.inline{display:inline}
 .error{border-left-color:var(--bad)}
 blockquote{margin:.6rem 0;padding:.5rem .9rem;border-left:3px solid var(--accent);background:var(--soft);white-space:pre-wrap;border-radius:0 6px 6px 0}
 pre{white-space:pre-wrap;word-break:break-word;background:var(--soft);padding:.6rem;border-radius:6px;font-size:.8rem;max-height:18rem;overflow:auto}
-ul.plain{list-style:none;padding:0;margin:0} ul.plain li{padding:.5rem 0;border-bottom:1px solid var(--line)} ul.plain li:last-child{border-bottom:0}
+ul.plain{list-style:none;padding:0;margin:0} ul.plain a{text-decoration:none} ul.plain a:hover{text-decoration:underline} ul.plain li{padding:.5rem 0;border-bottom:1px solid var(--line)} ul.plain li:last-child{border-bottom:0}
 .pick{display:flex;gap:.55rem;align-items:flex-start;padding:.55rem .7rem;border:1px solid var(--line);border-radius:8px;background:var(--card);font-weight:400;margin:0;cursor:pointer}
 .pick:has(input:checked){border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
 .pick input{margin-top:.3rem}
@@ -60,7 +62,7 @@ export const Layout: FC<PropsWithChildren<{ title: string; user?: User | null; c
       {description && <meta name="description" content={description} />}
       <title>{title === "Stackquake" ? title : `${title} · Stackquake`}</title>
       <link rel="alternate" type="application/rss+xml" title="Stackquake events" href="/events.rss" />
-      <style>{CSS}</style>
+      <style>{raw(CSS)}</style>
       {head}
     </head>
     <body>

@@ -2,7 +2,8 @@ import { and, eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { depSources, deps, imports, jobs, projects, sources } from "../src/db/schema";
 import { runTick } from "../src/jobs/runner";
-import { claimImportJob, MAX_MANIFESTS, parseRepoInput, pickManifests, SHOWN_PACKAGES, startImport } from "../src/stack/import";
+import { claimImportJob, kickImport, MAX_MANIFESTS, parseRepoInput, pickManifests, SHOWN_PACKAGES, startImport } from "../src/stack/import";
+import { CATALOG } from "../src/catalog/entries";
 import { MONOREPO, serveRepo } from "./fixtures/repos";
 import { resetDb } from "./helpers";
 import { Browser, location, webCtx } from "./web";
@@ -74,7 +75,7 @@ describe("E1: public repo import (GitHub API mocked)", () => {
     expect(picker).toContain("found in repo");
     const dash = await b.html("/app");
     for (const name of ["Cloudflare Workers", "Supabase", "Vercel", "Node.js", "Redis", "Terraform", "next", "fastapi"]) expect(dash).toContain(name);
-    expect(dash).toContain("Node.js 20");
+    expect(dash).toMatch(/Node.js<\/strong><\/a> <span class="meta">version 20/);
     expect(Date.now() - started).toBeLessThan(60_000);
   });
 
@@ -98,6 +99,19 @@ describe("E1: public repo import (GitHub API mocked)", () => {
     const imp = await startImport(ctx, 1, "acme/shop");
     expect(await claimImportJob(ctx, imp.id)).toBeDefined();
     expect(await claimImportJob(ctx, imp.id)).toBeUndefined();
+  });
+
+  it("gives up on a step that keeps killing its invocation, instead of spinning forever", async () => {
+    const { ctx, clock } = await webCtx();
+    const imp = await startImport(ctx, 1, "acme/shop");
+    // Each claim that never records a result holds the lock until it expires.
+    for (let i = 0; i < 3; i++) {
+      expect(await claimImportJob(ctx, imp.id)).toBeDefined();
+      clock.advance(61_000);
+    }
+    await kickImport(ctx, imp.id, CATALOG);
+    expect((await ctx.db.select().from(imports).where(eq(imports.id, imp.id)).get())!).toMatchObject({ status: "failed", error: expect.stringContaining("kept stopping") });
+    expect(await ctx.db.select().from(jobs).where(eq(jobs.kind, "import")).all()).toHaveLength(0);
   });
 
   it("re-import drops what the repo no longer has, but keeps what the user added", async () => {

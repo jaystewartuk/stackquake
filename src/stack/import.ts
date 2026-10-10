@@ -22,6 +22,8 @@ const MAX_DIRS_PER_STEP = 24;
 const MAX_FILE_BYTES = 512 * 1024;
 const MAX_PATHS = 3_000;
 const MAX_STEP_ERRORS = 3;
+/** Claims of one step that never recorded a result (the invocation died) before giving up. */
+const MAX_KILLED_STEPS = 3;
 
 /** Top-level directories that never hold the project's own manifests. */
 const SKIP_DIRS = new Set(["node_modules", ".git", "vendor", "dist", "build", "out", "target", "coverage", "docs", "doc", "test", "tests", "__tests__", "e2e", "fixtures", "testdata", "examples", "example", "samples", "assets", "static", "public", ".vscode", ".idea", ".devcontainer", ".changeset", ".husky", ".yarn"]);
@@ -303,9 +305,10 @@ export async function importStep(ctx: Ctx, job: Job, entries: CatalogEntry[]): P
  */
 export async function claimImportJob(ctx: Ctx, importId: number): Promise<Job | undefined> {
   const now = ctx.clock.now();
+  // Claims count attempts (as in claimJobs), so a step that kills its invocation is not retried forever.
   const [job] = await ctx.db
     .update(jobs)
-    .set({ lockedUntil: now + LOCK_MS })
+    .set({ lockedUntil: now + LOCK_MS, attempts: sql`${jobs.attempts} + 1` })
     .where(and(eq(jobs.dedupeKey, importJobKey(importId)), isNull(jobs.parkedAt), lte(jobs.runAfter, now), or(isNull(jobs.lockedUntil), lt(jobs.lockedUntil, now))))
     .returning();
   return job;
@@ -314,10 +317,24 @@ export async function claimImportJob(ctx: Ctx, importId: number): Promise<Job | 
 /** Runs one step now, on behalf of the progress page. */
 export async function kickImport(ctx: Ctx, importId: number, entries: CatalogEntry[]): Promise<void> {
   const job = await claimImportJob(ctx, importId);
-  if (!job) return;
+  if (!job) {
+    // No job left (parked by the cron runner, or lost) while the import still says running.
+    const live = await ctx.db.select({ id: jobs.id }).from(jobs).where(and(eq(jobs.dedupeKey, importJobKey(importId)), isNull(jobs.parkedAt))).get();
+    if (!live) await failImport(ctx, importId, "The import stopped part-way. Try again, or pick services instead.");
+    return;
+  }
+  if (job.attempts > MAX_KILLED_STEPS) {
+    await ctx.db.delete(jobs).where(eq(jobs.id, job.id));
+    await failImport(ctx, importId, "The import kept stopping part-way (the repository may be too large). Pick services instead.");
+    return;
+  }
   const result = await importStep(ctx, job, entries);
   if (result === "done") await ctx.db.delete(jobs).where(eq(jobs.id, job.id));
   else await ctx.db.update(jobs).set({ lockedUntil: null, runAfter: ctx.clock.now(), attempts: 0 }).where(eq(jobs.id, job.id));
+}
+
+async function failImport(ctx: Ctx, importId: number, error: string): Promise<void> {
+  await ctx.db.update(imports).set({ status: "failed", error, updatedAt: ctx.clock.now() }).where(and(eq(imports.id, importId), eq(imports.status, "running")));
 }
 
 export async function latestImport(ctx: Ctx, projectId: number): Promise<Import | undefined> {

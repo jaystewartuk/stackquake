@@ -47,11 +47,12 @@ export const WATCHED_ECOSYSTEMS = new Set(["npm", "pypi"]);
 
 function depDetail(d: Dep, entry: CatalogEntry | undefined, defaults: Project["defaultProfile"]): string {
   const bits: string[] = [];
-  if (d.eolProduct && d.eolCycle) bits.push(`${entry ? `${RUNTIME_NAMES[d.eolProduct] ?? d.eolProduct} ` : "version "}${d.eolCycle}`);
+  if (d.eolProduct && d.eolCycle) bits.push(entry && d.eolProduct !== entry.sources.find((s) => s.kind === "eol")?.product ? `${RUNTIME_NAMES[d.eolProduct] ?? d.eolProduct} ${d.eolCycle}` : `version ${d.eolCycle}`);
   if (d.ecosystem && d.ecosystem !== "eol") bits.push(`${d.ecosystem}${d.versionSpec ? ` ${d.versionSpec}` : ""}`);
   if (entry) {
     const dims = questionsFor(entry);
-    if (dims.length) bits.push(describeProfile(effectiveProfile(d.profile, defaults, dims)));
+    const usage = dims.length ? describeProfile(effectiveProfile(d.profile, defaults, dims)) : null;
+    if (usage && usage !== "not set") bits.push(usage);
   }
   return bits.join(" · ");
 }

@@ -3,13 +3,14 @@ import { and, eq, inArray, isNull, lte, ne } from "drizzle-orm";
 import { Hono } from "hono";
 import { syncCatalog } from "./catalog/catalog";
 import { CATALOG } from "./catalog/entries";
-import { catalogSources, events, jobs, sources, type Source } from "./db/schema";
+import { catalogSources, events, jobs, sessions, sources, users, type Source } from "./db/schema";
 import { makeCtx, type AppEnv } from "./env";
 import { completeJob, enqueue } from "./jobs/queue";
 import { extractDiff } from "./watch/extract-diff";
 import { recordEvent } from "./watch/events";
 import { loadSnapshot, pollSafely, snapshotKey, type PollReport } from "./watch/poll";
 import { gzip, sha256Hex, utf8 } from "./util";
+import { randomToken, SESSION_MS } from "./web/session";
 
 export const devRoutes = new Hono<{ Bindings: AppEnv }>();
 
@@ -116,6 +117,17 @@ devRoutes.post("/due", async (c) => {
   const cond = Number.isFinite(within) ? and(kind, lte(jobs.runAfter, now + within)) : kind;
   await ctx.db.update(jobs).set({ runAfter: now, lockedUntil: null }).where(cond);
   return c.json({ ok: true });
+});
+
+/** Creates (or finds) a user and a session; returns the cookie value (scripts/measure-cpu.mjs). */
+devRoutes.post("/session", async (c) => {
+  const ctx = makeCtx(c.env);
+  const { email } = await c.req.json<{ email: string }>();
+  await ctx.db.insert(users).values({ email, createdAt: ctx.clock.now() }).onConflictDoNothing({ target: users.email });
+  const user = (await ctx.db.select().from(users).where(eq(users.email, email)).get())!;
+  const token = randomToken();
+  await ctx.db.insert(sessions).values({ id: await sha256Hex(token), userId: user.id, expiresAt: ctx.clock.now() + SESSION_MS, createdAt: ctx.clock.now() });
+  return c.json({ token, csrf: (await sha256Hex(`csrf:${token}`)).slice(0, 32) });
 });
 
 devRoutes.get("/sources", async (c) => {

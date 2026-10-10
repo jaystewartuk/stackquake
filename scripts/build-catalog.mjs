@@ -1,6 +1,6 @@
 // Compiles catalog/*.yaml into src/catalog/catalog.gen.json for the Worker bundle.
 // Full validation runs in the Worker (syncCatalog) and in test/catalog.test.ts.
-import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse } from "yaml";
 
@@ -13,5 +13,9 @@ const entries = readdirSync(dir)
     if (entry?.id !== f.replace(/\.yaml$/, "")) throw new Error(`${f}: id must match the file name`);
     return entry;
   });
-writeFileSync(new URL("../src/catalog/catalog.gen.json", import.meta.url), JSON.stringify(entries, null, 2) + "\n");
+// Written only when it changes: wrangler dev watches this file and runs this script on every
+// rebuild, so an unconditional write would reload the server in a loop.
+const out = new URL("../src/catalog/catalog.gen.json", import.meta.url);
+const json = JSON.stringify(entries, null, 2) + "\n";
+if (!existsSync(out) || readFileSync(out, "utf8") !== json) writeFileSync(out, json);
 console.error(`catalog: ${entries.length} entries`);

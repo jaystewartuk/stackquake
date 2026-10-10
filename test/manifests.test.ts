@@ -11,14 +11,15 @@ describe("manifest parsers (one fixture per SPEC §7.1 type)", () => {
       "package.json",
       JSON.stringify({
         name: "@acme/web",
-        dependencies: { next: "15.0.0", "@supabase/supabase-js": "^2.45.0", "@acme/ui": "workspace:*", local: "file:../local" },
+        dependencies: { next: "15.0.0", "@supabase/supabase-js": "^2.45.0", "@acme/ui": "workspace:*", local: "file:../local", zod: "catalog:" },
         optionalDependencies: { fsevents: "^2" },
         devDependencies: { wrangler: "^3.80.0" },
         engines: { node: ">=20" },
         workspaces: ["apps/*", "packages/*"],
       }),
     );
-    expect(f.packages.map((p) => [p.name, p.dev])).toEqual([["next", false], ["@supabase/supabase-js", false], ["fsevents", false], ["wrangler", true]]);
+    expect(f.packages.map((p) => [p.name, p.dev])).toEqual([["next", false], ["@supabase/supabase-js", false], ["zod", false], ["fsevents", false], ["wrangler", true]]);
+    expect(f.packages.find((p) => p.name === "zod")!.spec).toBeNull();
     expect(f.runtimes).toEqual([{ product: "nodejs", version: ">=20", exact: false }]);
     expect(f.workspaces).toEqual(["apps/*", "packages/*"]);
     expect(f.ownName).toBe("@acme/web");

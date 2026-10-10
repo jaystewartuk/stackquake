@@ -109,7 +109,8 @@ function parsePackageJson(text: string): Found {
   const f = emptyFound();
   if (typeof d.name === "string") f.ownName = d.name;
   const add = (deps: unknown, dev: boolean) => {
-    for (const [name, spec] of entries(deps)) if (!npmLocal(spec)) f.packages.push({ ecosystem: "npm", name, spec, dev });
+    // pnpm's `catalog:` protocol pins the version elsewhere (pnpm-workspace.yaml).
+    for (const [name, spec] of entries(deps)) if (!npmLocal(spec)) f.packages.push({ ecosystem: "npm", name, spec: spec?.startsWith("catalog:") ? null : spec, dev });
   };
   add(d.dependencies, false);
   add(d.optionalDependencies, false);

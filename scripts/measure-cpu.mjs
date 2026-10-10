@@ -42,10 +42,37 @@ function cannedAnswer(body) {
   if (input.includes("Source type: registry")) return note({ kind: "license", title: "Licence moves to BUSL-1.1", quote: '"license": "BUSL-1.1"', effective_date: null });
   return note();
 }
+// A stand-in GitHub (API under /gh, raw files under /raw) serving two repos for the import
+// measurements: the test monorepo, and the same plus a package.json with 160 dependencies
+// (more than the 150 a project watches).
+const mono = JSON.parse(readFileSync("testdata/repos/monorepo.json", "utf8"));
+const big = { ...mono, "package.json": JSON.stringify({ name: "big", dependencies: Object.fromEntries(Array.from({ length: 160 }, (_, i) => [`stackquake-measure-pkg-${i}`, "^1.0.0"])) }) };
+const ghRoutes = new Map();
+for (const [repo, files] of [["acme/shop", mono], ["acme/big", big]]) {
+  ghRoutes.set(`/gh/repos/${repo}`, { default_branch: "main", private: false });
+  const dirs = new Map([["", new Map()]]);
+  for (const [path, content] of Object.entries(files)) {
+    const parts = path.split("/");
+    parts.forEach((name, i) => {
+      const parent = parts.slice(0, i).join("/");
+      if (!dirs.has(parent)) dirs.set(parent, new Map());
+      dirs.get(parent).set(name, i === parts.length - 1 ? { type: "blob", size: content.length } : { type: "tree" });
+    });
+    ghRoutes.set(`/raw/${repo}/main/${path}`, content);
+  }
+  const sha = (d) => `t${d.replace(/[^\w]/g, "_")}`;
+  for (const [dir, entries] of dirs) {
+    const tree = [...entries].map(([name, e]) => ({ path: name, type: e.type, sha: e.type === "tree" ? sha(dir ? `${dir}/${name}` : name) : "b", size: e.size }));
+    ghRoutes.set(`/gh/repos/${repo}/git/trees/${dir === "" ? "main" : sha(dir)}`, { tree });
+  }
+}
+
 const stub = createHttpServer((req, res) => {
   let data = "";
   req.on("data", (d) => (data += d));
   req.on("end", () => {
+    const gh = ghRoutes.get(decodeURIComponent(req.url));
+    if (gh !== undefined) return res.writeHead(200, { "content-type": typeof gh === "string" ? "text/plain" : "application/json" }).end(typeof gh === "string" ? gh : JSON.stringify(gh));
     if (req.url === "/post") return res.writeHead(200, { "content-type": "text/html; charset=utf-8" }).end(postHtml);
     if (req.method === "POST" && req.url.startsWith("/v1/messages")) {
       const body = JSON.parse(data);
@@ -69,6 +96,7 @@ const wrangler = spawn(
   "npx",
   ["wrangler", "dev", "--test-scheduled", "--port", String(port), "--ip", "127.0.0.1", "--inspector-port", String(inspectorPort), "--persist-to", persist,
     "--var", `JOBS_PER_TICK:${JOBS_PER_TICK}`, "--var", "DEV_ROUTES:1", "--var", `ANTHROPIC_BASE_URL:http://127.0.0.1:${stubPort}`, "--var", "ANTHROPIC_API_KEY:stub",
+    "--var", `GITHUB_API_BASE:http://127.0.0.1:${stubPort}/gh`, "--var", `GITHUB_RAW_BASE:http://127.0.0.1:${stubPort}/raw`,
     "--show-interactive-dev-session=false"],
   { stdio: ["ignore", "pipe", "pipe"] },
 );
@@ -189,6 +217,33 @@ for (let i = 0; i < 40; i++) {
   await fetch(`${base}/__dev/due?pipeline=1&within=${24 * 3_600_000}`, { method: "POST" });
 }
 rows.push({ phase: "daily again", ...(await run("7 6 * * *")) });
+
+// Web: one HTTP request per measurement, profiled the same way as a tick.
+async function profileFetch(path, init = {}) {
+  await send("Profiler.start");
+  const res = await fetch(`${base}${path}`, { redirect: "manual", ...init, headers: { cookie: `sq_session=${session.token}`, ...(init.headers ?? {}) } });
+  const body = await res.text();
+  const { profile } = (await send("Profiler.stop")).result;
+  return { status: res.status, location: res.headers.get("location"), body, ...cpuMs(profile) };
+}
+const session = await (await fetch(`${base}/__dev/session`, { method: "POST", body: JSON.stringify({ email: "measure@example.com" }) })).json();
+const webRows = [];
+const form = (fields) => ({ method: "POST", body: new URLSearchParams({ _csrf: session.csrf, ...fields }), headers: { "content-type": "application/x-www-form-urlencoded", origin: base } });
+for (const repo of ["acme/shop", "acme/big"]) {
+  const created = await profileFetch("/app/projects", form({ name: repo, repo, next: "import" }));
+  webRows.push({ what: `POST /app/projects (${repo})`, ...created });
+  for (let i = 0; i < 12; i++) {
+    const r = await profileFetch(created.location);
+    const step = /<li>([^<]*)<\/li>\s*<li class="muted">Working/.exec(r.body)?.[1] ?? (r.status === 302 ? "done" : r.body.includes("Import failed") ? "failed" : "");
+    webRows.push({ what: `import ${repo} load ${i + 1}: ${step}`, ...r });
+    if (r.status !== 200 || r.body.includes("Import failed")) break;
+  }
+}
+const projectPage = await profileFetch("/app/projects/2");
+const depId = /\/app\/deps\/(\d+)/.exec(projectPage.body)?.[1];
+for (const path of ["/app", "/app/projects/2", "/app/projects/2/services", "/app/projects/2/profiles", `/app/deps/${depId}`, "/", "/catalog", "/catalog/supabase", "/events", "/events.rss"]) {
+  for (const pass of [1, 2]) webRows.push({ what: `GET ${path}${pass === 2 ? " (again)" : ""}`, ...(await profileFetch(path)) });
+}
 const keys = new Map((await (await fetch(`${base}/__dev/sources`)).json()).map((s) => [s.id, `${s.kind} ${s.key}`]));
 ws.close();
 wrangler.kill("SIGTERM");
@@ -204,6 +259,9 @@ for (const r of rows) {
 const ticks = rows.filter((r) => !r.phase.startsWith("daily"));
 const pipe = rows.filter((r) => r.phase === "pipeline");
 if (pipe.length) console.log(`max CPU per pipeline tick: ${Math.max(...pipe.map((r) => r.cpu)).toFixed(2)} ms`);
+console.log("\nweb request                                              status  cpu ms  wall ms  bytes");
+for (const r of webRows) console.log(`${r.what.slice(0, 56).padEnd(56)} ${String(r.status).padStart(6)} ${r.cpu.toFixed(2).padStart(7)} ${r.wall.toFixed(0).padStart(8)} ${String(r.body.length).padStart(6)}`);
+console.log(`max CPU per web request: ${Math.max(...webRows.map((r) => r.cpu)).toFixed(2)} ms`);
 const max = Math.max(...ticks.map((r) => r.cpu));
 console.log(`\nmax CPU per tick: ${max.toFixed(2)} ms${max > 10 ? "  ** over the 10 ms Free-plan limit **" : max > 7 ? "  (approaching 10 ms)" : ""}`);
 process.exit(0);
