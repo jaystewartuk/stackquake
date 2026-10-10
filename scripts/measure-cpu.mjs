@@ -15,7 +15,7 @@ import { createServer } from "node:net";
 import WebSocket from "ws";
 
 const JOBS_PER_TICK = process.env.JOBS_PER_TICK ?? "3";
-const ALERT_JOBS_PER_TICK = process.env.ALERT_JOBS_PER_TICK ?? "3";
+const ALERT_JOBS_PER_TICK = process.env.ALERT_JOBS_PER_TICK ?? "2";
 const persist = ".wrangler/measure";
 rmSync(persist, { recursive: true, force: true });
 

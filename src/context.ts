@@ -77,10 +77,10 @@ export const GITHUB_RAW = "https://raw.githubusercontent.com";
 
 export function configFromEnv(env: ConfigEnv): Config {
   const n = Number(env.JOBS_PER_TICK ?? "3");
-  const a = Number(env.ALERT_JOBS_PER_TICK ?? "3");
+  const a = Number(env.ALERT_JOBS_PER_TICK ?? "2");
   return {
     jobsPerTick: Number.isInteger(n) && n > 0 ? n : 3,
-    alertJobsPerTick: Number.isInteger(a) && a >= 0 ? a : 3,
+    alertJobsPerTick: Number.isInteger(a) && a >= 0 ? a : 2,
     userAgent: USER_AGENT,
     githubToken: env.GITHUB_TOKEN || undefined,
     models: {

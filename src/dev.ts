@@ -1,6 +1,7 @@
 // Local-only routes used by `npm run poll` (scripts/poll.mjs drives them under `wrangler dev`).
 import { and, eq, inArray, isNull, lte, ne, sql } from "drizzle-orm";
 import { enqueueFanout } from "./alerts/fanout";
+import { renderAlertEmail } from "./alerts/render";
 import { Hono } from "hono";
 import { syncCatalog } from "./catalog/catalog";
 import { CATALOG } from "./catalog/entries";
@@ -165,6 +166,42 @@ devRoutes.post("/session", async (c) => {
   const token = randomToken();
   await ctx.db.insert(sessions).values({ id: await sha256Hex(token), userId: user.id, expiresAt: ctx.clock.now() + SESSION_MS, createdAt: ctx.clock.now() });
   return c.json({ token, csrf: (await sha256Hex(`csrf:${token}`)).slice(0, 32) });
+});
+
+/**
+ * Sends one sample alert (the Deno note from the golden set) through the configured mailer: with
+ * RESEND_API_KEY in .dev.vars, a real email through Resend. Body: {"to": "you@example.com"}.
+ */
+devRoutes.post("/test-email", async (c) => {
+  const ctx = makeCtx(c.env);
+  const { to } = await c.req.json<{ to: string }>();
+  const quote = "We will support the Deno runtime for another year with monthly releases containing bug fixes and security updates. After that year we will end our development of the Deno runtime.";
+  const mail = renderAlertEmail(
+    {
+      name: "Deno",
+      event: {
+        id: 1,
+        kind: "eol",
+        title: "Deno runtime development ends in about a year",
+        quote,
+        quoteUrl: "https://deno.com/blog/deno-joins-cloudflare",
+        effectiveDate: "2027-10",
+        note: {
+          material: true, kind: "eol", title: "Deno runtime development ends in about a year",
+          what_changed: "The Deno team is joining Cloudflare. The Deno runtime gets monthly bug-fix and security releases for one more year, then development ends.",
+          quote, effective_date: "2027-10", applies_when: { hosting: [], use: [], tier: [] }, who_is_not_affected: null,
+          options: [{ catalog_id: "nodejs", name: "Node.js 24 LTS", why: "Mature runtime; most Deno code runs with small changes.", effort: "medium" }, { catalog_id: "bun", name: "Bun", why: "TypeScript-first like Deno.", effort: "medium" }],
+          uncertain: ["What happens to Deno Deploy"], confidence: 0.95,
+        },
+      },
+      because: "you use Deno in My stack, and the change applies to everyone who uses it.",
+      links: { useful: `${ctx.config.appOrigin}/a/sample-useful`, notRelevant: `${ctx.config.appOrigin}/a/sample-not-relevant`, mute: `${ctx.config.appOrigin}/a/sample-mute` },
+      eventUrl: `${ctx.config.appOrigin}/events/1`,
+    },
+    { settingsUrl: `${ctx.config.appOrigin}/app/settings` },
+  );
+  await ctx.mailer.send({ to, ...mail, idempotencyKey: `test-email-${Date.now()}` });
+  return c.json({ ok: true, subject: mail.subject, mailer: ctx.mailer.constructor.name });
 });
 
 devRoutes.get("/sources", async (c) => {

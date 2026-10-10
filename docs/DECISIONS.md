@@ -405,3 +405,135 @@ Read this after SPEC.md; where they disagree, this file wins.
 ### Checks at the end of M3
 - `npm test`: 179 tests pass; `tsc` is clean. `npm run eval` passes with 37 catalog entries
   (one run, $0.10).
+
+## M4: alerts (2026-10-11)
+
+### Data model (deviations from SPEC §6)
+- `alerts` keeps SPEC's columns and UNIQUE(user_id, event_id), plus `created_at`, `match`
+  (affected | unknown | not_affected), `because` (the "Affects you because" sentence, written
+  at fan-out so it does not change when the profile does), `held` (why it waits for the digest:
+  not_urgent | rate_limit | digest_only), `claimed_at` (took one of the 3 daily immediate
+  slots), `emailed_at`, `slack_at`, `slack_try_at`, `digest_at`, `feedback_at`, `error`.
+- `channel` is the route chosen at fan-out: `email` (immediate, plus Slack if connected),
+  `slack` (immediate, Slack only: the user turned immediate email off), `digest` (held, and
+  every suppressed alert). Delivery records each target separately, so one alert can go to both.
+- `channels` adds `hint` (last 4 characters of the webhook URL, to show which one is connected),
+  `created_at` and `last_error`. One Slack webhook per user.
+- `users.email_immediate` (default on) is the per-user "digest only" switch;
+  `users.last_digest_at` drives the first-digest-of-the-month rule.
+- Job kinds `fanout`, `deliver` (payload `alertId`) and `digest` (payload `userId`, `day`).
+
+### Fan-out
+- Queued when an event is published: by the summarise step (auto-publish), and by the admin's
+  approve and edit-and-publish. **Events published before M4 are not fanned out**: nothing is
+  deployed yet (M5), and a user who adds a dep later sees its past events on the dep page, not
+  as alerts. An admin edit of a published event re-runs fan-out; UNIQUE(user, event) means users
+  who already have an alert get nothing new.
+- Joins `events.source_id → dep_sources → deps → projects → users` (dep_sources only, as M3
+  set up). Muted deps are skipped. The match is `matchProfile(applies_when, effectiveProfile(dep,
+  project default, questionsFor(entry)))`; no second matcher.
+- **One alert per user and event**, from the dep that matches best (affected > unknown >
+  not_affected). A user whose deps straddle two chunks may first get a suppressed alert; a later
+  affected dep upgrades it, unless a digest already carried it.
+- **Chunked**: 200 deps per step, ordered by dep id, the cursor kept in the job's payload; the
+  job reschedules itself until done. Alert rows are written with one `json_each` INSERT per
+  chunk (`ON CONFLICT … DO UPDATE … WHERE`), then deliver jobs are queued with one INSERT … SELECT
+  over the event's queued immediate alerts (idempotent; the daily run repeats it as a repair).
+- **Shared feeds**: an event from a feed several catalog entries use (the Cloudflare blog: Workers,
+  D1, R2, Workers AI) has no `catalog_id`. A catalog dep then only matches if its entry's feed
+  `filter` keywords appear in the event's title, note or quote, so R2 users do not hear about
+  every D1 post. Without this, every shared-feed event alerted every entry's users.
+
+### Urgency and rate limit (SPEC §7.5)
+- Immediate: `license`, `free_tier`, `eol` whose effective date is within 180 days or past (a
+  `YYYY-MM` date counts from the 1st, the earliest it can mean; no date → digest), and
+  `acquisition` when the note or quote says the service ends (shut down, sunset, discontinued,
+  end of life/service/support, wind down, will end/stop/close, no longer available…). The note
+  has no end-of-service field; a regex over its text avoids changing the summarise schema and
+  re-running the golden set. Everything else waits for the digest.
+- **Rate limit: 3 immediate alerts per user in any 24 hours** (rolling, not calendar day), checked
+  at delivery with one atomic `UPDATE … WHERE (SELECT count(*) … claimed_at > now − 24 h) < 3`,
+  so concurrent deliveries for one user cannot both take the third slot. The 4th becomes
+  `channel = digest, held = rate_limit`. A user who turned immediate email off and has no Slack
+  gets `held = digest_only` at fan-out (or at delivery, if they switched since).
+
+### Delivery: never twice
+- One `deliver` job per immediate alert. Email and Slack each record their own timestamp, so a
+  retry skips what already went out.
+- **Email** sends `Idempotency-Key: alert-<id>` (digests `digest-<user>-<date>`, budget mails
+  `budget-<date>-<admin>`). If the invocation dies after Resend accepted the email but before
+  `emailed_at` is written, the retry reuses the key and Resend does not send again (24-hour
+  window; the runner's backoff totals about 15 hours). A 409 about the key counts as sent.
+  429 and 5xx are retried by the runner; other 4xx mark the alert `failed` with the error.
+- **Slack** has no idempotency key. `slack_try_at` is written before the POST; a definite failure
+  clears it (safe to retry), so a set `slack_try_at` without `slack_at` means the invocation
+  died mid-post, and it is **not repeated** (at most once). Slack 4xx (`no_service`,
+  `channel_not_found`…) is permanent and stored on the channel as `last_error`; 429/5xx retry.
+- An event rejected by the admin after publishing is not delivered (`failed`, "event withdrawn").
+- Resend's free tier allows 100 emails a day. Above that, sends fail with 429, are retried for
+  about 15 hours and then parked (visible on `/admin/sources`). At the predicted volume (under
+  20 events a week, at most 3 immediate alerts per user per day) this is far off; the fix when it
+  is not is a paid Resend plan, not code.
+
+### Email and Slack content
+- Subject `[Stackquake] {name}: {title}`, where the name is what the user calls the dep (catalog
+  entry or package name). Plain-text and HTML parts. Sections in order: title, what changed, the
+  quote (blockquote) with its link, takes effect, "Affects you because: …" (or "We don't know how
+  you use X, so we assume it does."), not affected, options, what the source doesn't say, "Summary,
+  not legal advice; read the source.", then the three one-click links, the full note and email
+  settings. All note and source text is HTML-escaped; links render only for http(s).
+- Immediate alert emails carry a signed "Only send me the weekly digest" link, also as a
+  `List-Unsubscribe` header. No `List-Unsubscribe-Post` (RFC 8058 one-click): it POSTs without our
+  CSRF token, and the bulk-sender rules that require it start at 5,000 emails a day.
+- Slack: Block Kit (header, what changed, quote with a Source link, affects you, options, a
+  context line with the disclaimer and mrkdwn links). Links, not buttons: buttons in an incoming
+  webhook message need an app with interactivity. Text is escaped (`&`, `<`, `>`), so a note
+  cannot ping `<!channel>`.
+- Sender: `MAIL_FROM`, default `Stackquake <alerts@stackquake.com>`. Until stackquake.com's DNS
+  records exist (M5), Resend only delivers from `onboarding@resend.dev` to the account owner.
+
+### Signed one-click links
+- `/a/{token}`, token = `{u|n|m|d}{id}.{expiry, base-36 seconds}.{HMAC-SHA256}` with the
+  `LINK_SECRET` Worker secret: useful, not relevant, mute (alert ids) and digest only (user id).
+  30-day expiry. GET shows what will happen and a button; only the POST acts (mail scanners and
+  Slack's unfurler fetch links). No sign-in needed: the signature is the authorisation. The POST
+  still needs the pre-sign-in CSRF cookie the GET set.
+- Without `LINK_SECRET`, alerts go out without the links (logged nowhere; set it in M5).
+- Signed-in users have the same "Useful" / "Not relevant" buttons on the dashboard and dep page
+  (`POST /app/alerts/:id/feedback`, scoped to their own alerts).
+
+### Slack channels
+- Only `https://hooks.slack.com/services/T…/B…/…` is accepted: exact host, https, no port,
+  userinfo, query or fragment, and a path of Slack ids; the stored URL is rebuilt from the parsed
+  path. Fetched with `redirect: "manual"`. This is the one place user input becomes a fetch
+  target (SPEC §8 SSRF). A test message must succeed before the webhook is saved.
+- Encrypted at rest with AES-GCM (`CHANNEL_KEY` secret, 32 bytes base64, random 12-byte IV,
+  stored as `v1:` + base64(iv‖ciphertext)). Without `CHANNEL_KEY` the Slack section says it is
+  unavailable.
+- Slack only gets immediate alerts, not the digest. SPEC §10 puts Slack on the Team plan; M4
+  offers it to everyone and M6 enforces plan limits.
+
+### Weekly digest
+- The daily run (06:07 UTC) queues a `digest` job for each user whose `digest_day` is today in
+  UTC (no time zones yet). The digest carries the user's held alerts and the alerts suppressed
+  since the last digest that went out ("N changes we watched that don't affect you", up to 10
+  listed).
+- **Send rule**: send if anything affects the user, or if no digest has gone out yet this calendar
+  month ("all quiet"). A week with only suppressed changes sends nothing; those changes wait for
+  the next digest that goes out. (SPEC scenario 4's "no changes that affect you, 3 that don't" is
+  therefore the monthly one.)
+- Idempotent: the step first stamps the alerts it will carry with the digest's day (`digest_at`),
+  so a retry renders the same set under the same Idempotency-Key; alerts that arrive meanwhile
+  wait for next week. A skipped digest un-stamps them.
+
+### LLM budget guard (SPEC §7.4)
+- `LLM_WEEKLY_BUDGET_USD` (default $10). The daily run sums `llm_calls` over 7 days; above the
+  budget it emails each `ADMIN_EMAILS` address (once a day, by Idempotency-Key). Above twice the
+  budget, `classify` steps return a deferral of 6 hours (not a failure: attempts are given back,
+  nothing is parked), checked after the step takes the LLM token so concurrent steps keep their
+  order. `summarise` keeps running. `/admin` shows the 7-day cost against the budget, the paused
+  state, and last week's alert counts and feedback (G3).
+
+### Account deletion
+- Also deletes the user's alerts, Slack channel, and their pending `deliver` and `digest` jobs.
+  Deleting a project or dep keeps the user's alerts (shown as "removed dependency").
