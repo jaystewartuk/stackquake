@@ -26,6 +26,8 @@
     "LLM_MODEL_SUMMARISE": "claude-haiku-5-5",
     "LLM_MODEL_SUMMARISE_HIGH": "claude-opus-5-5"
   },
-  // Secrets (wrangler secret put / .dev.vars): ANTHROPIC_API_KEY, ADMIN_TOKEN, GITHUB_TOKEN.
+  // Secrets (wrangler secret put / .dev.vars): ANTHROPIC_API_KEY, GITHUB_TOKEN, GITHUB_CLIENT_SECRET.
+  // Also set per environment (M5): ADMIN_EMAILS (comma-separated), GITHUB_CLIENT_ID, and
+  // APP_ORIGIN for staging (emailed links default to https://stackquake.com off localhost).
   "observability": { "enabled": true }
 }

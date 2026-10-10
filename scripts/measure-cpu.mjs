@@ -253,7 +253,7 @@ console.log("phase         claimed done resch defer retry  cpu ms  wall ms  samp
 for (const r of rows) {
   const t = r.result;
   const counts = r.phase.startsWith("daily") ? `sources=${t.synced.sources}`.padEnd(29) : [t.claimed, t.done, t.rescheduled, t.deferred, t.retried].map((n) => String(n).padStart(5)).join(" ");
-  const which = r.phase === "pipeline" ? "  " + t.kinds.join(", ") : !r.phase.startsWith("daily") && t.sources.length <= 2 ? "  " + t.sources.map((id) => keys.get(id)).join(", ") : "";
+  const which = r.phase.startsWith("daily") ? "" : "  " + t.kinds.map((k, i) => (k === "poll" ? (keys.get(t.sources[i]) ?? "").slice(0, 70) : k)).join(" | ");
   console.log(`${r.phase.padEnd(13)} ${counts} ${r.cpu.toFixed(2).padStart(7)} ${r.wall.toFixed(0).padStart(8)} ${String(r.interval).padStart(10)}${which}`);
 }
 const ticks = rows.filter((r) => !r.phase.startsWith("daily"));
