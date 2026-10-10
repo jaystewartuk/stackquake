@@ -113,6 +113,36 @@ describe("job runner", () => {
   });
 });
 
+describe("Free-plan safety", () => {
+  it("parks a job whose invocations keep dying without recording a result", async () => {
+    const { ctx, clock } = testCtx();
+    await enqueue(ctx, { kind: "extract_diff", dedupeKey: "crash" });
+    // Each claim counts an attempt; nothing records the outcome, as if the CPU limit killed it.
+    for (let i = 0; i < RETRY_BACKOFF.length + 1; i++) {
+      expect(await claimJobs(ctx, 10)).toHaveLength(1);
+      clock.advance(LOCK_MS + 1);
+    }
+    let ran = false;
+    const report = await runTick(ctx, steps(async () => ((ran = true), { type: "done" })));
+    expect(report).toMatchObject({ claimed: 1, parked: 1 });
+    expect(ran).toBe(false);
+    const [job] = await ctx.db.select().from(jobs).all();
+    expect(job.parkedAt).not.toBeNull();
+    expect(job.lastError).toContain("CPU limit");
+  });
+
+  it("runs one heavy step per tick and does not gate API hosts", async () => {
+    const { KINDS } = await import("../src/sources/kinds");
+    const fake = (kind: "page" | "feed" | "npm" | "github_repo", url: string) => KINDS[kind].gate({ url } as never);
+    const gate = new HostGate();
+    expect(gate.take(fake("page", "https://a.example/p"))).toBe(true);
+    expect(gate.take(fake("feed", "https://b.example/rss"))).toBe(false);
+    expect(gate.take(fake("npm", "https://registry.npmjs.org/a/latest"))).toBe(true);
+    expect(gate.take(fake("npm", "https://registry.npmjs.org/b/latest"))).toBe(true);
+    expect(gate.take(fake("github_repo", "https://api.github.com/repos/a/b"))).toBe(true);
+  });
+});
+
 describe("HostGate", () => {
   it("takes all hosts or none", () => {
     const g = new HostGate();

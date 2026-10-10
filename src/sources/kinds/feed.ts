@@ -2,7 +2,7 @@
 // The first poll records a baseline and creates no events.
 import { fromUtf8, HOUR, stableStringify, truncate } from "../../util";
 import { parseFeed, type FeedItem } from "../feed-parser";
-import { hostOf, politeFetch } from "../http";
+import { HEAVY, hostOf, politeFetch } from "../http";
 import type { CatalogLink, DetectedChange, KindHandler } from "../types";
 
 export interface FeedState {
@@ -46,8 +46,9 @@ export function looksLikeHtml(body: string): boolean {
 
 export const feed: KindHandler = {
   kind: "feed",
-  intervalMs: HOUR,
-  hosts: (source) => [hostOf(source.url)],
+  // SPEC says 1 h. 2 h still meets G1 (24 h) and halves feed load on the Free plan.
+  intervalMs: 2 * HOUR,
+  gate: (source) => [hostOf(source.url), HEAVY],
   async poll(ctx, { source, prev, links }) {
     const r = await politeFetch(ctx, source.url, {
       accept: "application/rss+xml, application/atom+xml, application/xml;q=0.9, text/xml;q=0.8, */*;q=0.5",

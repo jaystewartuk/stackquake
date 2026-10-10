@@ -85,7 +85,7 @@ export function compareGithub(prev: GithubState, next: GithubState, licenceText?
 export const github: KindHandler = {
   kind: "github_repo",
   intervalMs: 6 * HOUR,
-  hosts: () => ["api.github.com"],
+  gate: () => [],
   async poll(ctx, { source, prev }) {
     const headers: Record<string, string> = { "x-github-api-version": "2022-11-28" };
     if (ctx.config.githubToken) headers.authorization = `Bearer ${ctx.config.githubToken}`;

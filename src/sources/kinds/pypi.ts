@@ -69,7 +69,7 @@ export function comparePypi(name: string, prev: PypiState, next: PypiState & { v
 export const pypi: KindHandler = {
   kind: "pypi",
   intervalMs: 6 * HOUR,
-  hosts: () => ["pypi.org"],
+  gate: () => [],
   async poll(ctx, { source, prev }) {
     const r = await politeFetch(ctx, source.url, { accept: "application/json", etag: source.etag, lastModified: source.lastModified, maxBytes: 4_000_000 });
     if (r.type !== "ok") return r;

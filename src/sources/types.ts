@@ -49,8 +49,12 @@ export interface PollInput {
 export interface KindHandler {
   kind: SourceKind;
   intervalMs: number;
-  /** Hosts contacted by one poll (for the 1-request-per-host-per-tick gate). */
-  hosts(source: Source): string[];
+  /**
+   * Tokens this poll holds for the rest of the tick (see HostGate): the website's host, so a
+   * site gets one request per tick, and HEAVY for CPU-heavy kinds. Rate-limited APIs (npm,
+   * PyPI, GitHub, endoflife.date) take none.
+   */
+  gate(source: Source): string[];
   poll(ctx: Ctx, input: PollInput): Promise<KindPoll>;
   /** Time-based checks that still run when the server says 304 Not Modified. */
   onUnchanged?(ctx: Ctx, input: PollInput): DetectedChange[];

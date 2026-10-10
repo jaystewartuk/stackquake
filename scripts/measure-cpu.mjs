@@ -13,7 +13,7 @@ import { rmSync } from "node:fs";
 import { createServer } from "node:net";
 import WebSocket from "ws";
 
-const JOBS_PER_TICK = process.env.JOBS_PER_TICK ?? "10";
+const JOBS_PER_TICK = process.env.JOBS_PER_TICK ?? "3";
 const persist = ".wrangler/measure";
 rmSync(persist, { recursive: true, force: true });
 

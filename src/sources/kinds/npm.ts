@@ -77,7 +77,7 @@ export function compareNpm(name: string, prev: NpmState, next: NpmState): Detect
 export const npm: KindHandler = {
   kind: "npm",
   intervalMs: 6 * HOUR,
-  hosts: () => ["registry.npmjs.org"],
+  gate: () => [],
   async poll(ctx, { source, prev }) {
     const r = await politeFetch(ctx, source.url, { accept: "application/json", etag: source.etag, lastModified: source.lastModified, maxBytes: 2_000_000 });
     if (r.type !== "ok") return r;

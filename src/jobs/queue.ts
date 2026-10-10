@@ -45,7 +45,12 @@ export async function claimJobs(ctx: Ctx, n: number): Promise<Job[]> {
     .where(and(lte(jobs.runAfter, now), isNull(jobs.parkedAt), or(isNull(jobs.lockedUntil), lt(jobs.lockedUntil, now))))
     .orderBy(asc(jobs.runAfter), asc(jobs.id))
     .limit(n);
-  return ctx.db.update(jobs).set({ lockedUntil: now + LOCK_MS }).where(inArray(jobs.id, due)).returning();
+  // attempts counts claims; success resets it, a deferral gives it back.
+  return ctx.db
+    .update(jobs)
+    .set({ lockedUntil: now + LOCK_MS, attempts: sql`${jobs.attempts} + 1` })
+    .where(inArray(jobs.id, due))
+    .returning();
 }
 
 export async function completeJob(ctx: Ctx, job: Job): Promise<void> {
@@ -59,15 +64,23 @@ export async function rescheduleJob(ctx: Ctx, job: Job, runAfter: number): Promi
 
 /** Not run this tick (its host was already used). Not a failure. */
 export async function deferJob(ctx: Ctx, job: Job, delayMs: number): Promise<void> {
-  await ctx.db.update(jobs).set({ runAfter: ctx.clock.now() + delayMs, lockedUntil: null }).where(eq(jobs.id, job.id));
+  await ctx.db
+    .update(jobs)
+    .set({ runAfter: ctx.clock.now() + delayMs, lockedUntil: null, attempts: Math.max(0, job.attempts - 1) })
+    .where(eq(jobs.id, job.id));
 }
 
+export async function parkJob(ctx: Ctx, job: Job, error: string): Promise<void> {
+  await ctx.db.update(jobs).set({ lastError: error.slice(0, 2_000), lockedUntil: null, parkedAt: ctx.clock.now() }).where(eq(jobs.id, job.id));
+}
+
+/** `job.attempts` already includes this run (claimJobs counts it). */
 export async function failJob(ctx: Ctx, job: Job, error: string): Promise<"retry" | "parked"> {
   const now = ctx.clock.now();
-  const attempts = job.attempts + 1;
+  const attempts = job.attempts;
   const lastError = error.slice(0, 2_000);
   if (attempts > RETRY_BACKOFF.length) {
-    await ctx.db.update(jobs).set({ attempts, lastError, lockedUntil: null, parkedAt: now }).where(eq(jobs.id, job.id));
+    await parkJob(ctx, job, lastError);
     return "parked";
   }
   await ctx.db

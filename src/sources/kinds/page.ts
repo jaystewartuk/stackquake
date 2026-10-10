@@ -5,7 +5,7 @@
 // the HTML's size and needs no parsing, so it is preferred; the selector then does not apply.
 import { DAY, fromUtf8 } from "../../util";
 import { extractText } from "../html";
-import { hostOf, politeRequest, readCapped } from "../http";
+import { HEAVY, hostOf, politeRequest, readCapped } from "../http";
 import { normaliseText } from "../normalise";
 import type { KindHandler } from "../types";
 
@@ -41,7 +41,7 @@ export async function pageText(body: ReadableStream<Uint8Array>, contentType: st
 export const page: KindHandler = {
   kind: "page",
   intervalMs: DAY,
-  hosts: (source) => [hostOf(source.url)],
+  gate: (source) => [hostOf(source.url), HEAVY],
   async poll(ctx, { source }) {
     const r = await politeRequest(ctx, source.url, { accept: PAGE_ACCEPT, etag: source.etag, lastModified: source.lastModified, robots: true });
     if (r.type !== "response") return r;

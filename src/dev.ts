@@ -6,7 +6,6 @@ import { CATALOG } from "./catalog/entries";
 import { catalogSources, events, jobs, sources, type Source } from "./db/schema";
 import { makeCtx, type AppEnv } from "./env";
 import { completeJob } from "./jobs/queue";
-import { KINDS } from "./sources/kinds";
 import { extractDiff } from "./watch/extract-diff";
 import { loadSnapshot, pollSafely, type PollReport } from "./watch/poll";
 
@@ -42,7 +41,7 @@ devRoutes.post("/poll", async (c) => {
   // Different hosts in parallel, one request at a time per host.
   const byHost = new Map<string, Source[]>();
   for (const s of targets) {
-    const host = KINDS[s.kind].hosts(s)[0];
+    const host = new URL(s.url).host;
     byHost.set(host, [...(byHost.get(host) ?? []), s]);
   }
   const reports: PollReport[] = [];

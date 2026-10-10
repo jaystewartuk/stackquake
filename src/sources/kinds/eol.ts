@@ -97,7 +97,7 @@ export function eolReminders(state: EolState, now: number): DetectedChange[] {
 export const eol: KindHandler = {
   kind: "eol",
   intervalMs: DAY,
-  hosts: () => ["endoflife.date"],
+  gate: () => [],
   async poll(ctx, { source, prev }) {
     const { product, cycle } = parseEolKey(source.key);
     const r = await politeFetch(ctx, source.url, { accept: "application/json", etag: source.etag, lastModified: source.lastModified, maxBytes: 2_000_000 });

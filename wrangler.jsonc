@@ -18,7 +18,7 @@
   ],
   "r2_buckets": [{ "binding": "SNAPSHOTS", "bucket_name": "stackquake-snapshots" }],
   "vars": {
-    "JOBS_PER_TICK": "10"
+    "JOBS_PER_TICK": "3"
   },
   "observability": { "enabled": true }
 }
