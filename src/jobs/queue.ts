@@ -45,10 +45,16 @@ export async function claimJobs(ctx: Ctx, n: number): Promise<Job[]> {
     .where(and(lte(jobs.runAfter, now), isNull(jobs.parkedAt), or(isNull(jobs.lockedUntil), lt(jobs.lockedUntil, now))))
     .orderBy(asc(jobs.runAfter), asc(jobs.id))
     .limit(n);
-  // attempts counts claims; success resets it, a deferral gives it back.
+  // attempts counts claims; success resets it, a deferral gives it back. run_after moves to the
+  // backoff for this attempt, so a job whose invocation dies without recording anything (CPU
+  // limit) still backs off. Every recorded outcome overwrites it.
+  const backoff = sql`CASE ${jobs.attempts} ${sql.join(
+    RETRY_BACKOFF.map((ms, i) => sql`WHEN ${i} THEN ${ms}`),
+    sql` `,
+  )} ELSE ${RETRY_BACKOFF[RETRY_BACKOFF.length - 1]} END`;
   return ctx.db
     .update(jobs)
-    .set({ lockedUntil: now + LOCK_MS, attempts: sql`${jobs.attempts} + 1` })
+    .set({ lockedUntil: now + LOCK_MS, attempts: sql`${jobs.attempts} + 1`, runAfter: sql`${now} + ${backoff}` })
     .where(inArray(jobs.id, due))
     .returning();
 }
@@ -98,7 +104,14 @@ export async function ensurePollJobs(ctx: Ctx): Promise<void> {
     ON CONFLICT (dedupe_key) DO NOTHING`);
 }
 
-/** Daily: drop parked one-off jobs after 30 days. Parked polls stay so the admin sees them. */
+/**
+ * Daily: revive parked polls (a parked recurring job would stop the source for good; the error
+ * stays on the job for the admin view) and drop parked one-off jobs after 30 days.
+ */
 export async function pruneJobs(ctx: Ctx): Promise<void> {
+  await ctx.db
+    .update(jobs)
+    .set({ parkedAt: null, attempts: 0, lockedUntil: null, runAfter: ctx.clock.now() })
+    .where(and(eq(jobs.kind, "poll"), lt(jobs.parkedAt, ctx.clock.now() - DAY)));
   await ctx.db.delete(jobs).where(and(lt(jobs.parkedAt, ctx.clock.now() - 30 * DAY), sql`${jobs.kind} <> 'poll'`));
 }

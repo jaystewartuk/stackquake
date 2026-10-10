@@ -149,11 +149,24 @@ export async function syncCatalog(ctx: Ctx, entries: CatalogEntry[]): Promise<{ 
         created++;
         await enqueue(ctx, { kind: "poll", sourceId: id, runAfter: now, dedupeKey: pollJobKey(id) });
       } else {
-        const existing = await ctx.db.select({ id: sources.id, state: sources.state }).from(sources).where(and(eq(sources.kind, row.kind), eq(sources.key, row.key))).get();
+        const existing = await ctx.db
+          .select({ id: sources.id, state: sources.state, selector: sources.selector, config: sources.config })
+          .from(sources)
+          .where(and(eq(sources.kind, row.kind), eq(sources.key, row.key)))
+          .get();
         id = existing!.id;
+        // New extraction rules change the canonical text: start a new baseline (no fake diff),
+        // and drop the validators so the server cannot answer 304 with the old content.
+        const rulesChanged = existing!.selector !== row.selector || stableStringify(existing!.config) !== stableStringify(row.config);
         await ctx.db
           .update(sources)
-          .set({ url: row.url, selector: row.selector, config: row.config, ...(existing!.state === "disabled" ? { state: "active" as const } : {}) })
+          .set({
+            url: row.url,
+            selector: row.selector,
+            config: row.config,
+            ...(existing!.state === "disabled" ? { state: "active" as const } : {}),
+            ...(rulesChanged ? { etag: null, lastModified: null, lastSha: null, lastState: null } : {}),
+          })
           .where(eq(sources.id, id));
         if (existing!.state === "disabled") await enqueue(ctx, { kind: "poll", sourceId: id, runAfter: now, dedupeKey: pollJobKey(id) });
       }

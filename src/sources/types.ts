@@ -11,6 +11,11 @@ export interface DetectedChange {
    * and a GitHub source of one catalog entry produce one event. Defaults to the title.
    */
   dedupeTitle?: string;
+  /**
+   * A transition that can happen again later (licence A -> B, deprecated, archived). Its dedupe
+   * key gets the month of detection, so a repeat months later is a new event.
+   */
+  repeatable?: boolean;
   quote?: string | null;
   quoteUrl: string;
   beforeText?: string | null;

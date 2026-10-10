@@ -22,7 +22,8 @@ export async function pruneSnapshots(ctx: Ctx): Promise<{ blobsDeleted: number; 
     SELECT DISTINCT r2_key FROM ranked
     WHERE rn > ${KEEP_BODIES}
       AND r2_key NOT IN (SELECT r2_key FROM ranked WHERE rn <= ${KEEP_BODIES})
-      AND r2_key NOT IN (SELECT 'snap/' || last_sha FROM sources WHERE last_sha IS NOT NULL)`);
+      AND r2_key NOT IN (SELECT 'snap/' || last_sha FROM sources WHERE last_sha IS NOT NULL)
+      AND r2_key NOT IN (SELECT r2_key FROM snapshots WHERE r2_key IS NOT NULL AND fetched_at > ${ctx.clock.now() - DAY})`);
   const keys = stale.map((r) => r.r2_key);
   for (let i = 0; i < keys.length; i += 100) {
     const chunk = keys.slice(i, i + 100);

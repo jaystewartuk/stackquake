@@ -64,10 +64,10 @@ describe("daily", () => {
     for (let i = 0; i < 25; i++) {
       const key = snapshotKey(`sha${i}`);
       await blobs.put(key, utf8(String(i)));
-      await ctx.db.insert(snapshots).values({ sourceId: s.id, fetchedAt: ctx.clock.now() + i, httpStatus: 200, sha256: `sha${i}`, r2Key: key });
+      await ctx.db.insert(snapshots).values({ sourceId: s.id, fetchedAt: ctx.clock.now() - 10 * 86_400_000 + i, httpStatus: 200, sha256: `sha${i}`, r2Key: key });
     }
     // Another source still points at sha0's body.
-    await ctx.db.insert(snapshots).values({ sourceId: shared.id, fetchedAt: ctx.clock.now(), httpStatus: 200, sha256: "sha0", r2Key: snapshotKey("sha0") });
+    await ctx.db.insert(snapshots).values({ sourceId: shared.id, fetchedAt: ctx.clock.now() - 10 * 86_400_000, httpStatus: 200, sha256: "sha0", r2Key: snapshotKey("sha0") });
     const r = await pruneSnapshots(ctx);
     expect(r.blobsDeleted).toBe(4);
     expect([...blobs.blobs.keys()].sort()).not.toContain(snapshotKey("sha1"));

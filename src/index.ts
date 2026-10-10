@@ -18,6 +18,6 @@ export default {
       const result = await runCron(appCtx, task, CATALOG);
       console.log(JSON.stringify({ cron: controller.cron, task, result }));
     });
-    ctx.waitUntil(scheduler.dispatch(controller.cron));
+    ctx.waitUntil(Promise.resolve().then(() => scheduler.dispatch(controller.cron)));
   },
 } satisfies ExportedHandler<AppEnv>;

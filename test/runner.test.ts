@@ -117,10 +117,13 @@ describe("Free-plan safety", () => {
   it("parks a job whose invocations keep dying without recording a result", async () => {
     const { ctx, clock } = testCtx();
     await enqueue(ctx, { kind: "extract_diff", dedupeKey: "crash" });
-    // Each claim counts an attempt; nothing records the outcome, as if the CPU limit killed it.
+    // Each claim counts an attempt and moves the job to its backoff; nothing records the
+    // outcome, as if the CPU limit killed the invocation.
     for (let i = 0; i < RETRY_BACKOFF.length + 1; i++) {
       expect(await claimJobs(ctx, 10)).toHaveLength(1);
-      clock.advance(LOCK_MS + 1);
+      clock.advance(LOCK_MS);
+      expect(await claimJobs(ctx, 10)).toHaveLength(0);
+      clock.advance(RETRY_BACKOFF[Math.min(i, RETRY_BACKOFF.length - 1)]);
     }
     let ran = false;
     const report = await runTick(ctx, steps(async () => ((ran = true), { type: "done" })));
@@ -140,6 +143,24 @@ describe("Free-plan safety", () => {
     expect(gate.take(fake("npm", "https://registry.npmjs.org/a/latest"))).toBe(true);
     expect(gate.take(fake("npm", "https://registry.npmjs.org/b/latest"))).toBe(true);
     expect(gate.take(fake("github_repo", "https://api.github.com/repos/a/b"))).toBe(true);
+  });
+});
+
+describe("crash isolation", () => {
+  it("runs a job that did not finish last time alone, handing the others back", async () => {
+    const { ctx, clock } = testCtx({ config: { jobsPerTick: 3, userAgent: "t" } });
+    for (const k of ["a", "b", "c"]) await enqueue(ctx, { kind: "extract_diff", dedupeKey: k });
+    // First tick dies mid-way: all three were claimed, none recorded.
+    expect(await claimJobs(ctx, 3)).toHaveLength(3);
+    clock.advance(RETRY_BACKOFF[0] + 1);
+    const ran: number[] = [];
+    const report = await runTick(ctx, steps(async (_c, job) => (ran.push(job.id), { type: "done" })));
+    expect(report).toMatchObject({ claimed: 3, done: 1, deferred: 2 });
+    expect(ran).toHaveLength(1);
+    // The others were given their attempt back and are due again.
+    const left = await ctx.db.select().from(jobs).all();
+    expect(left.map((j) => j.attempts)).toEqual([1, 1]);
+    expect(left.every((j) => j.runAfter <= clock.now())).toBe(true);
   });
 });
 

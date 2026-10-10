@@ -30,7 +30,8 @@ export class R2BlobStore implements BlobStore {
 export const systemClock: Clock = { now: () => Date.now() };
 
 export const CRON_TICK = "*/5 * * * *";
-export const CRON_DAILY = "0 6 * * *";
+// Off the 5-minute grid, so the daily prune never overlaps a tick.
+export const CRON_DAILY = "7 6 * * *";
 
 export function cronTask(cron: string): CronTask {
   if (cron === CRON_TICK) return "tick";

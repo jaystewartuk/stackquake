@@ -126,7 +126,7 @@ async function run(cron) {
 }
 
 const rows = [];
-const daily = await run("0 6 * * *");
+const daily = await run("7 6 * * *");
 rows.push({ phase: "daily", ...daily });
 for (const phase of ["first polls", "steady state"]) {
   if (phase === "steady state") await fetch(`${base}/__dev/due`, { method: "POST" });
@@ -138,7 +138,7 @@ for (const phase of ["first polls", "steady state"]) {
     if (r.result.deferred) await fetch(`${base}/__dev/due?within=${10 * 60_000}`, { method: "POST" });
   }
 }
-rows.push({ phase: "daily again", ...(await run("0 6 * * *")) });
+rows.push({ phase: "daily again", ...(await run("7 6 * * *")) });
 const keys = new Map((await (await fetch(`${base}/__dev/sources`)).json()).map((s) => [s.id, `${s.kind} ${s.key}`]));
 ws.close();
 wrangler.kill("SIGTERM");

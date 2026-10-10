@@ -12,8 +12,12 @@ Read this after SPEC.md; where they disagree, this file wins.
 - `HostGate` hands out per-tick tokens: one per **website** host (politeness) and one `HEAVY`
   token, so at most one page poll, feed poll or diff step runs per tick. Rate-limited APIs
   (npm, PyPI, GitHub, endoflife.date) take no token. Any new CPU-heavy step must take `HEAVY`.
-- Claims count attempts, so a step killed by the CPU limit (no result recorded) is parked after
-  6 claims instead of looping.
+- Claims count attempts and move `run_after` to that attempt's backoff, so a step killed by the
+  CPU limit (no result recorded) still backs off and is parked after 6 claims. A claimed job
+  with attempts ≥ 2 runs alone; the rest of its batch is handed back first, so a CPU-killer
+  cannot take healthy jobs down with it.
+- Poll handlers never throw into the runner: fetch or parse errors become a source-level retry
+  with `sources.last_error`. The daily run revives poll jobs parked for more than a day.
 - Feeds poll every **2 h** (SPEC: 1 h). Still well inside G1's 24 h.
 - Measured with `npm run measure:cpu` (DevTools profiler, an over-estimate): steady-state ticks
   4–9 ms, ticks that include an HTML page (Deno pricing, Redis licences) 12–16 ms, first catalog
@@ -34,10 +38,19 @@ Read this after SPEC.md; where they disagree, this file wins.
   More than 25 new feed items at once means the feed's IDs changed: re-baseline, no events.
 - A GitHub poll is two API calls (repo, then a conditional licence call). Set `GITHUB_TOKEN` in
   production; unauthenticated GitHub allows 60 requests per hour.
-- PyPI "deprecated" means the `Development Status :: 7 - Inactive` classifier or a yanked latest
-  release. PEP 792 project status is only in the Simple API and is not checked.
+- PyPI "deprecated" means the `Development Status :: 7 - Inactive` classifier, or the release
+  that was latest at the previous poll is now fully yanked (read from `releases`; `info` always
+  describes the latest non-yanked release). PEP 792 project status is only in the Simple API
+  and is not checked.
 - A GitHub transfer is an event of kind `other`.
 - All outbound requests time out after 20 s.
+
+- The daily cron runs at **06:07** (SPEC: 06:00), off the 5-minute grid, so pruning never
+  overlaps a tick. Pruning also keeps any body referenced in the last 24 h.
+- Changing a page's selector, `exclude` or `ignore` in the catalog re-baselines that source
+  (clears `etag`, `last_modified`, `last_sha`) instead of producing a fake diff.
+- `wrangler.jsonc` has a build command that generates `src/catalog/catalog.gen.json`, so a
+  plain `wrangler dev`/`deploy` always ships the current catalog.
 
 ### Events (what M2 receives)
 - Every M1 event has `status = pending_llm`.
@@ -50,6 +63,8 @@ Read this after SPEC.md; where they disagree, this file wins.
   changed lines with 2 lines of context, separated by `…`.
 - `dedupe_key` = sha256(catalog_id or `source:<id>`, kind, normalised title). Raw feed and page
   events use a per-item key; M2 must recompute the semantic key after classifying.
+  Transitions that can recur (licence A → B, deprecated, archived, transferred) add the month of
+  detection to the key, so the same transition months later is a new event.
 - `events.catalog_id` is set when exactly one catalog entry uses the source.
 
 ### Schema additions beyond SPEC §6

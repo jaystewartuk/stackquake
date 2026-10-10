@@ -92,6 +92,18 @@ export async function runTick(ctx: Ctx, steps: Record<JobKind, StepHandler> = ST
   const claimed = await claimJobs(ctx, ctx.config.jobsPerTick);
   const report: TickReport = { claimed: claimed.length, sources: claimed.map((j) => j.sourceId), done: 0, rescheduled: 0, deferred: 0, retried: 0, parked: 0 };
   const gate = new HostGate();
+  // A job that did not finish cleanly last time may be one that kills the invocation (CPU
+  // limit). Run it alone, after handing the others back, so it cannot take them down with it.
+  const suspect = claimed.find((j) => j.attempts >= 2);
+  if (suspect) {
+    for (const job of claimed) {
+      if (job === suspect) continue;
+      await deferJob(ctx, job, 0);
+      report.deferred++;
+    }
+    await runJob(ctx, suspect, gate, steps, report);
+    return report;
+  }
   await Promise.all(claimed.map((job) => runJob(ctx, job, gate, steps, report)));
   return report;
 }

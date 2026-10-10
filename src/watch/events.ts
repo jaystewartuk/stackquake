@@ -35,7 +35,8 @@ export interface RecordInput {
 /** Inserts a pending_llm event unless one with the same dedupe key exists. */
 export async function recordEvent(ctx: Ctx, { sourceId, catalogId, change }: RecordInput): Promise<{ id: number; created: boolean }> {
   const scope = catalogId ?? `source:${sourceId}`;
-  const key = await dedupeKey(scope, change.kind, change.dedupeTitle ?? change.title);
+  const base = change.dedupeTitle ?? change.title;
+  const key = await dedupeKey(scope, change.kind, change.repeatable ? `${base} ${new Date(ctx.clock.now()).toISOString().slice(0, 7)}` : base);
   const inserted = await ctx.db
     .insert(events)
     .values({

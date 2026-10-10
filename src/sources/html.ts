@@ -25,9 +25,10 @@ export interface ExtractOptions {
   maxBytes: number;
 }
 
-/** A selector that can only match once, so parsing can stop when it closes. */
+/** A selector that matches once, so parsing can stop when it closes. */
 export function isUnique(selector: string): boolean {
-  return /^(main|article|body|#[\w-]+)$/.test(selector.trim());
+  // Not `article`: pages often have several, or nest them.
+  return /^(main|body|#[\w-]+)$/.test(selector.trim());
 }
 
 /**
@@ -50,18 +51,20 @@ export async function extractText(body: ReadableStream<Uint8Array>, opts: Extrac
       stop = true;
     } else parts.push(s);
   };
-  const onEnd = (el: Element, fn: () => void) => {
-    if (VOID.has(el.tagName)) return;
+  /** True if `fn` will run at the end tag. Void and self-closing elements have none. */
+  const onEnd = (el: Element, fn: () => void): boolean => {
+    if (VOID.has(el.tagName)) return false;
     try {
       el.onEndTag(fn);
+      return true;
     } catch {
-      // Elements without an end tag cannot take a handler; nothing to undo for them.
+      return false;
     }
   };
   const skip = {
     element(el: Element) {
-      skipping++;
-      onEnd(el, () => void skipping--);
+      // Count only elements whose end will be seen, or the counter never comes back down.
+      if (onEnd(el, () => void skipping--)) skipping++;
     },
   };
   const selectors = opts.selector.split(",").map((p) => p.trim()).filter(Boolean);
@@ -71,7 +74,6 @@ export async function extractText(body: ReadableStream<Uint8Array>, opts: Extrac
     rewriter = rewriter.on(part, {
       element(el) {
         matched = true;
-        if (VOID.has(el.tagName)) return;
         push("\n");
         onEnd(el, () => {
           push("\n");

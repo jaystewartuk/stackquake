@@ -3,9 +3,11 @@
   "name": "stackquake",
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
+  // Generates src/catalog/catalog.gen.json from catalog/*.yaml before dev and deploy.
+  "build": { "command": "node scripts/build-catalog.mjs" },
   "triggers": {
     // */5: claim and run due jobs. Daily: sync catalog, schedule overdue polls, prune.
-    "crons": ["*/5 * * * *", "0 6 * * *"]
+    "crons": ["*/5 * * * *", "7 6 * * *"]
   },
   "d1_databases": [
     {

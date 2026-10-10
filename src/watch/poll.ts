@@ -65,7 +65,14 @@ export async function pollSource(ctx: Ctx, source: Source): Promise<PollReport> 
   const links = await catalogLinks(ctx, source.id);
   const prev = source.lastSha ? source.lastState : null;
   const input = { source, prev, links, prevCanonical: () => (source.lastSha ? loadSnapshot(ctx, source.lastSha) : Promise.resolve(null)) };
-  const r = await handler.poll(ctx, input);
+  let r: Awaited<ReturnType<typeof handler.poll>>;
+  try {
+    r = await handler.poll(ctx, input);
+  } catch (e) {
+    // A bad response (HTML instead of JSON, a parser bug) is the source's problem: back off and
+    // show it on the source. Throwing would eventually park the recurring poll job.
+    r = { type: "retry", status: 0, reason: `error: ${errorMessage(e)}`, retryAfterMs: null };
+  }
 
   if (r.type === "ok") {
     const sha = await sha256Hex(r.canonical);

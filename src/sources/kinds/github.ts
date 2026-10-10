@@ -48,7 +48,7 @@ export function compareGithub(prev: GithubState, next: GithubState, licenceText?
   const url = `https://github.com/${next.fullName}`;
   const out: DetectedChange[] = [];
   if (!prev.archived && next.archived) {
-    out.push({ kind: "archived", title: `${next.fullName}: repository archived`, dedupeTitle: "archived", quoteUrl: url });
+    out.push({ kind: "archived", title: `${next.fullName}: repository archived`, dedupeTitle: "archived", repeatable: true, quoteUrl: url });
   }
   if ((prev.spdx ?? "") !== (next.spdx ?? "")) {
     const from = prev.spdx ?? "no licence";
@@ -57,6 +57,7 @@ export function compareGithub(prev: GithubState, next: GithubState, licenceText?
       kind: "license",
       title: `${next.fullName}: licence changed from ${from} to ${to}`,
       dedupeTitle: `licence ${from} -> ${to}`,
+      repeatable: true,
       quoteUrl: next.licensePath ? `${url}/blob/HEAD/${next.licensePath}` : url,
       beforeText: licenceText?.before ? truncate(licenceText.before, 8_000) : null,
       afterText: licenceText?.after ? truncate(licenceText.after, 8_000) : null,
@@ -76,6 +77,7 @@ export function compareGithub(prev: GithubState, next: GithubState, licenceText?
       kind: "other",
       title: `${prev.fullName} was transferred to ${next.fullName}`,
       dedupeTitle: `transferred ${prev.owner} -> ${next.owner}`,
+      repeatable: true,
       quoteUrl: url,
     });
   }
