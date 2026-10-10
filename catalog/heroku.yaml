@@ -10,8 +10,12 @@ sources:
     url: https://www.heroku.com/blog/feed/
     filter: [pricing, free, plan, eco, dyno, deprecat, end of life, sunset, sales]
   - kind: page
-    url: https://www.heroku.com/pricing
-    selector: main
+    url: https://devcenter.heroku.com/articles/usage-and-billing
+    selector: article
+  - kind: page
+    url: https://devcenter.heroku.com/articles/eco-dyno-hours
+    selector: article
+  # https://www.heroku.com/pricing was dropped for CPU (Workers Free plan): about 120 ms per poll.
   - kind: page
     url: https://devcenter.heroku.com/articles/limits
     selector: article

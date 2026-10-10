@@ -10,9 +10,8 @@ sources:
   - kind: feed
     url: https://firebase.blog/rss.xml
     filter: [pricing, free, spark, blaze, plan, billing, deprecat, shut down, sunset]
-  - kind: page
-    url: https://firebase.google.com/pricing
-    selector: main
+  # https://firebase.google.com/pricing was dropped for CPU (Workers Free plan): about 75 ms per
+  # poll. The docs alternatives (firebase-pricing-plans) are also 250 KB of HTML and answer no Markdown.
   - kind: npm
     package: firebase
   - kind: github_repo

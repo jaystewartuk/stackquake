@@ -214,3 +214,190 @@ Read this after SPEC.md; where they disagree, this file wins.
   16 ms). This is the existing M1 risk, not new: watch `exceededCpu` after deploy (M5) and move
   to Workers Paid if it passes 1% of invocations.
 - First daily run (catalog sync of 10 entries, 43 sources) about 45 ms, once.
+
+## M3: web app (2026-10-10)
+
+### Auth and sessions
+- **Sessions**: a random 32-byte cookie (`sq_session`, HttpOnly, Secure, SameSite=Lax, Path=/,
+  30 days, fixed expiry). D1 stores only its sha256, so a database leak gives no live sessions.
+  Sign-in replaces any existing session; sign-out deletes the row.
+- **CSRF**: every POST needs `_csrf`. Signed in: the first 32 hex characters of
+  sha256("csrf:" + session token), so nothing extra is stored. Before sign-in: a double-submit
+  cookie (`sq_csrf`). A POST whose `Origin` header names another origin is refused as well.
+- **Magic links**: 32 random bytes, sha256 at rest, 15 minutes, single use (one
+  `UPDATE … WHERE used_at IS NULL … RETURNING` claims the link). Opening the link shows a button
+  that POSTs the token, so mail scanners that prefetch links cannot use it up. Rate limits: 5 per
+  email and 20 per IP per hour, fixed windows in a `rate_limits` table; both are counted on every
+  request. The same links confirm an email change (`magic_links.user_id` set).
+- **Link origin**: `APP_ORIGIN` if set, else the request origin on localhost, else
+  `https://stackquake.com`. Never the Host header of a production request (link-poisoning).
+- **GitHub OAuth**: scope `read:user user:email`, `state` in a 10-minute cookie scoped to
+  `/auth/github`. Accounts are found by GitHub id first, then linked by the primary verified email
+  (GitHub noreply addresses are ignored: they receive no mail). Hidden until `GITHUB_CLIENT_ID`
+  and `GITHUB_CLIENT_SECRET` are set; the OAuth app is created in M5 with the deploy (the owner
+  provides the id and secret then). Tests use a mocked GitHub.
+- **/admin** is for signed-in users whose email is in `ADMIN_EMAILS`; everyone else gets a 404.
+  `ADMIN_TOKEN` is gone. New admin views: blocked/failing sources with parked jobs, and catalog
+  requests grouped by text.
+- **Mailer** port (`src/ports.ts`): `ConsoleMailer` in Workers for now (magic links show up in the
+  `wrangler dev` log), `MemoryMailer` in tests. Resend arrives in M4/M5.
+
+### Data model (deviations from SPEC §6)
+- `deps.dep_key` (`catalog:<id>`, `<ecosystem>:<package>`, `eol:<product>`) with
+  UNIQUE(project_id, dep_key) replaces UNIQUE(project_id, catalog_id, ecosystem, package): SQLite
+  treats NULLs as distinct, so the SPEC's key would not deduplicate.
+- Also added: `deps.rank` (package importance), `deps.found_in` (manifest paths),
+  `deps.created_at`, `sessions.created_at`, `magic_links.user_id/created_at`, and the tables
+  `imports`, `rate_limits`, `catalog_requests`.
+- A runtime the catalog covers (Node.js from `.nvmrc`, Redis from a compose image) is stored on
+  that catalog dep (`eol_product`, `eol_cycle`), so the dashboard shows one "Node.js · version
+  20" row. Runtimes the catalog does not cover are `eol` deps of their own.
+- **dep_sources is the single source of truth** for what a dep watches: a catalog dep links all
+  of its entry's sources (kept in step by `syncCatalog` when an entry changes), plus its own EOL
+  cycle source; a package dep links its registry source. M4's fan-out can join dep_sources only.
+- Sources created for users' deps have `config.origin = "user"`. The daily run disables them once
+  no dep links them; catalog sources that a dep still links are no longer disabled by
+  `syncCatalog`.
+- EOL sources are per product and cycle (`nodejs@20`), as SPEC §5 says; catalog entries keep their
+  product-wide EOL source too.
+- Account deletion removes the user, sessions, projects, deps, links, imports (and their jobs),
+  catalog requests and magic links. Alerts and channels arrive in M4 and must be added to it.
+
+### Usage profiles
+- Stored as `{hosting?, use?, tier?}`, the same dimensions and values as M2's `applies_when`; a
+  missing key is unknown.
+- `usage_questions` tokens map to questions: `hosted` or `self_hosted` → "hosted or
+  self-hosted?", `commercial` → "commercial or personal?", `tier` → "free tier or paid?".
+  Packages and runtimes outside the catalog get "commercial or personal?" only.
+- A dep's effective profile is its own answer, else the project's default, for the questions that
+  apply to it; everything else is unknown.
+- `matchProfile` (for M4, tested for all 27 profile combinations): every dimension the event
+  restricts must contain the profile's value. A known value outside the list makes the result
+  `not_affected`, which beats an unknown dimension. Otherwise an unanswered restricted dimension
+  gives `unknown` (fan-out treats it as affected), else `affected`.
+
+### Picker (onboarding, SPEC §2 Positioning)
+- `/app/projects/new` leads with "Pick services". Repo import is the second field on the same
+  form, and its result opens the picker with the found entries ticked.
+- Grouped by category (catalog `category`, now validated against a fixed list), `common: true`
+  first. Search by name, id or alias: server-side via `?q=`, and a 10-line inline script filters
+  as you type. That script and the import page's `<meta refresh>` are the only client-side code
+  (no htmx).
+- The form posts the ids it showed (`shown`), so a filtered page never unticks entries it did not
+  display. Free text that exactly matches a name or alias adds that entry; anything else becomes a
+  `catalog_requests` row (admin view) and is not watched.
+- Saving goes to one page of usage questions for every ticked entry that has any, with "Project
+  default (…)" preselected; "Skip" is a link.
+- **Click path with no repo (under 60 s)**: on the landing page, "Pick what you run on"; sign in
+  (email → open link → "Sign in", or "Sign in with GitHub" once configured); "Pick services";
+  tick 4–6 entries, typing to filter; "Save and continue"; "Save" or "Skip" on usage. That is
+  about 10 clicks plus the email round trip, and the dashboard then shows the stack grouped by
+  risk. `test/webapp.test.ts` walks this path.
+
+### Repo import
+- **A job, advanced by the progress page.** `imports` holds a small state machine (repo → tree
+  (once or twice) → fetch → rank → write). The progress page runs one step per load and refreshes
+  every second (`<meta refresh>`, so no JS is needed); the same step is also a job kind (`import`)
+  on the runner, which finishes an import whose page was closed, one step per 5-minute tick
+  (`HEAVY` token). A lock on the job row (`claimImportJob`) keeps a page load and a tick from
+  running the same step. Inline in the request rather than in `waitUntil`: the CPU budget is the
+  same, and the page can show the new state at once. A step that keeps killing its invocation
+  fails the import after 3 claims instead of spinning.
+- Measured: the fixture monorepo imports in 6 page loads; `t3-oss/create-t3-turbo` (live) took
+  6 loads and 8 s from paste to picker, refresh waits included. G4 holds.
+- **Discovery**: GitHub REST (repo, then non-recursive trees by sha), never the recursive tree,
+  whose JSON for a big repo costs more CPU to parse than a whole step may use. It reads the root
+  and one level down (SPEC §7.1), plus one more level inside workspace containers (`apps/`,
+  `packages/`, `services/` and similar) and `.github/workflows/`. Skipped: `docs`, `examples`,
+  `test(s)`, `fixtures`, `node_modules`, `vendor`, build output and other dot-directories. At most
+  24 directory listings per step, two listing rounds and 3,000 paths.
+- **Manifests**: up to 30, shallowest first, each at most 512 KB, from `raw.githubusercontent.com`
+  (it does not count against the API rate limit). Parsers are small line-based readers for every
+  file in §7.1. Files that only matter by presence (`wrangler.*`, `vercel.json`, `fly.toml`,
+  `netlify.toml`, `render.yaml`, `supabase/config.toml`, `bun.lockb`) are matched by `detect.files`
+  and not fetched. `detect` gains `docker` (image names) and `terraform` (provider sources) keys,
+  plus `*` globs and directory patterns (`.github/workflows/`).
+- **Mapping**: catalog matches use dev dependencies too (`wrangler` is usually one). Packages are
+  direct, non-dev, not workspace-internal (by the workspace's own package names), and not covered
+  by a catalog entry. Runtime cycles come only from exact pins (`.nvmrc`, `.python-version`,
+  Docker tags, `go` directives, Pipfile); ranges like `engines.node >=18` give the product without
+  a cycle. With several cycles of one runtime, the oldest wins (it reaches EOL first).
+- **Ranking**: npm weekly downloads (bulk endpoint for unscoped names, one call each for up to 20
+  scoped ones), then manifest order; only when there are more than 25 packages. PyPI has no
+  downloads API, so PyPI packages keep manifest order after ranked npm ones. The top 25 are shown;
+  the rest go under "Also watching N more packages".
+- **Limits**: 150 watched packages per project (each is an npm/PyPI poll every 6 h). Go, crates,
+  gem and composer packages are stored and shown as "not watched yet": M1 has no such source kind.
+  GitHub repo sources for packages are not created yet (the npm poll already records
+  `repository`; M5 can link them).
+- A re-import deletes deps that import added and the repo no longer has; deps the user added by
+  hand stay.
+- Real repo checked: **t3-oss/create-t3-turbo** (pnpm monorepo: `apps/*`, `packages/*`,
+  `tooling/*`). Result: GitHub Actions, Node.js (version 22, from `.nvmrc`), and 48 npm packages
+  (zod, react, next, drizzle-orm, expo, trpc…), 25 shown and 23 under "also watching". `catalog:`
+  version specs (pnpm catalogs) are stored without a version.
+- Unauthenticated GitHub allows 60 requests an hour, about 5 imports; `GITHUB_TOKEN` (already a
+  secret for the watchers) is used when set. The GitHub App (M5) replaces it.
+
+### Dashboard and pages
+- Risk groups, in order: changed recently (a published event within 90 days), archived or
+  deprecated (GitHub `archived`, npm `deprecated`, PyPI inactive), no licence (packages only,
+  once polled), single vendor (new catalog flag `single_vendor`), no known risk. Each dep shows
+  its latest published event. Loading a dashboard takes 4 queries however many projects.
+- Public: `/`, `/catalog` (`?q=` search), `/catalog/{id}` (recent events, what we watch,
+  alternatives), `/events` (paged by publication time), `/events/{id}` (note, quote, source link,
+  "Summary, not legal advice; read the source."), `/events.rss`. Only `published` events are
+  queried. Signed-in pages send `Cache-Control: private, no-store`; every page sends nosniff,
+  `X-Frame-Options: DENY` and a strict referrer policy.
+- `/pricing` and a real landing page are M6.
+
+### D1 and Free-plan limits found while building
+- D1 allows 100 bound parameters per statement. Bulk writes (deps, sources, links, poll jobs)
+  pass rows as one JSON parameter expanded with `json_each`: one statement per table however
+  many rows, which also keeps a step well under the per-invocation query limit. A 150-package
+  import failed on an `IN (…)` read-back before this; `test/import.test.ts` covers it now.
+- `scripts/build-catalog.mjs` now writes `catalog.gen.json` only when it changes. `wrangler dev`
+  runs it on every rebuild and watches the file, so it reloaded in a loop and killed in-flight
+  requests (an M1 bug that only shows with a long-running `wrangler dev`).
+- `npm run poll` passes `GITHUB_TOKEN` as `--var`: wrangler ignores the process environment when
+  `.dev.vars` exists, so GitHub sources were rate-limited during catalog work.
+
+### CPU (`npm run measure:cpu`, profiler estimate, which over-states)
+- Web requests: every page and every import step stays under 8 ms. Dashboard and project page
+  (two imported projects, one with 150 packages; 46 KB of HTML) 2.3–3.0 ms; picker 1.4–1.7 ms; dep page 1.3–1.5 ms;
+  public pages 0.8–2.4 ms. Import steps 2.8–4.8 ms, except the write step for 150 packages,
+  7.9 ms; the write for the fixture monorepo is 4.9 ms. Creating the project 1.4–2.3 ms.
+- **Catalog growth raised poll CPU.** Most new sources answer Markdown or are APIs, but a few
+  marketing pages are large HTML with no Markdown answer and measured 45–120 ms per poll:
+  heroku.com/pricing, docker.com/pricing, firebase.google.com/pricing, the Twilio email-API page
+  and aws.amazon.com/lambda/pricing. On the Free plan those polls would be killed every time,
+  parked after 6 claims and revived daily, so they were replaced with Markdown docs pages or
+  dropped (see "Catalog" below).
+- After that, the worst polls are still over 10 ms on a full fetch: sentry.io/pricing,
+  twilio.com pricing, posthog.com/pricing and the Fly.io feed at 25–60 ms; Deno, Bitwarden and
+  PlanetScale pricing at 17–26 ms. The same sources measured 6–10 ms in another run, when the
+  server answered 304 or the profiler sampled differently. This is the M1 risk, now larger.
+  **After deploy (M5), check `/admin/sources` for parked polls and `exceededCpu` in Workers
+  analytics.** If marketing pages keep getting killed, either drop them or move to Workers Paid
+  ($5/month), as SPEC §4.2 already plans.
+- First daily run with 37 entries (149 sources): about 180 ms, once. Later daily runs about 3 ms.
+
+### Catalog (37 entries, 27 new; mostly hosted services)
+- New: Cloudflare D1, R2 and Workers AI, Netlify, Fly.io, Render, Railway, Neon, PlanetScale,
+  Firebase, Heroku, AWS Lambda, Resend, Stripe, Clerk, Auth0, Sentry, PostHog, GitHub Actions,
+  OpenAI API, Anthropic API, Python, PostgreSQL, Docker Desktop, MongoDB, Twilio and SendGrid.
+  Every source was polled twice with no change. 26 of 37 are hosted services or APIs.
+- Dropped or swapped sources: stripe.com/pricing redirects by visitor country, so the text
+  depends on where the poll runs (dropped). mongodb.com/pricing renders no text without JS (the
+  Atlas free-tier limits doc is watched instead). sendgrid.com/pricing redirects to a Twilio page.
+  openai.com/api/pricing answers bots with 403 (developers.openai.com Markdown docs are watched
+  instead). Heroku's changelog Atom answers 401. Clerk and Resend have no feed. PlanetScale's
+  pricing page carries a "Generated at" timestamp, now ignored.
+- Swapped or dropped for CPU (Free plan): heroku.com/pricing became the Dev Center "usage and
+  billing" and "eco dyno hours" docs (Markdown); docker.com/pricing became docs.docker.com Hub
+  pull limits; the Twilio email-API page became the SendGrid billing docs. firebase.google.com
+  pricing and aws.amazon.com/lambda/pricing were dropped: there is no light page with the same
+  prices. Each change has a YAML comment with the old URL.
+- Detection was narrowed where it was too broad: AWS Lambda no longer matches any use of the
+  Terraform AWS provider, or `template.yaml`. Docker Desktop still matches any Dockerfile or
+  compose file; users untick it in the picker.

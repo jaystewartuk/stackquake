@@ -9,8 +9,9 @@ sources:
     url: https://www.docker.com/blog/feed/
     filter: [pricing, subscription, licen, plan, rate limit, pull limit, docker desktop, docker hub]
   - kind: page
-    url: https://www.docker.com/pricing/
+    url: https://docs.docker.com/docker-hub/usage/pulls/
     selector: main
+  # https://www.docker.com/pricing/ was dropped for CPU (Workers Free plan): about 85 ms per poll.
   - kind: page
     url: https://docs.docker.com/subscription/desktop-license/
     selector: main

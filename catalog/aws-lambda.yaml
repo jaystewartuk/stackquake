@@ -9,9 +9,8 @@ sources:
   - kind: feed
     url: https://aws.amazon.com/about-aws/whats-new/recent/feed/
     filter: [lambda, free tier]
-  - kind: page
-    url: https://aws.amazon.com/lambda/pricing/
-    selector: main
+  # https://aws.amazon.com/lambda/pricing/ was dropped for CPU (Workers Free plan): about 45 ms
+  # per poll, and no docs page carries the prices.
   - kind: page
     url: https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtimes.html
     selector: main

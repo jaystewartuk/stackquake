@@ -6,10 +6,11 @@ detect:
   npm: ["@sendgrid/mail", "@sendgrid/client"]
   pypi: [sendgrid]
 sources:
-  # sendgrid.com/pricing now redirects to the Twilio SendGrid landing page; the Email API
-  # product page carries the plan and free-tier summary.
+  # sendgrid.com/pricing redirects to a Twilio landing page, and the Email API product page
+  # (https://www.twilio.com/en-us/products/email-api) was dropped for CPU (Workers Free plan):
+  # about 48 ms per poll. The billing docs page answers Markdown.
   - kind: page
-    url: https://www.twilio.com/en-us/products/email-api
+    url: https://www.twilio.com/docs/sendgrid/ui/account-and-settings/billing
     selector: main
   - kind: npm
     package: "@sendgrid/mail"
