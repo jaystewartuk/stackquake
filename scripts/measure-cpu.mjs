@@ -9,7 +9,8 @@
 //
 // Local timing differs from production; treat the numbers as an estimate.
 import { spawn, spawnSync } from "node:child_process";
-import { rmSync } from "node:fs";
+import { readFileSync, rmSync } from "node:fs";
+import { createServer as createHttpServer } from "node:http";
 import { createServer } from "node:net";
 import WebSocket from "ws";
 
@@ -28,11 +29,47 @@ const freePort = () =>
 const migrate = spawnSync("npx", ["wrangler", "d1", "migrations", "apply", "DB", "--local", "--persist-to", persist], { stdio: "pipe", env: { ...process.env, CI: "1" } });
 if (migrate.status !== 0) throw new Error(String(migrate.stderr));
 
+// Local stand-ins for the Claude API and a blog post, so the pipeline steps run their real code
+// (SDK request and response handling, HTML extraction) without network or cost.
+const golden = "testdata/golden";
+const postHtml = readFileSync(`${golden}/posts/deno-cloudflare.html`);
+const DENO_QUOTE = "After that year we will end our development of the Deno runtime.";
+const note = (over) => ({ material: true, kind: "eol", title: "Deno runtime development ends", what_changed: "One more year of fixes, then development ends.", quote: DENO_QUOTE, effective_date: "2027-10", applies_when: { hosting: [], use: [], tier: [] }, who_is_not_affected: null, options: [{ catalog_id: "nodejs", name: "Node.js", why: "Mature", effort: "medium" }], uncertain: [], confidence: 0.95, ...over });
+function cannedAnswer(body) {
+  const input = body.messages[0].content.map((b) => b.text).join("\n");
+  if (JSON.stringify(body.output_config.format.schema).includes("one_line")) return { kind: "eol", confidence: 0.95, effective_date: "2027-10", one_line: "Development ends.", quote: DENO_QUOTE };
+  if (input.includes("Source type: page change")) return note({ kind: "free_tier", title: "Workers Free plan: daily requests cut to 50,000", quote: "| **Free** | 50,000 per day | No charge for duration | 10 milliseconds of CPU time per invocation |", effective_date: null });
+  if (input.includes("Source type: registry")) return note({ kind: "license", title: "Licence moves to BUSL-1.1", quote: '"license": "BUSL-1.1"', effective_date: null });
+  return note();
+}
+const stub = createHttpServer((req, res) => {
+  let data = "";
+  req.on("data", (d) => (data += d));
+  req.on("end", () => {
+    if (req.url === "/post") return res.writeHead(200, { "content-type": "text/html; charset=utf-8" }).end(postHtml);
+    if (req.method === "POST" && req.url.startsWith("/v1/messages")) {
+      const body = JSON.parse(data);
+      const text = JSON.stringify(cannedAnswer(body));
+      return res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({
+        id: "msg_stub", type: "message", role: "assistant", model: body.model,
+        content: [{ type: "thinking", thinking: "", signature: "stub" }, { type: "text", text }],
+        stop_reason: "end_turn", stop_sequence: null, stop_details: null,
+        usage: { input_tokens: 5000, output_tokens: 800, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+      }));
+    }
+    res.writeHead(404).end();
+  });
+});
+const stubPort = await freePort();
+await new Promise((r) => stub.listen(stubPort, "127.0.0.1", r));
+process.on("exit", () => stub.close());
+
 const [port, inspectorPort] = [await freePort(), await freePort()];
 const wrangler = spawn(
   "npx",
   ["wrangler", "dev", "--test-scheduled", "--port", String(port), "--ip", "127.0.0.1", "--inspector-port", String(inspectorPort), "--persist-to", persist,
-    "--var", `JOBS_PER_TICK:${JOBS_PER_TICK}`, "--var", "DEV_ROUTES:1", "--show-interactive-dev-session=false"],
+    "--var", `JOBS_PER_TICK:${JOBS_PER_TICK}`, "--var", "DEV_ROUTES:1", "--var", `ANTHROPIC_BASE_URL:http://127.0.0.1:${stubPort}`, "--var", "ANTHROPIC_API_KEY:stub",
+    "--show-interactive-dev-session=false"],
   { stdio: ["ignore", "pipe", "pipe"] },
 );
 process.on("exit", () => wrangler.kill("SIGTERM"));
@@ -138,6 +175,19 @@ for (const phase of ["first polls", "steady state"]) {
     if (r.result.deferred) await fetch(`${base}/__dev/due?within=${10 * 60_000}`, { method: "POST" });
   }
 }
+// Pipeline: one feed item (post fetch, classify, summarise), one page diff (diff, summarise) and
+// one npm licence change (summarise), against the local stubs.
+await fetch(`${base}/__dev/seed-pipeline`, {
+  method: "POST",
+  body: JSON.stringify({ postUrl: `http://127.0.0.1:${stubPort}/post`, before: readFileSync(`${golden}/pages/cloudflare-workers-pricing.md`, "utf8"), after: readFileSync(`${golden}/pages/cloudflare-workers-pricing.free-tier-edit.md`, "utf8") }),
+});
+await fetch(`${base}/__dev/due?pipeline=1`, { method: "POST" });
+for (let i = 0; i < 40; i++) {
+  const r = await run("*/5 * * * *");
+  if (r.result.claimed === 0) break;
+  rows.push({ phase: "pipeline", ...r });
+  await fetch(`${base}/__dev/due?pipeline=1&within=${24 * 3_600_000}`, { method: "POST" });
+}
 rows.push({ phase: "daily again", ...(await run("7 6 * * *")) });
 const keys = new Map((await (await fetch(`${base}/__dev/sources`)).json()).map((s) => [s.id, `${s.kind} ${s.key}`]));
 ws.close();
@@ -148,10 +198,12 @@ console.log("phase         claimed done resch defer retry  cpu ms  wall ms  samp
 for (const r of rows) {
   const t = r.result;
   const counts = r.phase.startsWith("daily") ? `sources=${t.synced.sources}`.padEnd(29) : [t.claimed, t.done, t.rescheduled, t.deferred, t.retried].map((n) => String(n).padStart(5)).join(" ");
-  const which = !r.phase.startsWith("daily") && t.sources.length <= 2 ? "  " + t.sources.map((id) => keys.get(id)).join(", ") : "";
+  const which = r.phase === "pipeline" ? "  " + t.kinds.join(", ") : !r.phase.startsWith("daily") && t.sources.length <= 2 ? "  " + t.sources.map((id) => keys.get(id)).join(", ") : "";
   console.log(`${r.phase.padEnd(13)} ${counts} ${r.cpu.toFixed(2).padStart(7)} ${r.wall.toFixed(0).padStart(8)} ${String(r.interval).padStart(10)}${which}`);
 }
 const ticks = rows.filter((r) => !r.phase.startsWith("daily"));
+const pipe = rows.filter((r) => r.phase === "pipeline");
+if (pipe.length) console.log(`max CPU per pipeline tick: ${Math.max(...pipe.map((r) => r.cpu)).toFixed(2)} ms`);
 const max = Math.max(...ticks.map((r) => r.cpu));
 console.log(`\nmax CPU per tick: ${max.toFixed(2)} ms${max > 10 ? "  ** over the 10 ms Free-plan limit **" : max > 7 ? "  (approaching 10 ms)" : ""}`);
 process.exit(0);

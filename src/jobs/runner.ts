@@ -51,8 +51,9 @@ export const STEPS: Record<JobKind, StepHandler> = {
 
 export interface TickReport {
   claimed: number;
-  /** Source of each claimed job, for logs. */
+  /** Source and kind of each claimed job, for logs. */
   sources: (number | null)[];
+  kinds: JobKind[];
   done: number;
   rescheduled: number;
   deferred: number;
@@ -94,7 +95,7 @@ export async function runJob(ctx: Ctx, job: Job, gate: HostGate, steps: Record<J
 /** The 5-minute cron: claim up to JOBS_PER_TICK due jobs and run one step for each. */
 export async function runTick(ctx: Ctx, steps: Record<JobKind, StepHandler> = STEPS): Promise<TickReport> {
   const claimed = await claimJobs(ctx, ctx.config.jobsPerTick);
-  const report: TickReport = { claimed: claimed.length, sources: claimed.map((j) => j.sourceId), done: 0, rescheduled: 0, deferred: 0, retried: 0, parked: 0 };
+  const report: TickReport = { claimed: claimed.length, sources: claimed.map((j) => j.sourceId), kinds: claimed.map((j) => j.kind), done: 0, rescheduled: 0, deferred: 0, retried: 0, parked: 0 };
   const gate = new HostGate();
   // A job that did not finish cleanly last time may be one that kills the invocation (CPU
   // limit). Run it alone, after handing the others back, so it cannot take them down with it.
