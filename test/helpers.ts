@@ -42,8 +42,8 @@ export async function resetDb() {
   for (const t of ["llm_calls", "events", "jobs", "snapshots", "catalog_sources", "catalog", "robots", "sources", "users", "sessions", "magic_links", "rate_limits", "projects", "deps", "dep_sources", "imports", "catalog_requests", "alerts", "channels"]) await db.run(sql.raw(`DELETE FROM ${t}`));
 }
 
-export function testCtx(overrides: Partial<Omit<Ctx, "llm">> & { http?: FixtureHttp; llm?: FakeLlm } = {}) {
-  const http = overrides.http ?? new FixtureHttp();
+export function testCtx({ http: fixtures, ...overrides }: Partial<Omit<Ctx, "llm" | "http">> & { http?: FixtureHttp; llm?: FakeLlm } = {}) {
+  const http = fixtures ?? new FixtureHttp();
   const llm = overrides.llm ?? new FakeLlm();
   const clock = new FakeClock();
   const blobs = new MemoryBlobStore();
@@ -52,10 +52,10 @@ export function testCtx(overrides: Partial<Omit<Ctx, "llm">> & { http?: FixtureH
     db: d1Db(env.DB),
     blobs,
     clock,
-    http: http.fetch,
     mailer,
     config: { ...configFromEnv({}), jobsPerTick: 10, appOrigin: "https://stackquake.test", linkSecret: TEST_LINK_SECRET, channelKey: TEST_CHANNEL_KEY, adminEmails: ["owner@example.com"] },
     ...overrides,
+    http: http.fetch,
     llm,
   };
   return { ctx, http, llm, clock: (overrides.clock as FakeClock) ?? clock, blobs: (overrides.blobs as MemoryBlobStore) ?? blobs, mailer: (overrides.mailer as MemoryMailer) ?? mailer };
