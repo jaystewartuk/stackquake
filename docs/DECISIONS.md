@@ -193,9 +193,9 @@ Read this after SPEC.md; where they disagree, this file wins.
   wrong.
 - `npm run eval` replays each case through the real watchers and steps (only HTTP is a fixture)
   against the live model, inside workerd like the tests.
-- Results with the default split: passed in 5 of 6 runs (before the multi-change rule, one run
-  dated the Deno note 2027-04, the Deno Deploy shutdown; 2 of 2 runs after it passed). Every
-  run: no false positive among the 7 no-event cases, every deal change found with the right
+- Results with the default split, after the confidence rubric: 5 of 6 runs passed (before the
+  multi-change rule, one run dated the Deno note 2027-04, the Deno Deploy shutdown; 2 of 2
+  runs after it passed). Every one of those runs: no false positive among the 7 no-event cases, every deal change found with the right
   kind, every quote found verbatim; precision and recall 1.00 for each kind.
   About $0.09 per run (Opus notes are $0.011 to $0.05 each, 90% of the cost).
 - All-Haiku (`LLM_MODEL_SUMMARISE_HIGH=claude-haiku-5-5`), 3 runs: same detection and quotes;
