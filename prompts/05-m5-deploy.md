@@ -22,7 +22,7 @@ Implement milestone M5 only (§12). No billing, plans or landing page (M6).
   `.dev.vars` has a dev key named `stackquake-dev` (sending access).
 - Runner capacity: two tick crons (`*/5` and `3-58/5`, each its own invocation and CPU budget)
   plus the daily one, 3 of the account's 5 Free-plan cron triggers; `JOBS_PER_TICK=3` plus
-  `ALERT_JOBS_PER_TICK=3` for fan-out, delivery and digests; feeds every 3 h.
+  `ALERT_JOBS_PER_TICK=2` for fan-out, delivery and digests; feeds every 3 h.
 - Secrets the Worker now expects (all optional locally): `RESEND_API_KEY`, `LINK_SECRET`
   (HMAC for one-click links), `CHANNEL_KEY` (32 bytes base64, AES-GCM for Slack webhook URLs),
   plus M1–M3's `ANTHROPIC_API_KEY`, `GITHUB_TOKEN`, `GITHUB_CLIENT_SECRET`. Vars: `MAIL_FROM`,

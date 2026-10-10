@@ -572,7 +572,8 @@ Read this after SPEC.md; where they disagree, this file wins.
   including rendering, three HMAC links and the Resend call, about 1 ms; the 9.0 ms tick was two
   first chunks plus a delivery, in a run with 3 alert jobs per tick). Digest ticks (3 digests):
   4.4–5.4 ms. Daily run with digests queued and the budget check: 3.3–4.1 ms.
-- Web: every page under 5 ms; the dashboard with the alerts section 2.7–4.9 ms.
+- Web: every page under 5 ms; the dashboard 2.7–4.9 ms (the measured user has no alerts; the
+  alerts list is one query, capped at 30 rows).
 - Unchanged risks from M1–M3: poll ticks median 5.8 ms, p90 14 ms, max 65 ms (marketing pages,
   as M3 recorded); one pipeline tick (post fetch plus two summarise steps) measured 16.8 ms this
   run against 3–7 ms in M2, so treat the profiler's single readings as noisy. The first daily run
