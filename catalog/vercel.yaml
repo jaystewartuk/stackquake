@@ -10,7 +10,8 @@ sources:
   - kind: feed
     url: https://vercel.com/atom
     filter: [pricing, hobby, free, plan, limits, billing, terms]
-  # Vercel serves its docs as Markdown to non-browser clients, so no selector is needed there.
+  # Vercel, Cloudflare and Supabase docs answer Accept: text/markdown with Markdown; the selector
+  # is then unused (it still applies if they switch back to HTML).
   - kind: page
     url: https://vercel.com/docs/plans/hobby
     selector: main

@@ -135,10 +135,6 @@ export async function syncCatalog(ctx: Ctx, entries: CatalogEntry[]): Promise<{ 
 
   let created = 0;
   for (const entry of changed) {
-    await ctx.db
-      .insert(catalog)
-      .values({ id: entry.id, name: entry.name, category: entry.category, data: entry, updatedAt: now })
-      .onConflictDoUpdate({ target: catalog.id, set: { name: entry.name, category: entry.category, data: entry, updatedAt: now } });
     const keep: number[] = [];
     for (const spec of entry.sources) {
       const row = sourceRow(spec);
@@ -159,6 +155,7 @@ export async function syncCatalog(ctx: Ctx, entries: CatalogEntry[]): Promise<{ 
           .update(sources)
           .set({ url: row.url, selector: row.selector, config: row.config, ...(existing!.state === "disabled" ? { state: "active" as const } : {}) })
           .where(eq(sources.id, id));
+        if (existing!.state === "disabled") await enqueue(ctx, { kind: "poll", sourceId: id, runAfter: now, dedupeKey: pollJobKey(id) });
       }
       const filter = spec.kind === "feed" ? (spec.filter ?? null) : null;
       await ctx.db
@@ -168,6 +165,11 @@ export async function syncCatalog(ctx: Ctx, entries: CatalogEntry[]): Promise<{ 
       keep.push(id);
     }
     await ctx.db.delete(catalogSources).where(and(eq(catalogSources.catalogId, entry.id), notInArray(catalogSources.sourceId, keep)));
+    // Written last: a stored entry means its sources are in place, so a crash above is retried.
+    await ctx.db
+      .insert(catalog)
+      .values({ id: entry.id, name: entry.name, category: entry.category, data: entry, updatedAt: now })
+      .onConflictDoUpdate({ target: catalog.id, set: { name: entry.name, category: entry.category, data: entry, updatedAt: now } });
   }
   if (removed.length) {
     await ctx.db.delete(catalogSources).where(inArray(catalogSources.catalogId, removed));
