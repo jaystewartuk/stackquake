@@ -83,3 +83,10 @@ Read this after SPEC.md; where they disagree, this file wins.
 ### Sources that block automated fetches
 - hashicorp.com (blog feed, licence FAQ): Vercel Security Checkpoint, even on robots.txt.
 - github.com `*.atom` (release feeds): disallowed by robots.txt; not in the catalog.
+
+## Before M2 (2026-10-10)
+- **LLM: Haiku 5.5 first** (owner's decision, cost). Classify and summarise each have their own
+  model setting, both defaulting to `claude-haiku-5-5`; a step moves to `claude-opus-5-5` only if
+  it fails the golden-set bar. Estimated LLM cost: about $0.10/month now, under $1 at 40+
+  entries (Opus would be about $3–5 and $12–20). The review gate (quote found verbatim,
+  confidence ≥ 0.9, deterministic kinds only) is what keeps auto-published notes correct.
