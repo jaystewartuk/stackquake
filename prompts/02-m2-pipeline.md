@@ -1,7 +1,8 @@
 # Prompt 02: implement M2 (event pipeline)
 
 Saved 2026-10-10. `ANTHROPIC_API_KEY` is already in `.dev.vars` (gitignored; key
-`stackquake-dev`, expires 2026-11-09). Top up API credit to about $25 first.
+`stackquake-dev`, expires 2026-11-09). Top up API credit to about $15 first (expected M2
+spend $5–12).
 Paste this into a new Claude Code session in this repo (Opus 5.5 recommended for the session
 itself: prompt and schema design matter more here than in M1).
 
@@ -22,11 +23,19 @@ no alerts or email, no web app beyond the admin review page, no deploy.
 
 ## Scope (from SPEC §5, §6, §7.3, §7.4, §11)
 1. **LLM client** behind an interface (`Llm`) with a production implementation and a fake for
-   tests. **Haiku first (owner's decision):** the model per step comes from
-   `LLM_MODEL_CLASSIFY` and `LLM_MODEL_SUMMARISE`, both defaulting to `claude-haiku-5-5`;
-   switching a step to `claude-opus-5-5` must be a config change only. Haiku 5.5 has no
-   server-side refusal fallback: a `refusal` stop goes to `pending_review`. Keep the spec's
-   `fallbacks: "default"` only when the configured model supports it (Opus 5.5). Every call writes `llm_calls`
+   tests. **Model split (owner's decision, cost):** Haiku where volume is high and stakes
+   are low, Opus where a wrong note hurts most. Defaults:
+   - `LLM_MODEL_CLASSIFY` = `claude-haiku-5-5` (all feed classification).
+   - `LLM_MODEL_SUMMARISE` = `claude-haiku-5-5` (pricing, free tier, deprecated, archived,
+     other, and page diffs).
+   - `LLM_MODEL_SUMMARISE_HIGH` = `claude-opus-5-5` for notes on kinds `license`, `eol` and
+     `acquisition`.
+
+   A page diff or feed item is summarised on Haiku; if Haiku's result is one of the high-stakes
+   kinds, re-run summarise on the Opus setting (rare, so cheap). Changing any setting must be a
+   config change only. Haiku 5.5 has no server-side refusal fallback: a `refusal` stop goes to
+   `pending_review`. Send the spec's `fallbacks: "default"` only to Opus 5.5. Set effort
+   explicitly (both models default to `medium`): `low` for classify, `medium` for summarise. Every call writes `llm_calls`
    (purpose, model, tokens, cost from current pricing). Fetched text is untrusted data: say so in
    the system prompt, keep it last, validate every output against its schema.
 2. **fetch_post step** for new feed items whose feed text is short (an excerpt): fetch the post
@@ -55,17 +64,17 @@ no alerts or email, no web app beyond the admin review page, no deploy.
    For Bitwarden, use whatever is fetchable plus the HN thread and mark uncertainty as the spec
    says. `npm run eval` runs it against the live model and reports precision and recall per kind,
    quote-found rate, and cost.
-9. **Model choice (SPEC §14 Q2)**: run the eval on `claude-haiku-5-5` first and tune the
-   prompts and schemas against it. Only if Haiku cannot reach the bar after tuning, run the
-   failing step on `claude-opus-5-5` and report the difference. Prefer the cheapest per-step
-   combination that passes (likely Haiku for classify even if summarise needs Opus). Keep eval
-   spend under about $15 and report it.
+9. **Model choice (SPEC §14 Q2)**: tune prompts and schemas against the split above. If a
+   Haiku step cannot reach the bar after tuning, move only that step (or kind) to Opus and
+   report why. If Opus notes for the high-stakes kinds are no better than Haiku's on the golden
+   set, say so and recommend Haiku for them too. Keep eval spend under $15 (expected about
+   $0.25–0.30 per eval run) and report the total.
 
 ## Done when
 - Unit tests pass with the fake LLM: quote check (found, whitespace variants, made-up quote),
   review gate rules, semantic dedupe, refusal handling, page-diff "not material", idempotent
   retries of each new step. `npm test` and `tsc` are clean.
-- `npm run eval` passes the §11 bar on the chosen model per step (Haiku unless it could not):
+- `npm run eval` passes the §11 bar with the model split (or the adjusted one you report):
   no false positive among the "no event" cases, all deal changes found, every quote found
   verbatim.
 - `npm run measure:cpu` still shows steady-state ticks around or under 10 ms with the new
