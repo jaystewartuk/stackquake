@@ -1,10 +1,10 @@
 import { env } from "cloudflare:test";
 import { sql } from "drizzle-orm";
-import { DEFAULT_MODELS, USER_AGENT, type Ctx } from "../src/context";
+import { DEFAULT_MODELS, GITHUB_API, GITHUB_RAW, USER_AGENT, type Ctx } from "../src/context";
 import { sources, type Source, type SourceKind } from "../src/db/schema";
 import { d1Db } from "../src/platform/cloudflare";
 import { FakeLlm } from "../src/llm/fake";
-import { FakeClock, MemoryBlobStore } from "../src/platform/memory";
+import { FakeClock, MemoryBlobStore, MemoryMailer } from "../src/platform/memory";
 
 export type Route = Response | string | object | ((req: Request) => Response | Promise<Response>);
 
@@ -35,7 +35,7 @@ export class FixtureHttp {
 
 export async function resetDb() {
   const db = d1Db(env.DB);
-  for (const t of ["llm_calls", "events", "jobs", "snapshots", "catalog_sources", "catalog", "robots", "sources"]) await db.run(sql.raw(`DELETE FROM ${t}`));
+  for (const t of ["llm_calls", "events", "jobs", "snapshots", "catalog_sources", "catalog", "robots", "sources", "users", "sessions", "magic_links", "rate_limits", "projects", "deps", "dep_sources", "imports", "catalog_requests"]) await db.run(sql.raw(`DELETE FROM ${t}`));
 }
 
 export function testCtx(overrides: Partial<Omit<Ctx, "llm">> & { http?: FixtureHttp; llm?: FakeLlm } = {}) {
@@ -43,16 +43,18 @@ export function testCtx(overrides: Partial<Omit<Ctx, "llm">> & { http?: FixtureH
   const llm = overrides.llm ?? new FakeLlm();
   const clock = new FakeClock();
   const blobs = new MemoryBlobStore();
+  const mailer = new MemoryMailer();
   const ctx: Ctx = {
     db: d1Db(env.DB),
     blobs,
     clock,
     http: http.fetch,
-    config: { jobsPerTick: 10, userAgent: USER_AGENT, models: DEFAULT_MODELS },
+    mailer,
+    config: { jobsPerTick: 10, userAgent: USER_AGENT, models: DEFAULT_MODELS, githubApi: GITHUB_API, githubRaw: GITHUB_RAW },
     ...overrides,
     llm,
   };
-  return { ctx, http, llm, clock: (overrides.clock as FakeClock) ?? clock, blobs: (overrides.blobs as MemoryBlobStore) ?? blobs };
+  return { ctx, http, llm, clock: (overrides.clock as FakeClock) ?? clock, blobs: (overrides.blobs as MemoryBlobStore) ?? blobs, mailer: (overrides.mailer as MemoryMailer) ?? mailer };
 }
 
 export async function addSource(ctx: Ctx, s: { kind: SourceKind; key: string; url: string; selector?: string; config?: Record<string, unknown> }): Promise<Source> {

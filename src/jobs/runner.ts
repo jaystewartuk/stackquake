@@ -1,8 +1,10 @@
 // Job runner (SPEC §7.2): claim a batch, run one step per job, record the outcome.
+import { CATALOG } from "../catalog/entries";
 import type { Ctx } from "../context";
 import type { Job, JobKind } from "../db/schema";
 import { classifyStep, fetchPostStep, summariseStep } from "../pipeline/steps";
 import { HEAVY } from "../sources/http";
+import { importStep } from "../stack/import";
 import { KINDS } from "../sources/kinds";
 import { errorMessage, MINUTE } from "../util";
 import { extractDiff } from "../watch/extract-diff";
@@ -43,6 +45,10 @@ export const STEPS: Record<JobKind, StepHandler> = {
     if (!gate.take([HEAVY])) return { type: "defer" };
     await extractDiff(ctx, source, p.oldSha, p.newSha);
     return { type: "done" };
+  },
+  async import(ctx, job, gate) {
+    if (!gate.take([HEAVY])) return { type: "defer" };
+    return (await importStep(ctx, job, CATALOG)) === "done" ? { type: "done" } : { type: "reschedule", at: ctx.clock.now() };
   },
   fetch_post: fetchPostStep,
   classify: classifyStep,

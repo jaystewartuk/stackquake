@@ -28,3 +28,14 @@ export interface Scheduler {
 
 /** Outbound HTTP. Production uses global fetch; tests serve fixtures. */
 export type Http = (request: Request) => Promise<Response>;
+
+export interface Mail {
+  to: string;
+  subject: string;
+  text: string;
+}
+
+/** Outbound email. Console in development; Resend arrives with alerts (M4/M5). */
+export interface Mailer {
+  send(mail: Mail): Promise<void>;
+}

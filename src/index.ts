@@ -1,15 +1,10 @@
-import { Hono } from "hono";
-import { adminRoutes } from "./admin/routes";
 import { CATALOG } from "./catalog/entries";
-import { devRoutes } from "./dev";
 import { makeCtx, type AppEnv } from "./env";
 import { runCron } from "./jobs/cron";
 import { CronScheduler } from "./platform/cloudflare";
+import { createApp } from "./web";
 
-const app = new Hono<{ Bindings: AppEnv }>();
-app.get("/health", (c) => c.json({ ok: true }));
-app.route("/__dev", devRoutes);
-app.route("/admin", adminRoutes);
+const app = createApp(makeCtx);
 
 export default {
   fetch: app.fetch,

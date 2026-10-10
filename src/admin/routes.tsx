@@ -3,98 +3,30 @@
 // reject each in one click. Everything fetched is rendered as text (JSX escapes it) and links
 // are only rendered for http(s) URLs.
 import { and, desc, eq, gt, sql } from "drizzle-orm";
-import { Hono, type Context } from "hono";
-import { deleteCookie, getCookie, setCookie } from "hono/cookie";
-import type { FC, PropsWithChildren } from "hono/jsx";
-import { EVENT_KINDS, events, llmCalls, type Event, type EventKind, type EventStatus } from "../db/schema";
-import { makeCtx, type AppEnv } from "../env";
+import { Hono } from "hono";
+import type { FC } from "hono/jsx";
+import { catalogRequests, EVENT_KINDS, events, jobs, llmCalls, sources, users, type Event, type EventKind, type EventStatus } from "../db/schema";
 import type { Note } from "../llm/schemas";
 import { getText } from "../pipeline/post";
 import { quoteFound } from "../pipeline/quote";
 import { DAY } from "../util";
-import { checkSession, csrfToken, makeSession, safeEqual, SESSION_COOKIE, SESSION_MS } from "./auth";
+import { Csrf, fmtDate, page, safeHref } from "../web/layout";
+import { requireAdmin, type WebContext, type WebEnv } from "../web/session";
 
-type Env = { Bindings: AppEnv; Variables: { csrf: string } };
-export const adminRoutes = new Hono<Env>();
+export const adminRoutes = new Hono<WebEnv>();
+adminRoutes.use("*", requireAdmin);
 
 const STATUSES: EventStatus[] = ["pending_review", "published", "rejected", "pending_llm"];
-const safeHref = (url: string | null) => (url && /^https?:\/\//i.test(url) ? url : undefined);
-
-const Layout: FC<PropsWithChildren<{ title: string }>> = ({ title, children }) => (
-  <html lang="en">
-    <head>
-      <meta charset="utf-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1" />
-      <meta name="robots" content="noindex" />
-      <title>{title} · Stackquake admin</title>
-      <style>{`
-        body{font:15px/1.45 system-ui,sans-serif;max-width:60rem;margin:0 auto;padding:1rem;color:#1a1a1a;background:#fafaf8}
-        h1{font-size:1.3rem} h2{font-size:1.05rem;margin:.2rem 0}
-        nav a{margin-right:1rem} .meta{color:#555;font-size:.85rem}
-        article{background:#fff;border:1px solid #ddd;border-radius:6px;padding:.8rem 1rem;margin:1rem 0}
-        blockquote{margin:.5rem 0;padding:.3rem .8rem;border-left:3px solid #999;background:#f4f4f0;white-space:pre-wrap}
-        pre{white-space:pre-wrap;word-break:break-word;background:#f6f6f6;padding:.5rem;max-height:16rem;overflow:auto;font-size:.8rem}
-        .cols{display:grid;grid-template-columns:1fr 1fr;gap:.5rem} .bad{color:#a00} .ok{color:#070}
-        form.inline{display:inline} button{margin-right:.4rem;padding:.3rem .8rem}
-        label{display:block;margin:.5rem 0 .2rem;font-weight:600} input[type=text],textarea,select{width:100%;box-sizing:border-box;font:inherit}
-        textarea{min-height:5rem}
-      `}</style>
-    </head>
-    <body>{children}</body>
-  </html>
-);
-
-async function adminSecret(c: Context<Env>): Promise<string | null> {
-  return c.env.ADMIN_TOKEN && c.env.ADMIN_TOKEN.length >= 16 ? c.env.ADMIN_TOKEN : null;
-}
-
-adminRoutes.use("*", async (c, next) => {
-  const secret = await adminSecret(c);
-  if (!secret) return c.text("Admin is not configured (set ADMIN_TOKEN, at least 16 characters).", 503);
-  const path = new URL(c.req.url).pathname;
-  if (path === "/admin/login") return next();
-  const exp = await checkSession(secret, getCookie(c, SESSION_COOKIE), Date.now());
-  if (exp === null) return c.req.method === "GET" ? c.redirect("/admin/login") : c.text("Not signed in", 401);
-  const csrf = await csrfToken(secret, exp);
-  if (c.req.method === "POST") {
-    const form = await c.req.parseBody();
-    if (typeof form._csrf !== "string" || !safeEqual(form._csrf, csrf)) return c.text("Bad CSRF token", 403);
-  }
-  c.set("csrf", csrf);
-  await next();
-});
-
-adminRoutes.get("/login", (c) =>
-  c.html(
-    <Layout title="Sign in">
-      <h1>Stackquake admin</h1>
-      <form method="post" action="/admin/login">
-        <label for="token">Admin token</label>
-        <input type="password" id="token" name="token" autocomplete="current-password" required />
-        <p>
-          <button type="submit">Sign in</button>
-        </p>
-      </form>
-    </Layout>,
-  ),
-);
-
-adminRoutes.post("/login", async (c) => {
-  const secret = (await adminSecret(c))!;
-  const form = await c.req.parseBody();
-  if (typeof form.token !== "string" || !safeEqual(form.token, secret)) return c.text("Wrong token", 401);
-  setCookie(c, SESSION_COOKIE, await makeSession(secret, Date.now()), { httpOnly: true, secure: true, sameSite: "Strict", path: "/admin", maxAge: SESSION_MS / 1000 });
-  return c.redirect("/admin/events");
-});
-
-adminRoutes.post("/logout", (c) => {
-  deleteCookie(c, SESSION_COOKIE, { path: "/admin", secure: true });
-  return c.redirect("/admin/login");
-});
 
 adminRoutes.get("/", (c) => c.redirect("/admin/events"));
 
-const Csrf: FC<{ token: string }> = ({ token }) => <input type="hidden" name="_csrf" value={token} />;
+const AdminNav = () => (
+  <nav class="row" style="margin-bottom:1rem">
+    <a href="/admin/events">Review queue</a>
+    <a href="/admin/sources">Blocked sources</a>
+    <a href="/admin/requests">Catalog requests</a>
+  </nav>
+);
 
 const EventCard: FC<{ e: Event; csrf: string }> = ({ e, csrf }) => {
   const n = e.note as Note | null;
@@ -168,21 +100,24 @@ const EventCard: FC<{ e: Event; csrf: string }> = ({ e, csrf }) => {
 };
 
 adminRoutes.get("/events", async (c) => {
-  const ctx = makeCtx(c.env);
+  const ctx = c.get("ctx");
   const status = (STATUSES as string[]).includes(c.req.query("status") ?? "") ? (c.req.query("status") as EventStatus) : "pending_review";
   const list = await ctx.db.select().from(events).where(eq(events.status, status)).orderBy(desc(events.detectedAt)).limit(50).all();
   const counts = await ctx.db.select({ status: events.status, n: sql<number>`count(*)` }).from(events).groupBy(events.status).all();
   const week = await ctx.db
     .select({ usd: sql<number>`coalesce(sum(${llmCalls.costUsd}), 0)`, calls: sql<number>`count(*)` })
     .from(llmCalls)
-    .where(gt(llmCalls.createdAt, Date.now() - 7 * DAY))
+    .where(gt(llmCalls.createdAt, c.get("ctx").clock.now() - 7 * DAY))
     .get();
   const n = (s: string) => counts.find((r) => r.status === s)?.n ?? 0;
   const flash = c.req.query("msg");
-  return c.html(
-    <Layout title="Events">
+  return page(
+    c,
+    "Admin: events",
+    <>
+      <AdminNav />
       <h1>Events: {status.replace("_", " ")}</h1>
-      <nav>
+      <nav class="row">
         {STATUSES.map((s) => (
           <a href={`/admin/events?status=${s}`}>
             {s.replace("_", " ")} ({n(s)})
@@ -190,31 +125,28 @@ adminRoutes.get("/events", async (c) => {
         ))}
       </nav>
       <p class="meta">
-        LLM, last 7 days: ${(week?.usd ?? 0).toFixed(4)} over {week?.calls ?? 0} calls.{" "}
-        <form class="inline" method="post" action="/admin/logout">
-          <Csrf token={c.get("csrf")} />
-          <button type="submit">Sign out</button>
-        </form>
+        LLM, last 7 days: ${(week?.usd ?? 0).toFixed(4)} over {week?.calls ?? 0} calls.
       </p>
-      {flash && <p class="bad">{flash}</p>}
+      {flash && <p class="flash error">{flash}</p>}
       {list.length === 0 ? <p>Nothing here.</p> : list.map((e) => <EventCard e={e} csrf={c.get("csrf")} />)}
-    </Layout>,
+    </>,
+    { noindex: true },
   );
 });
 
-async function loadEvent(c: Context<Env>): Promise<Event | undefined> {
+async function loadEvent(c: WebContext): Promise<Event | undefined> {
   const id = Number(c.req.param("id"));
   if (!Number.isInteger(id)) return undefined;
-  return makeCtx(c.env).db.select().from(events).where(eq(events.id, id)).get();
+  return c.get("ctx").db.select().from(events).where(eq(events.id, id)).get();
 }
 
 adminRoutes.post("/events/:id/approve", async (c) => {
   const e = await loadEvent(c);
   if (!e) return c.notFound();
   if (!e.note || !e.quote) return c.redirect(`/admin/events?msg=${encodeURIComponent(`#${e.id} has no note or quote: edit it first`)}`);
-  await makeCtx(c.env)
+  await c.get("ctx")
     .db.update(events)
-    .set({ status: "published", publishedAt: Date.now(), reviewReason: `approved by admin${e.reviewReason ? ` (was: ${e.reviewReason})` : ""}`.slice(0, 1_000) })
+    .set({ status: "published", publishedAt: c.get("ctx").clock.now(), reviewReason: `approved by admin${e.reviewReason ? ` (was: ${e.reviewReason})` : ""}`.slice(0, 1_000) })
     .where(eq(events.id, e.id));
   return c.redirect("/admin/events");
 });
@@ -222,7 +154,7 @@ adminRoutes.post("/events/:id/approve", async (c) => {
 adminRoutes.post("/events/:id/reject", async (c) => {
   const e = await loadEvent(c);
   if (!e) return c.notFound();
-  await makeCtx(c.env)
+  await c.get("ctx")
     .db.update(events)
     .set({ status: "rejected", publishedAt: null, reviewReason: `rejected by admin${e.reviewReason ? ` (was: ${e.reviewReason})` : ""}`.slice(0, 1_000) })
     .where(and(eq(events.id, e.id)));
@@ -233,8 +165,10 @@ adminRoutes.get("/events/:id", async (c) => {
   const e = await loadEvent(c);
   if (!e) return c.notFound();
   const n = e.note as Note | null;
-  return c.html(
-    <Layout title={`Edit #${e.id}`}>
+  return page(
+    c,
+    `Edit #${e.id}`,
+    <>
       <p>
         <a href="/admin/events">← Events</a>
       </p>
@@ -266,7 +200,8 @@ adminRoutes.get("/events/:id", async (c) => {
           <button type="submit">Save and publish</button>
         </p>
       </form>
-    </Layout>,
+    </>,
+    { noindex: true },
   );
 });
 
@@ -280,7 +215,7 @@ adminRoutes.post("/events/:id", async (c) => {
   if (!EVENT_KINDS.includes(kind) || !str("title") || !str("quote") || !str("what_changed") || (effective && !/^\d{4}-\d{2}(-\d{2})?$/.test(effective))) {
     return c.text("Kind, title, what changed and quote are required; the date must be YYYY-MM[-DD].", 400);
   }
-  const ctx = makeCtx(c.env);
+  const ctx = c.get("ctx");
   const corpus = [e.beforeText, e.afterText];
   for (const key of e.sourceKeys ?? []) corpus.push(await getText(ctx, key));
   const base: Note = (e.note as Note | null) ?? {
@@ -308,9 +243,86 @@ adminRoutes.post("/events/:id", async (c) => {
       effectiveDate: effective,
       appliesWhen: note.applies_when,
       status: "published",
-      publishedAt: Date.now(),
+      publishedAt: c.get("ctx").clock.now(),
       reviewReason: "edited and approved by admin",
     })
     .where(eq(events.id, e.id));
   return c.redirect("/admin/events");
+});
+
+adminRoutes.get("/sources", async (c) => {
+  const ctx = c.get("ctx");
+  const list = await ctx.db.select().from(sources).where(sql`${sources.state} = 'blocked' OR ${sources.lastError} IS NOT NULL`).orderBy(desc(sources.state), sources.id).limit(200).all();
+  const parked = await ctx.db.select().from(jobs).where(sql`${jobs.parkedAt} IS NOT NULL`).orderBy(desc(jobs.parkedAt)).limit(50).all();
+  return page(
+    c,
+    "Admin: sources",
+    <>
+      <AdminNav />
+      <h1>Blocked and failing sources</h1>
+      {list.length === 0 ? (
+        <p>None.</p>
+      ) : (
+        <ul class="plain">
+          {list.map((s) => (
+            <li>
+              <span class={`pill ${s.state === "blocked" ? "bad" : ""}`}>{s.state}</span> #{s.id} {s.kind}{" "}
+              {safeHref(s.url) ? <a href={safeHref(s.url)} rel="noopener noreferrer nofollow">{s.key}</a> : s.key}
+              {s.lastError && <div class="meta">{s.lastError}</div>}
+            </li>
+          ))}
+        </ul>
+      )}
+      <h2>Parked jobs</h2>
+      {parked.length === 0 ? (
+        <p>None.</p>
+      ) : (
+        <ul class="plain">
+          {parked.map((j) => (
+            <li>
+              #{j.id} {j.kind} {j.sourceId ? `source ${j.sourceId}` : j.eventId ? `event ${j.eventId}` : ""} · parked {fmtDate(j.parkedAt)}
+              <div class="meta">{j.lastError}</div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>,
+    { noindex: true },
+  );
+});
+
+adminRoutes.get("/requests", async (c) => {
+  const ctx = c.get("ctx");
+  const list = await ctx.db
+    .select({ id: catalogRequests.id, text: catalogRequests.text, createdAt: catalogRequests.createdAt, email: users.email })
+    .from(catalogRequests)
+    .leftJoin(users, eq(users.id, catalogRequests.userId))
+    .orderBy(desc(catalogRequests.id))
+    .limit(200)
+    .all();
+  const counts = new Map<string, number>();
+  for (const r of list) counts.set(r.text.toLowerCase(), (counts.get(r.text.toLowerCase()) ?? 0) + 1);
+  return page(
+    c,
+    "Admin: catalog requests",
+    <>
+      <AdminNav />
+      <h1>Catalog requests</h1>
+      <p class="muted">Free text from the picker that matched no entry. Add the popular ones to catalog/.</p>
+      {list.length === 0 ? (
+        <p>None yet.</p>
+      ) : (
+        <ul class="plain">
+          {[...counts.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .map(([text, n]) => (
+              <li>
+                <strong>{text}</strong> <span class="meta">× {n}, latest {fmtDate(list.find((r) => r.text.toLowerCase() === text)!.createdAt)}</span>
+              </li>
+            ))}
+        </ul>
+      )}
+    </>,
+    { noindex: true },
+  );
 });

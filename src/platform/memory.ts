@@ -1,5 +1,5 @@
 // In-memory implementations for tests (and the Node entry point later).
-import type { BlobStore, Clock, CronTask, Scheduler } from "../ports";
+import type { BlobStore, Clock, CronTask, Mail, Mailer, Scheduler } from "../ports";
 
 export class MemoryBlobStore implements BlobStore {
   readonly blobs = new Map<string, Uint8Array>();
@@ -60,5 +60,23 @@ export class ManualScheduler implements Scheduler {
   fire(task: CronTask) {
     if (!this.run) throw new Error("scheduler not started");
     return this.run(task);
+  }
+}
+
+/** Keeps sent mail for tests to read. */
+export class MemoryMailer implements Mailer {
+  readonly sent: Mail[] = [];
+  async send(mail: Mail) {
+    this.sent.push(mail);
+  }
+  last(): Mail | undefined {
+    return this.sent[this.sent.length - 1];
+  }
+}
+
+/** Development mailer: prints the message (magic links show up in the `wrangler dev` log). */
+export class ConsoleMailer implements Mailer {
+  async send(mail: Mail) {
+    console.log(`[mail] to=${mail.to} subject=${JSON.stringify(mail.subject)}\n${mail.text}`);
   }
 }

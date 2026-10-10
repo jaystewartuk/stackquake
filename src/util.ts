@@ -39,3 +39,12 @@ export const DAY = 24 * HOUR;
 export function errorMessage(e: unknown): string {
   return e instanceof Error ? `${e.name}: ${e.message}` : String(e);
 }
+
+/** Compares without an early exit, so timing does not reveal a prefix match. */
+export function safeEqual(a: string, b: string): boolean {
+  const x = utf8(a);
+  const y = utf8(b);
+  let diff = x.length ^ y.length;
+  for (let i = 0; i < Math.max(x.length, y.length); i++) diff |= (x[i] ?? 0) ^ (y[i] ?? 0);
+  return diff === 0;
+}

@@ -2,6 +2,7 @@ import { inArray, sql } from "drizzle-orm";
 import { syncCatalog, type CatalogEntry } from "../catalog/catalog";
 import type { Ctx } from "../context";
 import { snapshots } from "../db/schema";
+import { disableOrphanUserSources } from "../stack/deps";
 import { DAY } from "../util";
 import { ensurePipelineJobs, ensurePollJobs, pruneJobs } from "./queue";
 import { runTick, type TickReport } from "./runner";
@@ -39,6 +40,7 @@ export async function pruneSnapshots(ctx: Ctx): Promise<{ blobsDeleted: number; 
 /** The daily cron: sync the catalog, schedule overdue polls and stalled pipeline steps, prune. */
 export async function runDaily(ctx: Ctx, entries: CatalogEntry[]) {
   const synced = await syncCatalog(ctx, entries);
+  await disableOrphanUserSources(ctx);
   await ensurePollJobs(ctx);
   await ensurePipelineJobs(ctx);
   const pruned = await pruneSnapshots(ctx);

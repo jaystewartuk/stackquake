@@ -1,30 +1,18 @@
-import { env } from "cloudflare:test";
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
-import { csrfToken, makeSession } from "../src/admin/auth";
-import { events } from "../src/db/schema";
-import app from "../src/index";
+import { catalogRequests, events } from "../src/db/schema";
 import { addSource, resetDb, testCtx } from "./helpers";
+import { ADMIN, Browser, location } from "./web";
 
 beforeEach(resetDb);
 
-const TOKEN = "test-admin-token-0123456789";
-const ENV = { ...env, ADMIN_TOKEN: TOKEN };
-
-async function session() {
-  const cookie = await makeSession(TOKEN, Date.now());
-  const csrf = await csrfToken(TOKEN, Number(cookie.split(".")[0]));
-  return { cookie: `sq_admin=${cookie}`, csrf };
+async function admin(ctx: ReturnType<typeof testCtx>["ctx"]) {
+  const b = new Browser(ctx);
+  await b.signIn(ADMIN);
+  return b;
 }
 
-const req = (path: string, init: RequestInit = {}, e: object = ENV) => app.fetch(new Request(`https://stackquake.test${path}`, init), e as never, { waitUntil() {}, passThroughOnException() {} } as never);
-
-function post(path: string, fields: Record<string, string>, cookie?: string) {
-  return req(path, { method: "POST", body: new URLSearchParams(fields), headers: { "content-type": "application/x-www-form-urlencoded", ...(cookie ? { cookie } : {}) }, redirect: "manual" });
-}
-
-async function pendingEvent(over: Partial<typeof events.$inferInsert> = {}) {
-  const { ctx } = testCtx();
+async function pendingEvent(ctx: ReturnType<typeof testCtx>["ctx"], over: Partial<typeof events.$inferInsert> = {}) {
   const source = await addSource(ctx, { kind: "feed", key: "https://example.com/feed", url: "https://example.com/feed" });
   const [row] = await ctx.db
     .insert(events)
@@ -45,52 +33,47 @@ async function pendingEvent(over: Partial<typeof events.$inferInsert> = {}) {
       ...over,
     })
     .returning();
-  return { ctx, row };
+  return { row };
 }
 
-describe("/admin auth", () => {
-  it("is off without ADMIN_TOKEN", async () => {
-    expect((await req("/admin/events", {}, { ...env })).status).toBe(503);
-  });
-
-  it("redirects to the login form without a session", async () => {
-    const res = await req("/admin/events", { redirect: "manual" });
+describe("/admin access", () => {
+  it("sends signed-out visitors to sign-in", async () => {
+    const res = await new Browser(testCtx().ctx).get("/admin/events");
     expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("/admin/login");
+    expect(location(res)).toBe("/signin?next=%2Fadmin%2Fevents");
   });
 
-  it("rejects a wrong token and sets a strict, HttpOnly, Secure cookie for the right one", async () => {
-    expect((await post("/admin/login", { token: "nope" })).status).toBe(401);
-    const res = await post("/admin/login", { token: TOKEN });
-    expect(res.status).toBe(302);
-    const cookie = res.headers.get("set-cookie")!;
-    expect(cookie).toMatch(/^sq_admin=\d+\.[\w-]+;/);
-    expect(cookie).toContain("HttpOnly");
-    expect(cookie).toContain("Secure");
-    expect(cookie).toContain("SameSite=Strict");
-    expect(cookie).toContain("Path=/admin");
+  it("is a 404 for signed-in users not in ADMIN_EMAILS", async () => {
+    const { ctx } = testCtx();
+    const b = new Browser(ctx);
+    await b.signIn("someone@example.com");
+    expect((await b.get("/admin/events")).status).toBe(404);
+    const { row } = await pendingEvent(ctx);
+    expect((await b.post(`/admin/events/${row.id}/approve`)).status).toBe(404);
   });
 
-  it("rejects a forged or expired session", async () => {
-    const forged = await req("/admin/events", { headers: { cookie: `sq_admin=${Date.now() + 1e9}.AAAA` }, redirect: "manual" });
-    expect(forged.status).toBe(302);
-    const old = await makeSession(TOKEN, Date.now() - 8 * 24 * 3_600_000);
-    expect((await req("/admin/events", { headers: { cookie: `sq_admin=${old}` }, redirect: "manual" })).status).toBe(302);
+  it("opens for ADMIN_EMAILS, and still needs the CSRF token", async () => {
+    const { ctx } = testCtx();
+    const { row } = await pendingEvent(ctx);
+    const b = await admin(ctx);
+    expect((await b.get("/admin/events")).status).toBe(200);
+    expect((await b.post(`/admin/events/${row.id}/approve`, {}, { csrf: null })).status).toBe(403);
+    expect((await b.post(`/admin/events/${row.id}/approve`, {}, { csrf: "y".repeat(32) })).status).toBe(403);
   });
 
-  it("refuses POSTs without the CSRF token", async () => {
-    const { row } = await pendingEvent();
-    const { cookie } = await session();
-    expect((await post(`/admin/events/${row.id}/approve`, {}, cookie)).status).toBe(403);
-    expect((await post(`/admin/events/${row.id}/approve`, { _csrf: "x" }, cookie)).status).toBe(403);
+  it("is off when ADMIN_EMAILS is empty", async () => {
+    const { ctx } = testCtx();
+    const b = new Browser(ctx, { ...new Browser(ctx).env, ADMIN_EMAILS: "" });
+    await b.signIn(ADMIN);
+    expect((await b.get("/admin/events")).status).toBe(404);
   });
 });
 
 describe("/admin/events", () => {
   it("lists events waiting for review with fetched text escaped", async () => {
-    const { row } = await pendingEvent();
-    const { cookie } = await session();
-    const html = await (await req("/admin/events", { headers: { cookie } })).text();
+    const { ctx } = testCtx();
+    const { row } = await pendingEvent(ctx);
+    const html = await (await admin(ctx)).html("/admin/events");
     expect(html).toContain(`#${row.id}`);
     expect(html).toContain("Pricing &lt;b&gt;changes&lt;/b&gt;");
     expect(html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
@@ -100,16 +83,16 @@ describe("/admin/events", () => {
   });
 
   it("does not link non-http source URLs", async () => {
-    await pendingEvent({ quoteUrl: "javascript:alert(1)" });
-    const { cookie } = await session();
-    const html = await (await req("/admin/events", { headers: { cookie } })).text();
+    const { ctx } = testCtx();
+    await pendingEvent(ctx, { quoteUrl: "javascript:alert(1)" });
+    const html = await (await admin(ctx)).html("/admin/events");
     expect(html).not.toContain('href="javascript:');
   });
 
   it("approves in one click", async () => {
-    const { ctx, row } = await pendingEvent();
-    const { cookie, csrf } = await session();
-    expect((await post(`/admin/events/${row.id}/approve`, { _csrf: csrf }, cookie)).status).toBe(302);
+    const { ctx } = testCtx();
+    const { row } = await pendingEvent(ctx);
+    expect((await (await admin(ctx)).post(`/admin/events/${row.id}/approve`)).status).toBe(302);
     const e = (await ctx.db.select().from(events).where(eq(events.id, row.id)).get())!;
     expect(e.status).toBe("published");
     expect(e.publishedAt).not.toBeNull();
@@ -117,26 +100,36 @@ describe("/admin/events", () => {
   });
 
   it("will not approve an event without a note", async () => {
-    const { ctx, row } = await pendingEvent({ note: null });
-    const { cookie, csrf } = await session();
-    await post(`/admin/events/${row.id}/approve`, { _csrf: csrf }, cookie);
+    const { ctx } = testCtx();
+    const { row } = await pendingEvent(ctx, { note: null });
+    await (await admin(ctx)).post(`/admin/events/${row.id}/approve`);
     expect((await ctx.db.select().from(events).where(eq(events.id, row.id)).get())!.status).toBe("pending_review");
   });
 
   it("rejects in one click", async () => {
-    const { ctx, row } = await pendingEvent();
-    const { cookie, csrf } = await session();
-    await post(`/admin/events/${row.id}/reject`, { _csrf: csrf }, cookie);
+    const { ctx } = testCtx();
+    const { row } = await pendingEvent(ctx);
+    await (await admin(ctx)).post(`/admin/events/${row.id}/reject`);
     expect((await ctx.db.select().from(events).where(eq(events.id, row.id)).get())!.status).toBe("rejected");
   });
 
   it("edits and publishes, re-checking the quote", async () => {
-    const { ctx, row } = await pendingEvent({ note: null, afterText: "From 1 November, the Pro plan costs $25 per month." });
-    const { cookie, csrf } = await session();
-    const res = await post(`/admin/events/${row.id}`, { _csrf: csrf, kind: "pricing", title: "Pro plan goes to $25", what_changed: "The Pro plan rises to $25 a month from 1 November.", quote: "the Pro plan costs $25 per month.", effective_date: "2026-11-01" }, cookie);
+    const { ctx } = testCtx();
+    const { row } = await pendingEvent(ctx, { note: null, afterText: "From 1 November, the Pro plan costs $25 per month." });
+    const res = await (await admin(ctx)).post(`/admin/events/${row.id}`, { kind: "pricing", title: "Pro plan goes to $25", what_changed: "The Pro plan rises to $25 a month from 1 November.", quote: "the Pro plan costs $25 per month.", effective_date: "2026-11-01" });
     expect(res.status).toBe(302);
     const e = (await ctx.db.select().from(events).where(eq(events.id, row.id)).get())!;
     expect(e).toMatchObject({ status: "published", title: "Pro plan goes to $25", quoteFound: true, effectiveDate: "2026-11-01", reviewReason: "edited and approved by admin" });
     expect((e.note as { what_changed: string }).what_changed).toBe("The Pro plan rises to $25 a month from 1 November.");
+  });
+});
+
+describe("/admin/requests", () => {
+  it("lists picker requests that matched no catalog entry", async () => {
+    const { ctx } = testCtx();
+    await ctx.db.insert(catalogRequests).values([{ text: "Upstash", createdAt: 1 }, { text: "upstash", createdAt: 2 }, { text: "Hetzner", createdAt: 3 }]);
+    const html = await (await admin(ctx)).html("/admin/requests");
+    expect(html).toContain("upstash");
+    expect(html).toMatch(/upstash<\/strong> <span class="meta">× 2/);
   });
 });

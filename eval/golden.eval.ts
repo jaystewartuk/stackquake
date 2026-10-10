@@ -8,14 +8,14 @@ import { eq } from "drizzle-orm";
 import { expect, it } from "vitest";
 import { syncCatalog } from "../src/catalog/catalog";
 import { CATALOG } from "../src/catalog/entries";
-import { DEFAULT_MODELS, USER_AGENT, type Ctx } from "../src/context";
+import { DEFAULT_MODELS, GITHUB_API, GITHUB_RAW, USER_AGENT, type Ctx } from "../src/context";
 import { EVENT_KINDS, events, jobs, llmCalls, sources, type Event, type EventKind } from "../src/db/schema";
 import { runTick } from "../src/jobs/runner";
 import { AnthropicLlm } from "../src/llm/anthropic";
 import type { Llm } from "../src/llm/llm";
 import type { Note } from "../src/llm/schemas";
 import { d1Db } from "../src/platform/cloudflare";
-import { FakeClock, MemoryBlobStore } from "../src/platform/memory";
+import { FakeClock, MemoryBlobStore, MemoryMailer } from "../src/platform/memory";
 import { githubUrl } from "../src/sources/kinds/github";
 import { npmUrl } from "../src/sources/kinds/npm";
 import { normaliseUrl } from "../src/sources/normalise";
@@ -84,7 +84,7 @@ async function runCase(c: Case, llm: Llm): Promise<Result> {
   const started = Date.now();
   const http = new FixtureHttp();
   const clock = new FakeClock();
-  const ctx: Ctx = { db: d1Db(env.DB), blobs: new MemoryBlobStore(), clock, http: http.fetch, llm, config: { jobsPerTick: 10, userAgent: USER_AGENT, models } };
+  const ctx: Ctx = { db: d1Db(env.DB), blobs: new MemoryBlobStore(), clock, http: http.fetch, llm, mailer: new MemoryMailer(), config: { jobsPerTick: 10, userAgent: USER_AGENT, models, githubApi: GITHUB_API, githubRaw: GITHUB_RAW } };
   await syncCatalog(ctx, CATALOG);
   await ctx.db.delete(jobs); // catalog polls; each case polls its own source below
 

@@ -1,5 +1,5 @@
 import type { Llm } from "./llm/llm";
-import type { BlobStore, Clock, Db, Http } from "./ports";
+import type { BlobStore, Clock, Db, Http, Mailer } from "./ports";
 
 export interface LlmModels {
   /** All feed classification. */
@@ -15,6 +15,9 @@ export interface Config {
   userAgent: string;
   githubToken?: string;
   models: LlmModels;
+  /** GitHub REST API and raw file hosts (repo import). Overridable so measure-cpu can stub them. */
+  githubApi: string;
+  githubRaw: string;
 }
 
 /** Everything a step needs. Built once per invocation. */
@@ -24,6 +27,7 @@ export interface Ctx {
   clock: Clock;
   http: Http;
   llm: Llm;
+  mailer: Mailer;
   config: Config;
 }
 
@@ -42,7 +46,12 @@ export interface ConfigEnv {
   LLM_MODEL_CLASSIFY?: string;
   LLM_MODEL_SUMMARISE?: string;
   LLM_MODEL_SUMMARISE_HIGH?: string;
+  GITHUB_API_BASE?: string;
+  GITHUB_RAW_BASE?: string;
 }
+
+export const GITHUB_API = "https://api.github.com";
+export const GITHUB_RAW = "https://raw.githubusercontent.com";
 
 export function configFromEnv(env: ConfigEnv): Config {
   const n = Number(env.JOBS_PER_TICK ?? "3");
@@ -55,5 +64,7 @@ export function configFromEnv(env: ConfigEnv): Config {
       summarise: env.LLM_MODEL_SUMMARISE || DEFAULT_MODELS.summarise,
       summariseHigh: env.LLM_MODEL_SUMMARISE_HIGH || DEFAULT_MODELS.summariseHigh,
     },
+    githubApi: env.GITHUB_API_BASE || GITHUB_API,
+    githubRaw: env.GITHUB_RAW_BASE || GITHUB_RAW,
   };
 }

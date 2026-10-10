@@ -2,14 +2,22 @@ import { configFromEnv, type Ctx } from "./context";
 import { AnthropicLlm } from "./llm/anthropic";
 import type { Llm } from "./llm/llm";
 import { d1Db, R2BlobStore, systemClock } from "./platform/cloudflare";
+import { ConsoleMailer } from "./platform/memory";
 
 export interface AppEnv extends Env {
   GITHUB_TOKEN?: string;
   ANTHROPIC_API_KEY?: string;
   /** Points the Claude client elsewhere (scripts/measure-cpu.mjs uses a local stub). */
   ANTHROPIC_BASE_URL?: string;
-  /** Protects /admin until M3 adds real auth. Unset: /admin is off. */
-  ADMIN_TOKEN?: string;
+  /** Comma-separated emails of users who may open /admin. */
+  ADMIN_EMAILS?: string;
+  /** GitHub OAuth app for sign-in. Unset: the GitHub button is hidden. */
+  GITHUB_CLIENT_ID?: string;
+  GITHUB_CLIENT_SECRET?: string;
+  /** Origin used in emailed links. Default: the request origin on localhost, else https://stackquake.com. */
+  APP_ORIGIN?: string;
+  GITHUB_API_BASE?: string;
+  GITHUB_RAW_BASE?: string;
   /** "1" only under `wrangler dev` (set by scripts/poll.mjs). Enables /__dev routes. */
   DEV_ROUTES?: string;
 }
@@ -30,6 +38,7 @@ export function makeCtx(env: AppEnv): Ctx {
     clock: systemClock,
     http: (req) => fetch(req),
     llm: makeLlm(env),
+    mailer: new ConsoleMailer(),
     config: configFromEnv(env),
   };
 }
