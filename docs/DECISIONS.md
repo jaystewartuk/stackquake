@@ -91,3 +91,7 @@ Read this after SPEC.md; where they disagree, this file wins.
   split holds. Estimated LLM cost: about $0.50/month now, about $2 at 40+ entries (all-Opus
   would be $3–5 and $12–20). The review gate (quote found verbatim, confidence ≥ 0.9,
   deterministic kinds only) keeps auto-published notes correct.
+- **Positioning: services first** (2026-10-10). Package licence/deprecation alerts are easy for
+  GitHub, Snyk or Socket to copy, so they are not the selling point. SPEC §2 now has a
+  Positioning section; §7.1 and the M3/M5 rows make the service picker the main onboarding path
+  (repo import pre-fills it) and weight catalog growth toward hosted services.

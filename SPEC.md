@@ -31,6 +31,25 @@ Events are computed **once per source** and shared by every user who depends on 
 - Contract or legal advice. Notes say what changed and quote it; they never say "you are compliant".
 - Monitoring arbitrary URLs that users add. v1 only watches sources in the curated catalog plus registry and GitHub data (see §14 Q3).
 
+### Positioning (added 2026-10-10)
+GitHub, Snyk or Socket could easily add alerts for package licence changes, deprecations and
+archived repos; GitHub already has the dependency graph, Dependabot and licence checks in
+dependency review. Treat that coverage as expected, not as the reason to pay. Stackquake wins on
+what code-scanning tools don't see and platform vendors are badly placed to say:
+- **Services, not just packages.** Pricing, free tiers, terms, end-of-development notices and
+  acquisitions for hosted services and runtimes (Cloudflare, Vercel, Supabase, Deno). None of it
+  is in a manifest.
+- **Neutral.** An independent tool can be blunt about any vendor, GitHub and Microsoft included.
+- **"What this means for you, and where to go."** A per-usage answer with alternatives, quoted
+  from the source. Large platforms avoid interpreting other companies' licences.
+- **Not tied to GitHub.** Works for GitLab users and self-hosters with no repo at all.
+
+Consequences: lead the landing page and onboarding with services ("pick what you run on"), with
+repo import as the quick way to fill the list, not the main path. Grow the catalog of
+services faster than package coverage. Registry and GitHub watchers stay as cheap support.
+Before launch, check what Dependabot, Snyk and Socket already flag for upstream licence changes,
+and say plainly on the landing page where Stackquake differs.
+
 ## 3. Users and core scenarios
 
 - **Solo developer / small team lead (primary).** Has 1–10 repos and a handful of paid services. Wants one email when something they use changes the deal, not a feed to read.
@@ -206,7 +225,7 @@ llm_calls(id, purpose, model, input_tokens, output_tokens, cost_usd, created_at)
 - **Mapping.** Direct dependencies become `npm`/`pypi`/`crates`/`go` deps (each with its registry and GitHub repo sources). Runtime versions and Docker base images become `eol` deps. Files and package names in a catalog entry's `detect` become catalog deps.
 - **Limit what's shown.** By default, only show catalog deps, runtimes and **the top 25 packages by importance** (direct dependency, not dev-only, ranked by whether it is a framework or SDK in the catalog, then by registry download count). The rest are imported but collapsed under "also watching".
 - **Private repos** need the GitHub App installed on that repo (M5). On `push` webhooks to the default branch, re-import if a manifest changed.
-- **Manual add.** Search the catalog by name or alias. Free text that matches nothing is saved as a request for the catalog (admin view), not watched.
+- **Manual add (first step of onboarding, see §2 Positioning).** A "what do you run on?" picker: catalog entries grouped by category (hosting, database, auth, email, payments, runtime, self-hosted), searchable by name or alias, with the most common ones shown first. Free text that matches nothing is saved as a request for the catalog (admin view), not watched. Repo import is offered next to it as a shortcut that pre-fills the picker.
 - **Usage profile.** For each catalog dep, ask only the questions in its `usage_questions`: "How do you use it? Hosted / self-hosted", "Commercial or personal?", "Free tier or paid?". Default from the project's `default_profile`. Skippable; unknown means "assume affected".
 
 ### 7.2 Watchers (cron)
@@ -325,9 +344,9 @@ Limits are enforced server-side when creating projects and channels. Stripe Chec
 |---|---|---|
 | M1 | Watcher engine: source kinds, fetch + normalise + hash + snapshot, job runner, catalog loader with 10 starter entries, local CLI `npm run poll -- <source>` | Unit tests for normalisation, job runner and dedupe pass; polling the 10 starter entries twice produces no false changes |
 | M2 | Event pipeline: classify, summarise, quote check, review gate, admin review page (minimal), golden set + `npm run eval` | Golden set passes the bar in §11 |
-| M3 | Web app: auth (GitHub + magic link), projects, public repo import, manual add, usage profiles, dashboard, public catalog and event pages | E1 passes; a real public repo imports correctly |
+| M3 | Web app: auth (GitHub + magic link), projects, **service picker first** (manual add from the catalog, §7.1), public repo import as a shortcut that pre-fills it, usage profiles, dashboard, public catalog and event pages. Grow the catalog to 25+ entries, mostly hosted services | E1 passes; a real public repo imports correctly; a user with no repo can build a stack from the picker in under 60 s |
 | M4 | Alerts: fan-out, email via Resend, Slack, digest, feedback and mute links, rate limit, LLM budget guard | E2, E3, E4 pass |
-| M5 | GitHub App for private repos and push re-import; deploy staging and production to Cloudflare on stackquake.com; DNS for Resend; catalog grown to 40+ entries | Staging works end to end with a real email; production deployed but not announced |
+| M5 | GitHub App for private repos and push re-import; deploy staging and production to Cloudflare on stackquake.com; DNS for Resend; catalog grown to 40+ entries, at least two thirds hosted services and runtimes; competitor check (§2 Positioning) | Staging works end to end with a real email; production deployed but not announced |
 | M6 | Plans, billing, landing page, public launch (Show HN); move to Workers Paid if CPU errors appear | A new user goes from sign-up to a populated dashboard in under 2 minutes in production |
 
 **No public launch before the golden set passes on the production model and the review gate is on.**
