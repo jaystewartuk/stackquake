@@ -8,6 +8,7 @@ import type { CatalogEntry } from "../catalog/catalog";
 import type { Ctx } from "../context";
 import { deps, imports, jobs, projects, type Import, type Job } from "../db/schema";
 import { enqueue, LOCK_MS } from "../jobs/queue";
+import { GithubAppError, installationToken } from "../github/app";
 import { errorMessage, truncate } from "../util";
 import { mapStack, type ProposedDep } from "./mapping";
 import { emptyFound, parseManifest, parserFor, type Found } from "./manifests";
@@ -49,6 +50,8 @@ export interface ImportState {
   counts?: { catalog: number; runtimes: number; packages: number };
   /** File sizes from the trees, until manifests are picked. */
   sizes?: Sizes;
+  /** GitHub App installation (private repos, M5): its token replaces GITHUB_TOKEN. */
+  installationId?: number;
 }
 
 export type ImportStep = "repo" | "tree" | "fetch" | "rank" | "write" | "done";
@@ -61,34 +64,53 @@ export function parseRepoInput(input: string): string | null {
   return `${m[1]}/${m[2]}`;
 }
 
-export async function startImport(ctx: Ctx, projectId: number, repo: string): Promise<Import> {
+export async function startImport(ctx: Ctx, projectId: number, repo: string, installationId?: number | null): Promise<Import> {
   const now = ctx.clock.now();
   const [owner, name] = repo.split("/");
-  const state: ImportState = { owner, name, paths: [], dirs: [], found: {}, errors: 0, log: [`Reading ${repo}`] };
+  const state: ImportState = { owner, name, paths: [], dirs: [], found: {}, errors: 0, log: [`Reading ${repo}`], ...(installationId ? { installationId } : {}) };
   const [row] = await ctx.db
     .insert(imports)
     .values({ projectId, repo, status: "running", step: "repo", state: state as unknown as Record<string, unknown>, createdAt: now, updatedAt: now })
     .returning();
-  await ctx.db.update(projects).set({ repoFullName: repo }).where(eq(projects.id, projectId));
+  await ctx.db.update(projects).set({ repoFullName: repo, githubInstallationId: installationId ?? null }).where(eq(projects.id, projectId));
   await enqueue(ctx, { kind: "import", payload: { importId: row.id }, dedupeKey: importJobKey(row.id) });
   return row;
 }
 
 class ImportError extends Error {}
 
-function ghHeaders(ctx: Ctx, accept = "application/vnd.github+json"): Record<string, string> {
+/** Tokens resolved for the current step (one cache read or mint per step, not per request). */
+const stepTokens = new WeakMap<ImportState, Promise<string | undefined>>();
+
+/** The installation's token for a private-repo import, else GITHUB_TOKEN (public repos). */
+function ghToken(ctx: Ctx, st: ImportState): Promise<string | undefined> {
+  if (!st.installationId) return Promise.resolve(ctx.config.githubToken);
+  let token = stepTokens.get(st);
+  if (!token) {
+    token = installationToken(ctx, st.installationId).catch((e) => {
+      throw e instanceof GithubAppError ? new ImportError(e.message) : e;
+    });
+    stepTokens.set(st, token);
+  }
+  return token;
+}
+
+async function ghFetch(ctx: Ctx, st: ImportState, url: string, accept = "application/vnd.github+json"): Promise<Response> {
   const h: Record<string, string> = { "user-agent": ctx.config.userAgent, accept, "x-github-api-version": "2022-11-28" };
-  if (ctx.config.githubToken) h.authorization = `Bearer ${ctx.config.githubToken}`;
-  return h;
+  const token = await ghToken(ctx, st);
+  if (token) h.authorization = `Bearer ${token}`;
+  return ctx.http(new Request(url, { headers: h, signal: AbortSignal.timeout(20_000) }));
 }
 
-async function ghFetch(ctx: Ctx, url: string, accept?: string): Promise<Response> {
-  return ctx.http(new Request(url, { headers: ghHeaders(ctx, accept), signal: AbortSignal.timeout(20_000) }));
-}
-
-async function ghJson<T>(ctx: Ctx, path: string): Promise<T> {
-  const res = await ghFetch(ctx, `${ctx.config.githubApi}${path}`);
-  if (res.status === 404) throw new ImportError("Repository not found. Only public GitHub repositories can be imported for now.");
+async function ghJson<T>(ctx: Ctx, st: ImportState, path: string): Promise<T> {
+  const res = await ghFetch(ctx, st, `${ctx.config.githubApi}${path}`);
+  if (res.status === 404) {
+    throw new ImportError(
+      st.installationId
+        ? "Repository not found. Check that the Stackquake GitHub App can access it (GitHub → Settings → Applications)."
+        : "Repository not found. Public repos can be pasted; private repos need the GitHub App (Import a private repo).",
+    );
+  }
   if (res.status === 403 || res.status === 429) {
     await res.body?.cancel();
     throw new ImportError("GitHub's rate limit was hit. Try again in a few minutes.");
@@ -134,10 +156,10 @@ function dirPriority(path: string): number {
 type Sizes = Record<string, number>;
 
 async function stepRepo(ctx: Ctx, st: ImportState): Promise<ImportStep> {
-  const repo = await ghJson<{ default_branch: string; private?: boolean }>(ctx, `/repos/${st.owner}/${st.name}`);
-  if (repo.private) throw new ImportError("This repository is private. Private repos need the GitHub App (coming soon).");
+  const repo = await ghJson<{ default_branch: string; private?: boolean }>(ctx, st, `/repos/${st.owner}/${st.name}`);
+  if (repo.private && !st.installationId) throw new ImportError("This repository is private. Use \"Import a private repo\", which connects it through the Stackquake GitHub App.");
   st.branch = repo.default_branch;
-  const root = await ghJson<{ tree: TreeEntry[]; truncated?: boolean }>(ctx, `/repos/${st.owner}/${st.name}/git/trees/${encodeURIComponent(st.branch)}`);
+  const root = await ghJson<{ tree: TreeEntry[]; truncated?: boolean }>(ctx, st, `/repos/${st.owner}/${st.name}/git/trees/${encodeURIComponent(st.branch)}`);
   const sizes = new Map<string, number>();
   addTree(st, "", 0, root.tree, sizes);
   st.sizes = Object.fromEntries(sizes);
@@ -149,7 +171,7 @@ async function stepTree(ctx: Ctx, st: ImportState): Promise<ImportStep> {
   st.dirs.sort((a, b) => a[2] - b[2] || dirPriority(a[0]) - dirPriority(b[0]) || a[0].localeCompare(b[0]));
   const batch = st.dirs.splice(0, MAX_DIRS_PER_STEP);
   const sizes = new Map(Object.entries(st.sizes ?? {}));
-  const trees = await Promise.all(batch.map(([path, sha]) => ghJson<{ tree: TreeEntry[] }>(ctx, `/repos/${st.owner}/${st.name}/git/trees/${sha}`).then((t) => [path, t] as const)));
+  const trees = await Promise.all(batch.map(([path, sha]) => ghJson<{ tree: TreeEntry[] }>(ctx, st, `/repos/${st.owner}/${st.name}/git/trees/${sha}`).then((t) => [path, t] as const)));
   for (const [path, t] of trees) addTree(st, path, batch.find((b) => b[0] === path)![2], t.tree, sizes);
   st.sizes = Object.fromEntries(sizes);
   // Depth-2 directories (inside containers) are listed in one more step; anything left is dropped.
@@ -173,7 +195,10 @@ async function stepFetch(ctx: Ctx, st: ImportState): Promise<ImportStep> {
   const picked = pickManifests(st.paths, sizes);
   const texts = await Promise.all(
     picked.map(async (path) => {
-      const res = await ghFetch(ctx, `${ctx.config.githubRaw}/${st.owner}/${st.name}/${encodeURIComponent(st.branch!)}/${encPath(path)}`, "*/*");
+      // Private repos: the contents API (raw media type) with the installation token.
+      const res = st.installationId
+        ? await ghFetch(ctx, st, `${ctx.config.githubApi}/repos/${st.owner}/${st.name}/contents/${encPath(path)}?ref=${encodeURIComponent(st.branch!)}`, "application/vnd.github.raw+json")
+        : await ghFetch(ctx, st, `${ctx.config.githubRaw}/${st.owner}/${st.name}/${encodeURIComponent(st.branch!)}/${encPath(path)}`, "*/*");
       if (!res.ok) {
         await res.body?.cancel();
         return [path, null] as const;

@@ -377,3 +377,18 @@ export type NewDep = typeof deps.$inferInsert;
 export type Import = typeof imports.$inferSelect;
 export type Alert = typeof alerts.$inferSelect;
 export type Channel = typeof channels.$inferSelect;
+
+/**
+ * GitHub App installations (M5, SPEC §4.1, §7.1): the cached installation token, encrypted at rest
+ * with CHANNEL_KEY (src/alerts/secretbox.ts). Projects point here by `github_installation_id`.
+ */
+export const githubInstallations = sqliteTable("github_installations", {
+  id: integer("id").primaryKey(),
+  account: text("account").notNull(),
+  tokenEnc: text("token_enc"),
+  tokenExpiresAt: integer("token_expires_at"),
+  suspendedAt: integer("suspended_at"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+export type GithubInstallation = typeof githubInstallations.$inferSelect;

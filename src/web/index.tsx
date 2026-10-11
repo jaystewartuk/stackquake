@@ -5,9 +5,11 @@ import { adminRoutes } from "../admin/routes";
 import type { Ctx } from "../context";
 import { devRoutes } from "../dev";
 import type { AppEnv } from "../env";
+import { githubWebhook } from "../github/webhook";
 import { alertLinks } from "./alert-links";
 import { app as appRoutes } from "./app";
 import { auth } from "./auth";
+import { github } from "./github";
 import { page } from "./layout";
 import { pub } from "./public";
 import { sessionMiddleware, type WebEnv } from "./session";
@@ -17,8 +19,10 @@ export function createApp(makeCtx: (env: AppEnv) => Ctx) {
   web.get("/health", (c) => c.json({ ok: true }));
   // JSON routes for local scripts only (DEV_ROUTES=1 on localhost); no session or CSRF.
   web.route("/__dev", devRoutes as unknown as Hono<WebEnv>);
+  // GitHub App webhooks: signed by GitHub, so no session or CSRF.
+  web.route("/", githubWebhook(makeCtx) as unknown as Hono<WebEnv>);
   web.use("*", async (c, next) => {
-    if (c.req.path.startsWith("/__dev")) return next();
+    if (c.req.path.startsWith("/__dev") || c.req.path === "/github/webhook") return next();
     return sessionMiddleware(makeCtx)(c, next);
   });
   web.use("*", async (c, next) => {
@@ -32,6 +36,7 @@ export function createApp(makeCtx: (env: AppEnv) => Ctx) {
   web.route("/", auth);
   web.route("/", pub);
   web.route("/", alertLinks);
+  web.route("/app/github", github);
   web.route("/app", appRoutes);
   web.route("/admin", adminRoutes);
   web.notFound((c) => (c.get("csrf") !== undefined ? page(c, "Not found", <><h1>Not found</h1><p><a href="/">Home</a></p></>, { status: 404, noindex: true }) : c.text("Not found", 404)));

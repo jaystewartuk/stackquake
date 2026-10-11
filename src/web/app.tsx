@@ -171,7 +171,15 @@ app.get("/projects/new", (c) => {
             Import
           </button>
         </div>
-        <p class="meta">We read up to 30 manifest files (package.json, pyproject.toml, Dockerfile, wrangler.toml…) through the GitHub API. Private repos need the GitHub App, coming soon.</p>
+        <p class="meta">
+          We read up to 30 manifest files (package.json, pyproject.toml, Dockerfile, wrangler.toml…) through the GitHub API.
+          {c.get("ctx").config.githubApp ? (
+            <>
+              {" "}
+              Private repo? <a href="/app/github/connect">Import it through the GitHub App</a> (read-only; we re-import when a manifest changes).
+            </>
+          ) : null}
+        </p>
       </form>
     </>,
     { noindex: true },
@@ -243,6 +251,7 @@ app.get("/projects/:id", async (c) => {
           <Csrf token={c.get("csrf")} />
           <input type="url" name="repo" placeholder="https://github.com/owner/repo" style="flex:1;min-width:14rem" required />
           <button type="submit">Import a public repo</button>
+          {ctx.config.githubApp && <a href={`/app/github/connect?project=${project.id}`}>or a private repo</a>}
         </form>
       )}
       <h2>Project settings</h2>
@@ -471,7 +480,9 @@ app.post("/projects/:id/import", async (c) => {
   const repo = parseRepoInput(str(form.repo, 300));
   if (!repo) return page(c, "Import", <><h1>That isn't a GitHub repo URL</h1><p><a href={`/app/projects/${project.id}`}>Back</a></p></>, { status: 400, noindex: true });
   const running = await latestImport(c.get("ctx"), project.id);
-  if (running?.status !== "running") await startImport(c.get("ctx"), project.id, repo);
+  // "Import again" keeps the project's GitHub App installation; a different repo is a public import.
+  const installation = project.githubInstallationId && repo.toLowerCase() === project.repoFullName?.toLowerCase() ? project.githubInstallationId : null;
+  if (running?.status !== "running") await startImport(c.get("ctx"), project.id, installation ? project.repoFullName! : repo, installation);
   return c.redirect(`/app/projects/${project.id}/import`);
 });
 

@@ -12,6 +12,8 @@ export default defineConfig(async () => {
     ],
     test: {
       setupFiles: ["./test/setup.ts"],
+      // Agent worktrees live under .claude/worktrees; their copies of the tests are not ours.
+      exclude: ["**/node_modules/**", ".claude/**"],
     },
   };
 });

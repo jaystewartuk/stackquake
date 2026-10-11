@@ -29,6 +29,13 @@
       "when": 1791673290746,
       "tag": "0003_m4_alerts",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1791681445427,
+      "tag": "0004_m5_github_app",
+      "breakpoints": true
     }
   ]
 }

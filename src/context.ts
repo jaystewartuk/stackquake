@@ -1,3 +1,4 @@
+import type { GithubAppConfig } from "./github/app";
 import type { Llm } from "./llm/llm";
 import type { BlobStore, Clock, Db, Http, Mailer } from "./ports";
 
@@ -29,6 +30,8 @@ export interface Config {
   /** SPEC §7.4: email the admins above this 7-day LLM cost; pause classify above twice it. */
   llmWeeklyBudgetUsd: number;
   adminEmails: string[];
+  /** GitHub App for private repos (M5). Unset: private import is hidden. */
+  githubApp?: GithubAppConfig;
 }
 
 /** Everything a step needs. Built once per invocation. */
@@ -65,6 +68,11 @@ export interface ConfigEnv {
   CHANNEL_KEY?: string;
   LLM_WEEKLY_BUDGET_USD?: string;
   ADMIN_EMAILS?: string;
+  GITHUB_APP_SLUG?: string;
+  GITHUB_APP_CLIENT_ID?: string;
+  GITHUB_APP_CLIENT_SECRET?: string;
+  GITHUB_APP_PRIVATE_KEY?: string;
+  GITHUB_WEBHOOK_SECRET?: string;
 }
 
 export const DEFAULT_ORIGIN = "https://stackquake.com";
@@ -95,5 +103,9 @@ export function configFromEnv(env: ConfigEnv): Config {
     channelKey: env.CHANNEL_KEY || undefined,
     llmWeeklyBudgetUsd: Number(env.LLM_WEEKLY_BUDGET_USD) > 0 ? Number(env.LLM_WEEKLY_BUDGET_USD) : DEFAULT_WEEKLY_BUDGET_USD,
     adminEmails: parseEmails(env.ADMIN_EMAILS),
+    githubApp:
+      env.GITHUB_APP_SLUG && env.GITHUB_APP_CLIENT_ID && env.GITHUB_APP_CLIENT_SECRET && env.GITHUB_APP_PRIVATE_KEY && env.GITHUB_WEBHOOK_SECRET
+        ? { slug: env.GITHUB_APP_SLUG, clientId: env.GITHUB_APP_CLIENT_ID, clientSecret: env.GITHUB_APP_CLIENT_SECRET, privateKey: env.GITHUB_APP_PRIVATE_KEY, webhookSecret: env.GITHUB_WEBHOOK_SECRET }
+        : undefined,
   };
 }

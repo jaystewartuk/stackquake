@@ -33,6 +33,13 @@ export interface AppEnv extends Env {
   /** AES-GCM key (32 bytes, base64) for Slack webhook URLs. */
   CHANNEL_KEY?: string;
   LLM_WEEKLY_BUDGET_USD?: string;
+  /** GitHub App for private repos (M5): slug and client ID are vars; the rest are secrets. All five or none. */
+  GITHUB_APP_SLUG?: string;
+  GITHUB_APP_CLIENT_ID?: string;
+  GITHUB_APP_CLIENT_SECRET?: string;
+  /** PEM as GitHub issues it (PKCS#1) or PKCS#8. */
+  GITHUB_APP_PRIVATE_KEY?: string;
+  GITHUB_WEBHOOK_SECRET?: string;
 }
 
 const noLlm: Llm = {
