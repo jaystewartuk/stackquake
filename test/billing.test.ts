@@ -114,9 +114,9 @@ describe("Free plan limits", () => {
 describe("Stripe Checkout and Portal", () => {
   it("creates one customer, then a subscription Checkout for the chosen interval", async () => {
     const t = await setup();
-    const calls: { path: string; body: URLSearchParams; auth: string | null }[] = [];
+    const calls: { path: string; body: URLSearchParams; auth: string | null; version: string | null }[] = [];
     const record = (answer: object) => async (req: Request) => {
-      calls.push({ path: new URL(req.url).pathname, body: new URLSearchParams(await req.text()), auth: req.headers.get("authorization") });
+      calls.push({ path: new URL(req.url).pathname, body: new URLSearchParams(await req.text()), auth: req.headers.get("authorization"), version: req.headers.get("stripe-version") });
       return Response.json(answer);
     };
     t.http.set("https://stripe.test/v1/customers", record({ id: "cus_new" }));
@@ -128,10 +128,11 @@ describe("Stripe Checkout and Portal", () => {
     const res = await b.post("/app/billing/checkout", { interval: "year" });
     expect(res.status).toBe(303);
     expect(location(res)).toBe("https://checkout.stripe.test/c/pay_1");
-    expect(calls[0]).toMatchObject({ path: "/v1/customers", auth: "Bearer rk_test_x" });
+    expect(calls[0]).toMatchObject({ path: "/v1/customers", auth: "Bearer rk_test_x", version: "2025-03-31.basil" });
     expect(calls[0].body.get("email")).toBe("buyer@example.com");
     const s = calls[1].body;
-    expect(Object.fromEntries(s)).toMatchObject({ mode: "subscription", "line_items[0][price]": "price_year", customer: "cus_new", client_reference_id: String(me.id), success_url: "https://stackquake.com/app/settings?billing=success" });
+    expect(Object.fromEntries(s)).toMatchObject({ mode: "subscription", "line_items[0][price]": "price_year", customer: "cus_new", client_reference_id: String(me.id), success_url: "https://stackquake.com/app/settings?billing=success", "managed_payments[enabled]": "true" });
+    expect(s.has("automatic_tax[enabled]")).toBe(false);
     expect((await t.ctx.db.select().from(users).where(eq(users.id, me.id)).get())!.stripeCustomerId).toBe("cus_new");
 
     await b.post("/app/billing/checkout", { interval: "month" });

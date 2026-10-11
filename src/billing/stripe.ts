@@ -28,6 +28,8 @@ export class BillingError extends Error {
 }
 
 export const STRIPE_API = "https://api.stripe.com";
+/** Pinned so payload shapes don't move with the account default; Managed Payments needs basil or later. */
+export const STRIPE_VERSION = "2025-03-31.basil";
 /** Replay window for signed webhooks, as in Stripe's libraries. */
 export const SIGNATURE_TOLERANCE_MS = 5 * 60 * 1000;
 
@@ -42,7 +44,7 @@ async function call<T>(ctx: Ctx, cfg: StripeConfig, method: "GET" | "POST" | "DE
   const res = await ctx.http(
     new Request(`${cfg.api}${path}`, {
       method,
-      headers: { authorization: `Bearer ${cfg.secretKey}`, ...(body ? { "content-type": "application/x-www-form-urlencoded" } : {}) },
+      headers: { authorization: `Bearer ${cfg.secretKey}`, "stripe-version": STRIPE_VERSION, ...(body ? { "content-type": "application/x-www-form-urlencoded" } : {}) },
       body,
     }),
   );
@@ -62,7 +64,12 @@ async function ensureCustomer(ctx: Ctx, cfg: StripeConfig, user: User): Promise<
   return c.id;
 }
 
-/** A Checkout Session for a new Team subscription; returns Stripe's hosted page URL. */
+/**
+ * A Checkout Session for a new Team subscription; returns Stripe's hosted page URL. Managed
+ * Payments (docs/DECISIONS.md, M6): Stripe, through Link, is the merchant of record and collects
+ * and remits VAT and sales tax, so the session must not set automatic_tax, tax_id_collection,
+ * payment method types or customer_update.
+ */
 export async function createCheckout(ctx: Ctx, cfg: StripeConfig, user: User, interval: Interval, origin: string): Promise<string> {
   if (user.plan === "team" && user.stripeSubscriptionId) throw new BillingError("already_subscribed", 409, "You're already on Team. Manage it from Settings.");
   const customer = await ensureCustomer(ctx, cfg, user);
@@ -76,6 +83,7 @@ export async function createCheckout(ctx: Ctx, cfg: StripeConfig, user: User, in
     success_url: `${origin}/app/settings?billing=success`,
     cancel_url: `${origin}/pricing?billing=canceled`,
     allow_promotion_codes: true,
+    "managed_payments[enabled]": true,
   });
   if (!s.url) throw new BillingError("no_url", 502, "Stripe returned no checkout URL");
   return s.url;
