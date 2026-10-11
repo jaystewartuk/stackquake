@@ -1,3 +1,7 @@
+// Two deployed environments (docs/DECISIONS.md, M5):
+//   production  `npm run deploy:production` (top level)  → stackquake.com, 3 cron triggers
+//   staging     `npm run deploy:staging` (env.staging)    → staging.stackquake.com, no cron
+// `wrangler dev` and the tests use the top level with local D1 and R2.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "stackquake",
@@ -15,12 +19,13 @@
     {
       "binding": "DB",
       "database_name": "stackquake",
-      // Placeholder until M5 creates the real database. Local dev and tests only.
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "00000000-0000-0000-0000-000000000001",
       "migrations_dir": "migrations"
     }
   ],
   "r2_buckets": [{ "binding": "SNAPSHOTS", "bucket_name": "stackquake-snapshots" }],
+  "routes": [{ "pattern": "stackquake.com", "custom_domain": true }],
+  "workers_dev": false,
   "vars": {
     "JOBS_PER_TICK": "3",
     // Fan-out, delivery and digest jobs per tick, on top of JOBS_PER_TICK (docs/DECISIONS.md, M4).
@@ -29,12 +34,43 @@
     "LLM_MODEL_CLASSIFY": "claude-haiku-5-5",
     "LLM_MODEL_SUMMARISE": "claude-haiku-5-5",
     "LLM_MODEL_SUMMARISE_HIGH": "claude-opus-5-5"
+    // GITHUB_CLIENT_ID, GITHUB_APP_SLUG and GITHUB_APP_CLIENT_ID are set as secrets with the rest,
+    // so the GitHub apps can be swapped without a deploy.
   },
-  // Secrets (wrangler secret put / .dev.vars): ANTHROPIC_API_KEY, GITHUB_TOKEN, GITHUB_CLIENT_SECRET,
-  // RESEND_API_KEY, LINK_SECRET (HMAC for one-click links in alerts) and CHANNEL_KEY (32 bytes,
-  // base64: `openssl rand -base64 32`; encrypts Slack webhook URLs).
-  // Also set per environment (M5): ADMIN_EMAILS (comma-separated), GITHUB_CLIENT_ID, MAIL_FROM
-  // (default "Stackquake <alerts@stackquake.com>"), LLM_WEEKLY_BUDGET_USD (default 10), and
-  // APP_ORIGIN for staging (emailed links default to https://stackquake.com).
-  "observability": { "enabled": true }
+  // Secrets per environment (wrangler secret put [--env staging] / .dev.vars): ANTHROPIC_API_KEY,
+  // RESEND_API_KEY, GITHUB_TOKEN, LINK_SECRET (HMAC for one-click links) and CHANNEL_KEY (32 bytes,
+  // base64: `openssl rand -base64 32`; encrypts Slack webhook URLs and GitHub installation tokens),
+  // ADMIN_EMAILS, GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET (OAuth app for sign-in), and the GitHub
+  // App's GITHUB_APP_SLUG, GITHUB_APP_CLIENT_ID, GITHUB_APP_CLIENT_SECRET, GITHUB_APP_PRIVATE_KEY,
+  // GITHUB_WEBHOOK_SECRET. MAIL_FROM defaults to "Stackquake <alerts@stackquake.com>".
+  "observability": { "enabled": true },
+  "env": {
+    "staging": {
+      "name": "stackquake-staging",
+      "routes": [{ "pattern": "staging.stackquake.com", "custom_domain": true }],
+      "workers_dev": false,
+      // No cron: the account's 5 Free-plan triggers are another-project's 1 and production's 3, and a
+      // second poller would double vendor traffic and LLM spend. /admin/staging runs ticks by hand.
+      "triggers": { "crons": [] },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "stackquake-staging",
+          "database_id": "00000000-0000-0000-0000-000000000002",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "r2_buckets": [{ "binding": "SNAPSHOTS", "bucket_name": "stackquake-staging-snapshots" }],
+      "vars": {
+        "JOBS_PER_TICK": "3",
+        "ALERT_JOBS_PER_TICK": "2",
+        "LLM_MODEL_CLASSIFY": "claude-haiku-5-5",
+        "LLM_MODEL_SUMMARISE": "claude-haiku-5-5",
+        "LLM_MODEL_SUMMARISE_HIGH": "claude-opus-5-5",
+        "APP_ORIGIN": "https://staging.stackquake.com",
+        "STAGING_TOOLS": "1",
+        "LLM_WEEKLY_BUDGET_USD": "2"
+      }
+    }
+  }
 }
