@@ -15,6 +15,8 @@ export const site = new Hono<WebEnv>();
 export const CONTACT = "hello@stackquake.com";
 export const LEGAL_UPDATED = "2026-10-11";
 export const OPERATOR = "Jay Stewart";
+/** Geographic address (Electronic Commerce Regulations 2002, reg. 6): a business address service, once the owner has one. */
+export const ADDRESS: string | null = null;
 
 const startHref = (c: WebContext) => (c.get("user") ? "/app/projects/new" : "/signin?next=/app/projects/new");
 
@@ -250,18 +252,25 @@ site.get("/pricing", (c) => {
       <h3>Do team members pay?</h3>
       <p>No. One Team subscription covers up to {TEAM_SIZE} people, the subscriber included. Members see and edit the team's projects and get alerts by email (and their own Slack).</p>
       <h3>Can I cancel?</h3>
-      <p>Any time, from Settings → Billing. Team runs to the end of the period you paid for, then you're back on Free: nothing is deleted, but only your oldest project keeps alerting.</p>
+      <p>Any time, from Settings → Billing. Team runs to the end of the period you paid for, then you're back on Free: nothing is deleted, but only your oldest project keeps alerting. Changed your mind? Ask within 14 days of your first payment (or of a yearly renewal) for a full refund.</p>
       <h3>What do you do with my code?</h3>
       <p>We read manifest files (package.json, Dockerfile, wrangler.toml and the like) to learn what you depend on, and nothing else. Private repos are read through a GitHub App with read-only access to contents, on the repos you choose. See the <a href="/privacy">privacy notice</a>.</p>
       <h3>Is a note legal advice?</h3>
       <p>No. Notes summarise what a vendor published and quote it; read the source before you act.</p>
       <p class="meta">
-        Prices in US dollars. Payments by Stripe. <a href="/terms">Terms</a> · <a href="/privacy">Privacy</a>
+        Prices in US dollars and include any VAT or sales tax. Payments are handled by Link, Stripe's merchant of record service. <a href="/terms">Terms</a> · <a href="/privacy">Privacy</a>
       </p>
     </>,
     { description: `Stackquake is free for one project. Team is $${PRICES.month} a month for unlimited projects, private repos, Slack and up to ${TEAM_SIZE} people.` },
   );
 });
+
+const Operator: FC = () => (
+  <p>
+    Stackquake is run by {OPERATOR}, a sole trader in England (“we”, “us”). {ADDRESS ? <>Postal address: {ADDRESS}. </> : <>Postal address: being set up; until it is listed here, write to {CONTACT} and we'll reply with it. </>}
+    Email: <a href={`mailto:${CONTACT}`}>{CONTACT}</a>.
+  </p>
+);
 
 site.get("/terms", (c) =>
   page(
@@ -270,27 +279,81 @@ site.get("/terms", (c) =>
     <article class="prose">
       <h1>Terms of service</h1>
       <p class="meta">Last updated {LEGAL_UPDATED}.</p>
-      <p>These terms cover your use of Stackquake (stackquake.com), run by {OPERATOR} (“we”). By creating an account you agree to them. Questions: {CONTACT}.</p>
-      <h2>What Stackquake is</h2>
+      <Operator />
       <p>
-        Stackquake watches public sources (vendor blogs, pricing and terms pages, package registries, GitHub repositories and endoflife.date) for changes to the services and software you tell us you use, and sends you short notes about the changes that may affect you.
+        These terms apply when you use stackquake.com, with or without an account. By creating an account you agree to them. If you use Stackquake for work, you agree to them for your organisation too. If you're a consumer (using it for yourself, not for a business), you also have legal rights that these terms don't take away.
       </p>
-      <h2>Notes are summaries, not advice</h2>
+
+      <h2>1. What Stackquake does</h2>
       <p>
-        Notes are written with the help of a language model from what a vendor published, and quote the source. They can be incomplete or wrong, and a change can be missed or reported late. A note is not legal, financial or professional advice and never says you are compliant with a licence. Read the source and decide for yourself, or ask a lawyer.
+        Stackquake watches public sources (vendor blogs, pricing, limits and terms pages, package registries, GitHub repositories and endoflife.date) for changes to the services and software you tell us you use, and sends you short notes about the changes that may affect you.
       </p>
-      <h2>Your account</h2>
-      <p>Keep your sign-in secure; you're responsible for what happens under your account. Don't use Stackquake to break the law, to attack or overload the sites we watch, or to get around the plan limits. We may suspend accounts that do.</p>
-      <h2>Plans and payment</h2>
+
+      <h2>2. Notes are summaries, not advice</h2>
       <p>
-        Free is free. Team is billed in advance, monthly or yearly, through Stripe, and renews until you cancel. Cancelling stops the next renewal; Team stays until the end of the paid period. We don't refund partial periods, except where the law requires it. If we change prices, we'll email Team subscribers at least 30 days before a renewal at the new price.
+        Notes are written with the help of a language model from what a vendor published, and quote the source. Software checks the quote against the source, and anything uncertain is reviewed by a person before it is published, but a note can still be incomplete or wrong, and a change can be missed or reported late. A note is not legal, financial or professional advice and never says you are compliant with a licence. Read the source before you act, and take advice where it matters.
       </p>
-      <h2>Availability</h2>
-      <p>We work to keep Stackquake running and its alerts timely, but the service is provided “as is”, without warranties of any kind, to the extent the law allows. We may change or stop features; if we shut Stackquake down, we'll give at least 30 days' notice and refund unused prepaid time.</p>
-      <h2>Liability</h2>
-      <p>To the extent the law allows, we're not liable for indirect or consequential losses, or for decisions made on the basis of a note, and our total liability is limited to what you paid us in the 12 months before the claim.</p>
-      <h2>Ending</h2>
-      <p>You can delete your account at any time in Settings; that also cancels a subscription. We'll tell you by email about material changes to these terms before they apply.</p>
+
+      <h2>3. Your account</h2>
+      <ul>
+        <li>Use an email address you control and keep your sign-in secure. You're responsible for what happens under your account.</li>
+        <li>On Team, the subscriber controls the team: they invite and remove members, and members see and edit the team's projects.</li>
+        <li>You must be 18 or over, or have a parent's or guardian's permission.</li>
+      </ul>
+
+      <h2>4. Fair use</h2>
+      <p>
+        Don't use Stackquake to break the law; to probe, attack or overload Stackquake or the sites we watch; to scrape our pages in bulk; or to get around plan limits (for example with several free accounts for one project). You may share links to event pages and short quotes from notes. We may suspend or close an account that breaks these rules; where it's reasonable we'll warn you first.
+      </p>
+
+      <h2>5. Your data and repositories</h2>
+      <p>
+        What you add (project names, the services you pick, your answers about how you use them) stays yours; you let us use it only to run Stackquake for you. When you import a repository we read its manifest files (package.json, Dockerfile, wrangler.toml and the like) to find dependencies, and keep the dependency list, not your code. Private repositories are read through our GitHub App with read-only access to the repositories you choose; you can remove it at any time in GitHub. The <a href="/privacy">privacy notice</a> explains what we keep and why.
+      </p>
+
+      <h2>6. Plans, payment and cancelling</h2>
+      <ul>
+        <li>Free costs nothing and covers one project. We may change what Free includes, with notice.</li>
+        <li>
+          Team costs ${PRICES.month} a month or ${PRICES.year} a year, <strong>including any VAT or sales tax</strong>, paid in advance. Checkout may show the price converted into your currency.
+        </li>
+        <li>
+          Payments are handled by <strong>Link, Stripe's merchant of record service</strong>: Link sells the subscription to you on our behalf, charges your card, collects and pays the tax, and sends receipts. Your card statement shows “LINK.COM* STACKQUAKE.COM”. Link's own terms apply to the payment.
+        </li>
+        <li>A subscription renews automatically at the end of each month or year until you cancel. Cancel any time from Settings → “Billing, invoices and cancelling”, or through Link. Team then stays until the end of the period you paid for.</li>
+        <li>
+          <strong>Refunds:</strong> if you ask within 14 days of your first payment, or of a yearly renewal, we refund that payment in full. Otherwise we don't refund part-used periods, except where the law requires it or we end the service (section 8). To ask, email {CONTACT} or contact Link support.
+        </li>
+        <li>If we change prices, we'll email Team subscribers at least 30 days before the first renewal at the new price, so you can cancel first.</li>
+        <li>If you move back to Free, nothing is deleted: your projects stay, but only your oldest one keeps alerting, and private-repo syncing, Slack and team access stop until you're on Team again.</li>
+      </ul>
+
+      <h2>7. Our content</h2>
+      <p>Stackquake's software, catalog, notes and pages belong to us. Quotes in notes belong to the vendors who published them and are used to report and review their announcements.</p>
+
+      <h2>8. Changes and availability</h2>
+      <p>
+        We work to keep Stackquake running and its alerts timely, but we can't promise it will always be available or error-free. We may change features. If we close Stackquake, we'll give at least 30 days' notice by email and refund any paid time you haven't used.
+      </p>
+
+      <h2>9. Our responsibility to you</h2>
+      <ul>
+        <li>We provide Stackquake with reasonable care and skill. If you're a consumer, you have legal rights in relation to services that aren't provided that way; nothing in these terms affects them.</li>
+        <li>We're responsible for loss you suffer that is a foreseeable result of our breaking these terms or our negligence. We're not responsible for loss that wasn't foreseeable.</li>
+        <li>If you use Stackquake for a business, we're not liable for loss of profit, revenue, business, goodwill or data, or for decisions made on the basis of a note, and our total liability for all claims in any 12 months is limited to the greater of what you paid us in those 12 months and £100.</li>
+        <li>Nothing in these terms limits liability that the law does not allow us to limit, including for death or personal injury caused by negligence, or for fraud.</li>
+      </ul>
+
+      <h2>10. Ending</h2>
+      <p>You can stop using Stackquake and delete your account at any time in Settings; deleting it also cancels a Team subscription. We can close an account under section 4, or as part of closing the service under section 8.</p>
+
+      <h2>11. Changes to these terms</h2>
+      <p>We'll email account holders about material changes at least 30 days before they apply. If you don't agree, you can cancel and delete your account before then; a refund of unused paid time is available in that case.</p>
+
+      <h2>12. Complaints and law</h2>
+      <p>
+        If something goes wrong, email {CONTACT}; we aim to reply within five working days. These terms are governed by the law of England and Wales, and claims go to the courts of England and Wales; if you're a consumer living in Scotland or Northern Ireland, you can also bring a claim in your local courts.
+      </p>
     </article>,
     { description: "Stackquake terms of service." },
   ),
@@ -303,30 +366,104 @@ site.get("/privacy", (c) =>
     <article class="prose">
       <h1>Privacy notice</h1>
       <p class="meta">Last updated {LEGAL_UPDATED}.</p>
-      <p>Stackquake is run by {OPERATOR}, who is responsible for the data described here. Short version: we keep what we need to send you alerts, nothing more. No ads, no tracking scripts, no analytics cookies, and we don't sell data. Questions or requests: {CONTACT}.</p>
-      <h2>What we store</h2>
+      <Operator />
+      <p>
+        {OPERATOR} is the controller of the personal data described here, under the UK GDPR and the Data Protection Act 2018. Short version: we keep what we need to send you alerts, nothing more. No ads, no tracking or analytics scripts, and we never sell data.
+      </p>
+
+      <h2>What we collect, why, and our lawful basis</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Why</th>
+            <th>Lawful basis</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Email address; GitHub user id and name if you sign in with GitHub</td>
+            <td>Your account, sign-in, alerts and service emails</td>
+            <td>Contract</td>
+          </tr>
+          <tr>
+            <td>Projects: services you picked, your answers about how you use them, dependencies found by repo import and the manifest paths they came from; for private repos, the repo name and GitHub App installation id</td>
+            <td>Deciding which changes affect you</td>
+            <td>Contract</td>
+          </tr>
+          <tr>
+            <td>Alerts we sent you and your “useful / not relevant” feedback</td>
+            <td>Sending alerts and the digest; measuring and improving accuracy</td>
+            <td>Contract; legitimate interests (keeping alerts accurate)</td>
+          </tr>
+          <tr>
+            <td>Slack webhook URL, if you add one (encrypted)</td>
+            <td>Posting your alerts to Slack</td>
+            <td>Contract</td>
+          </tr>
+          <tr>
+            <td>Team: invited members' email addresses</td>
+            <td>Sending and matching invites</td>
+            <td>Legitimate interests (letting a subscriber share their team)</td>
+          </tr>
+          <tr>
+            <td>Billing: Stripe customer and subscription ids, plan, renewal date</td>
+            <td>Knowing which plan you're on</td>
+            <td>Contract; legal obligation (business records)</td>
+          </tr>
+          <tr>
+            <td>Security records: hashed session and sign-in tokens, rate-limit counters keyed by email or IP address; request logs at our host</td>
+            <td>Keeping accounts and the service secure; stopping abuse</td>
+            <td>Legitimate interests (security)</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>An email address is needed to have an account; without one we can't send alerts. We don't send marketing email. Matching changes to your usage is automated, but it only decides which alerts you receive, with no legal or similarly significant effect on you.</p>
+
+      <h2>Payments</h2>
+      <p>
+        Team subscriptions are sold through Link, Stripe's merchant of record service. Link and Stripe collect your payment and billing details (name, address, card) as an independent controller under their own privacy policies; card details never reach us. We receive your Stripe customer id, subscription status and renewal date.
+      </p>
+
+      <h2>Who else handles data</h2>
       <ul>
-        <li>Your email address, and your GitHub user id and name if you sign in with GitHub.</li>
-        <li>Your projects: the services you picked, how you said you use them, and what repo import found (dependency names, versions and the manifest paths they came from). If you import a private repo, the repo's name and the GitHub App installation id. We read manifest files to find dependencies; we don't keep your code.</li>
-        <li>Alerts we sent you and your feedback on them; your Slack webhook URL if you add one (encrypted).</li>
-        <li>For Team: your Stripe customer and subscription ids and plan status. Card details are handled by Stripe and never reach us.</li>
-        <li>Team members' email addresses, when a Team subscriber invites them.</li>
-        <li>Short-lived security records: hashed session and sign-in tokens, and rate-limit counters keyed by email or IP address.</li>
+        <li>Cloudflare (hosting, database, storage, request logs and our hello@ email forwarding)</li>
+        <li>Resend (sending email: your address and the alert's content)</li>
+        <li>GitHub (sign-in and repo import, when you use them)</li>
+        <li>Slack (your alerts, if you connect a webhook)</li>
+        <li>Anthropic (the language model that writes notes; it only sees public vendor text, never your data)</li>
       </ul>
+      <p>
+        These providers are based in or process data in the United States and elsewhere. Where personal data leaves the UK, it is protected by the UK's adequacy regulations (including the UK–US data bridge for certified companies) or by the UK International Data Transfer Addendum to the providers' standard contractual clauses. Ask us for details.
+      </p>
+
+      <h2>How long we keep it</h2>
+      <ul>
+        <li>Account, projects, alerts and Slack connection: until you delete your account, then removed at once (and from backups within 30 days).</li>
+        <li>Sessions: 30 days at most. Sign-in links: expire after 15 minutes and are deleted a day later. Rate-limit counters: deleted within two days.</li>
+        <li>Team invites: until accepted, declined or cancelled.</li>
+        <li>Host request logs and email delivery logs: kept by Cloudflare and Resend for a short period (days, not months).</li>
+        <li>Billing records: kept by Stripe and Link, and by us where tax law requires, for up to six years.</li>
+      </ul>
+
+      <h2>Your rights</h2>
+      <p>
+        You can ask for a copy of your data, to correct it, to delete it, to restrict how we use it, or to have it in a portable format. Most of this you can do yourself in Settings (change email, delete account; Team can export its list as CSV). Otherwise email {CONTACT}; we reply within one month.
+      </p>
+      <p>
+        <strong>You can object at any time</strong> to our use of your data based on legitimate interests (the alert-feedback, invite and security uses above). We'll stop unless we have compelling grounds, such as preventing abuse.
+      </p>
+      <p>
+        If you're unhappy with how we handle your data, please tell us first. You can also complain to the Information Commissioner's Office: <a href="https://ico.org.uk/make-a-complaint/" rel="noopener noreferrer">ico.org.uk/make-a-complaint</a>, 0303 123 1113.
+      </p>
+
       <h2>Cookies</h2>
-      <p>Two, both needed for the site to work: a session cookie when you're signed in, and a CSRF-protection cookie for forms.</p>
-      <h2>Who processes data for us</h2>
-      <ul>
-        <li>Cloudflare: hosting, database and storage.</li>
-        <li>Resend: sending email (your address and the alert's content).</li>
-        <li>Stripe: payments, for Team subscribers.</li>
-        <li>GitHub: sign-in and repo import, when you use them.</li>
-        <li>Anthropic: the language model that writes notes. It only sees public vendor text, never your data.</li>
-      </ul>
-      <h2>Your choices</h2>
-      <p>You can change your email, turn off immediate alerts, export your vendor-risk list (Team) or delete your account in Settings. Deleting your account removes your projects, dependencies, alerts, Slack connection and sessions at once. Stripe keeps billing records as the law requires. Public event pages are about vendors, not you, and stay.</p>
+      <p>Two, both strictly necessary for the site to work, so no consent banner: a session cookie when you're signed in, and a security cookie that protects forms. No analytics or advertising cookies.</p>
+
+      <h2>Changes</h2>
+      <p>We'll update this page when what we do changes, and email account holders about significant changes.</p>
     </article>,
-    { description: "What Stackquake stores and why." },
+    { description: "What Stackquake stores, why, for how long, and your rights." },
   ),
 );
 

@@ -41,6 +41,18 @@ export async function pruneSnapshots(ctx: Ctx): Promise<{ blobsDeleted: number; 
 }
 
 /**
+ * Short-lived security records (privacy notice, "How long we keep it"): expired sessions, sign-in
+ * and email-change links a day after they expire, and rate-limit counters two days after their
+ * window (the longest window is a day).
+ */
+export async function prunePersonal(ctx: Ctx): Promise<void> {
+  const now = ctx.clock.now();
+  await ctx.db.run(sql`DELETE FROM sessions WHERE expires_at < ${now}`);
+  await ctx.db.run(sql`DELETE FROM magic_links WHERE expires_at < ${now - DAY}`);
+  await ctx.db.run(sql`DELETE FROM rate_limits WHERE window_start < ${now - 2 * DAY}`);
+}
+
+/**
  * The daily cron: sync the catalog, schedule overdue polls, stalled pipeline steps and lost
  * deliveries, queue today's digests, check the LLM budget, prune.
  */
@@ -54,6 +66,7 @@ export async function runDaily(ctx: Ctx, entries: CatalogEntry[]) {
   const budget = await checkBudget(ctx);
   const pruned = await pruneSnapshots(ctx);
   await pruneJobs(ctx);
+  await prunePersonal(ctx);
   return { synced, pruned, budget };
 }
 

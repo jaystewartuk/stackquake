@@ -325,3 +325,20 @@ describe("www", () => {
     expect(res.headers.get("location")).toBe("https://stackquake.com/pricing?x=1");
   });
 });
+
+describe("retention", () => {
+  it("the daily run deletes expired sessions, old sign-in links and old rate-limit counters", async () => {
+    const t = await setup();
+    const { prunePersonal } = await import("../src/jobs/cron");
+    const { sessions, magicLinks, rateLimits } = await import("../src/db/schema");
+    const now = t.clock.now();
+    const DAY = 86_400_000;
+    await t.ctx.db.insert(sessions).values([{ id: "old", userId: 1, expiresAt: now - 1, createdAt: 0 }, { id: "live", userId: 1, expiresAt: now + DAY, createdAt: 0 }]);
+    await t.ctx.db.insert(magicLinks).values([{ tokenHash: "old", email: "a@b.c", expiresAt: now - 2 * DAY, createdAt: 0 }, { tokenHash: "recent", email: "a@b.c", expiresAt: now - 1000, createdAt: 0 }]);
+    await t.ctx.db.insert(rateLimits).values([{ key: "old", windowStart: now - 3 * DAY, count: 1 }, { key: "live", windowStart: now - DAY, count: 1 }]);
+    await prunePersonal(t.ctx);
+    expect((await t.ctx.db.select().from(sessions).all()).map((r) => r.id)).toEqual(["live"]);
+    expect((await t.ctx.db.select().from(magicLinks).all()).map((r) => r.tokenHash)).toEqual(["recent"]);
+    expect((await t.ctx.db.select().from(rateLimits).all()).map((r) => r.key)).toEqual(["live"]);
+  });
+});

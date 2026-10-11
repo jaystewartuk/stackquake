@@ -55,6 +55,8 @@ footer{border-top:1px solid var(--line);padding:1.2rem 0;color:var(--muted);font
 .plans{grid-template-columns:repeat(auto-fit,minmax(16rem,1fr));align-items:start} .plans .featured{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
 .price{font-size:2rem;font-weight:700;margin:.2rem 0} .price .meta{font-size:.9rem;font-weight:400}
 .prose{max-width:44rem} .prose h2{margin-top:1.8rem}
+table{border-collapse:collapse;width:100%;font-size:.9rem;margin:.6rem 0} th,td{border:1px solid var(--line);padding:.45rem .6rem;text-align:left;vertical-align:top} th{background:var(--soft)}
+.prose table{display:block;overflow-x:auto}
 code{font-size:.9em;background:var(--soft);padding:.05rem .3rem;border-radius:4px}
 footer nav{display:flex;gap:1rem;flex-wrap:wrap;margin-top:.4rem} footer a{color:var(--muted)}
 @media (max-width:40rem){h1{font-size:1.35rem} .hero h1{font-size:1.7rem} nav.main{margin-left:0}}
