@@ -602,3 +602,165 @@ Read this after SPEC.md; where they disagree, this file wins.
   one run, $0.099.
 - Test helper fix: `testCtx({ http })` used to put the FixtureHttp object itself in `ctx.http`
   (no test had passed one before).
+
+## M5: deploy, GitHub App, catalog to 59 (2026-10-11)
+
+### Environments
+- **Production** is the top level of `wrangler.jsonc` (`npm run deploy:production`): Worker
+  `stackquake` on the custom domain **stackquake.com**, D1 `stackquake`, R2 `stackquake-snapshots`,
+  the three cron triggers from M4. **Staging** is `env.staging` (`npm run deploy:staging`):
+  `stackquake-staging` on **staging.stackquake.com**, its own D1 and R2, `APP_ORIGIN` set,
+  `LLM_WEEKLY_BUDGET_USD=2`. `workers_dev` is off for both. `wrangler dev` and the tests use the
+  top level with local D1/R2 (the real ids replace M1's placeholder; local state is unaffected).
+- The deploy scripts run `tsc`, the tests and the remote migrations before `wrangler deploy`.
+  Migrations are applied with `wrangler d1 migrations apply DB --remote [--env staging]`.
+- No `www.` record yet (Cloudflare suggests one); add a redirect with the M6 landing page.
+
+### Cron decision: staging has none
+- The account has 5 Free-plan cron triggers: `another-project` 1, production 3. Staging could take the
+  last one, but a second poller would fetch every vendor page twice and pay for every LLM note twice,
+  and staging only needs the scheduler while someone is testing. So `env.staging.triggers.crons` is
+  empty and **`/admin/staging`** (only when `STAGING_TOOLS=1`) runs a tick or the daily job on a
+  button press, and adds a clearly-labelled sample free-tier event on a catalog entry's first source.
+  Approving it on `/admin/events` runs the real fan-out and delivery path. The account keeps one
+  trigger free.
+
+### Secrets (names only; values never left the browser or the generator)
+- Both Workers: `ANTHROPIC_API_KEY` (one key per environment, `stackquake-production` and
+  `stackquake-staging` in the Anthropic Console, expiring 2027-10-10), `GITHUB_TOKEN` (fine-grained,
+  public repositories read-only, one per environment, expiring 2027-10-10), `LINK_SECRET` and
+  `CHANNEL_KEY` (generated fresh per environment), `ADMIN_EMAILS` (a secret so the owner's address
+  stays out of the repo), `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET` (OAuth app "Stackquake" and
+  "Stackquake (staging)", one callback each), and the GitHub App's five (below).
+  `RESEND_API_KEY`: see "Email".
+- **Expiry dates to renew**: Anthropic keys and GitHub tokens on 2027-10-10. Nothing else expires.
+- Secrets were moved by clipboard (`pbpaste | wrangler secret put`) or generated and piped, so none
+  was printed in a terminal or chat.
+
+### GitHub App (SPEC §4.1, §7.1, §8)
+- Two apps, `stackquake` (public, installable by anyone) and `stackquake-staging` (private to the
+  owner), created by `scripts/github-app-setup.mjs <env>` with GitHub's **manifest flow**: a local
+  server is the manifest's redirect, redeems the one-time code and pipes the app's private key, client
+  secret and webhook secret into `wrangler secret bulk`. No key file is downloaded. Permissions:
+  contents read, metadata read; events: `push` (installation events always arrive). Webhook
+  `/github/webhook`, callback `/app/github/callback`, setup URL `/app/github/connect` with "redirect on
+  update".
+- Secrets: `GITHUB_APP_SLUG`, `GITHUB_APP_CLIENT_ID` (also the JWT issuer, so no app id is needed),
+  `GITHUB_APP_CLIENT_SECRET`, `GITHUB_APP_PRIVATE_KEY` (GitHub's PKCS#1 PEM; wrapped to PKCS#8 in code
+  because WebCrypto only imports PKCS#8), `GITHUB_WEBHOOK_SECRET`. All five or private import is hidden.
+- **Which repos a user may import**: "Import a private repo" runs the app's own OAuth flow (instant
+  once authorised), lists `/user/installations` and each installation's repositories with the
+  user's token, and shows them. The user token is used in that one request and never stored. Each
+  listed repo is a signed choice (HMAC with the app's client secret, bound to the user, 1 hour), so
+  the form cannot name another installation's repo. Up to 5 installations and 100 repos each (MVP).
+  With no installation, the page links to the app's install page, which comes back to the flow.
+- **Installation tokens** (1 hour) are minted with an RS256 app JWT (iat −60 s, exp +8 min), asking
+  only for contents and metadata read, cached in `github_installations` encrypted with
+  `CHANNEL_KEY` (reusing `src/alerts/secretbox.ts`), and re-minted with under 10 minutes left. An
+  import step resolves the token once. A 403/404 when minting means the app was removed: the import
+  fails with "install it again". `installation.deleted` drops the row; `suspend` blocks minting.
+- **Private imports** read manifests through the contents API (raw media type) with the installation
+  token; the raw host is only for public repos. A private repo pasted as a public URL fails with a
+  pointer to the GitHub App.
+- **Push re-import**: a signed `push` to the default branch whose commits add, modify or remove a
+  manifest (anything `parserFor` reads, or a catalog `detect.files` match) starts a re-import of
+  every project with that repo **and** that installation, unless one is already running. A payload
+  with 2,048 commits (GitHub's cap) is treated as touching a manifest. Bodies over 1 MB are
+  acknowledged (202) without parsing: parsing them would not fit the CPU budget. Signatures are
+  checked over the raw body with a constant-time compare.
+- Plan limits (private repos on Team only, SPEC §10) are M6.
+- Public imports and the watchers still use `GITHUB_TOKEN`: an installation token only exists for
+  repos someone installed the app on.
+
+### Email (Resend) and DNS on stackquake.com
+- The owner approved each DNS change first; records were added by hand in the Cloudflare dashboard.
+  Resend now does SPF and bounces through **CNAMEs**, not the MX/TXT pair of older guides:
+  `send` → `send.forge.rmta.net` and `rsend` → `rsend.forge.rmta.net` (both DNS only), DKIM TXT
+  `resend._domainkey`, and DMARC TXT `_dmarc` = `v=DMARC1; p=none;` (monitor only while the domain is
+  new; move to `quarantine` once a few weeks of mail pass). Region us-east-1. Verified in about two
+  minutes. The Worker custom domains added `stackquake.com` and `staging.stackquake.com` themselves.
+- Resend keys `stackquake-production` and `stackquake-staging`: sending access, stackquake.com only.
+  `MAIL_FROM` is unset on both Workers, so the default `Stackquake <alerts@stackquake.com>` applies.
+  `.dev.vars` keeps the M4 dev key and `onboarding@resend.dev`.
+- Resend's free plan allowed a second domain (project-h.example was already there).
+
+### Staging end to end (2026-10-11, owner's inbox)
+- Magic link from alerts@stackquake.com arrived in the inbox (owner inbox), sign-in worked.
+- `/admin/staging` → daily job: catalog sync of 59 entries and 214 sources in one HTTP request,
+  not killed by the CPU limit.
+- Project "Staging check" with Cloudflare Workers (hosted, free tier) → sample free-tier event →
+  approved → two manual ticks ran fan-out then delivery → alert `sent`, match `affected`. The email
+  arrived in the inbox; its "Useful" and "Mute for 90 days" links both worked (`feedback = useful`,
+  `muted_until` set). With the digest day set to Sunday, the daily job queued the digest and the
+  next tick sent it (`last_digest_at` set).
+- Slack was not connected (optional; the owner has no workspace webhook to test with).
+- GitHub sign-in: both OAuth apps redirect with the right client and callback; an unsigned webhook
+  gets 401 on both hosts. Installing the GitHub App on a real private repo was not done, because it
+  grants read access to private code; the flow is covered by `test/github-app.test.ts` against a
+  mocked GitHub.
+
+### Catalog (59 entries, 22 new; 48 hosted services, APIs or runtimes)
+- New: Cloudflare Pages, KV and Durable Objects, Amazon S3 and DynamoDB, Upstash, Turso, Azure
+  Functions, Datadog, Grafana, Postmark; Go, Ruby, Java, PHP and Rust; Valkey, OpenTofu,
+  Elasticsearch, OpenSearch, Kubernetes and HashiCorp Vault. Every source was polled twice with no
+  change. 11 entries are self-hostable tools or infrastructure.
+- HEAVY polls went from 306 to 372 a day (38 feeds × 8 + 68 pages) of 576. Cloudflare and AWS
+  entries reuse feeds already watched; only six feeds were added (Datadog, Ruby, inside.java,
+  php.net releases, Rust, Elastic). Runtimes, Valkey, OpenTofu, Kubernetes, OpenSearch and Vault use
+  endoflife.date and GitHub sources only (not HEAVY).
+- Docs pages that answer `Accept: text/markdown` replaced heavy marketing pages: AWS docs, Microsoft
+  Learn, docs.datadoghq.com, Turso docs, upstash.com/docs, postmarkapp.com/pricing, grafana.com/docs.
+  Not added (large HTML, no Markdown): the S3, Datadog, Elastic, Grafana and Turso pricing pages
+  (100 KB–1.6 MB). Feeds not added for size: Upstash 447 KB, Go blog 350 KB, php.net all-news
+  1.4 MB, kubernetes.io 1.1 MB, Azure updates 150 KB; the Grafana blog feed (134 KB) was dropped
+  after a 25 ms tick. PyPI `ddtrace` is over 4 MB (detection only).
+- No feed exists for valkey.io, opentofu.org, opensearch.org, Postmark or Turso. HashiCorp stays
+  blocked (hashicorp.com Vercel checkpoint; developer.hashicorp.com is 120–260 KB HTML).
+  blogs.oracle.com/java answers 403 (inside.java instead). Skipped for lack of a light source:
+  1Password, Mailgun, Google Cloud Run, Gemini API, Home Assistant, Immich.
+- Detection stays narrow: Cloudflare Pages only on `_routes.json` and `@cloudflare/next-on-pages`,
+  Azure Functions on `host.json`, Kubernetes on `kustomization.yaml`, `skaffold.yaml` and
+  `Chart.yaml`, OpenTofu on `*.tofu`.
+
+### Competitor check
+- `docs/COMPETITORS.md` (sources, accessed 2026-10-11). In short: none of Dependabot/GitHub, Snyk or
+  Socket pushes an alert when an existing dependency's upstream licence changes; licence checks run
+  at PR or scan time against allow/deny lists. Socket has a "Deprecated" alert (closest overlap);
+  Snyk marks npm deprecation in its UI only; nobody alerts on archived repos (Scorecard scores them
+  at PR time). Nothing covers hosted-service pricing, free tiers, terms, end of development or
+  acquisitions. Its "Where Stackquake differs" bullets are drafts for the M6 landing page; a few
+  quotes came through a summarising fetch and must be re-checked before they go public.
+
+### CPU (`npm run measure:cpu`, 59 entries, profiler estimate, which over-states)
+- Steady-state poll ticks: median 5.4 ms, p90 10.8 ms, max 52 ms; 16 of 107 ticks over 10 ms. First
+  polls: median 6.7 ms, p90 16.4 ms, max 78 ms. The worst sources are the M3 ones, still:
+  sentry.io/pricing (52–78 ms), the two Twilio pricing pages (31–67 ms), posthog.com/pricing, the
+  MongoDB SSPL page, deno.com/deploy/pricing and neon.com/pricing (16–26 ms). New M5 sources sit in
+  the 4–7 ms band (AWS, Microsoft Learn and Cloudflare docs) except feeds sharing a tick with one of
+  those pages. Pipeline ticks max 17 ms (one tick), alert ticks 5.4 ms, digests 5.9 ms, every web
+  page and import step under 6 ms. First daily run (catalog sync, 214 sources) 257 ms once; later
+  daily runs 3.5 ms.
+- On staging the same first sync ran inside one HTTP request (`/admin/staging`) and was **not**
+  killed: the Free plan evidently tolerates occasional bursts over 10 ms. What matters is the rate
+  of `exceededCpu` in production, not the profiler.
+- `wrangler dev` now needs `--local-upstream`: with custom-domain routes in `wrangler.jsonc` it
+  presents local requests as `https://stackquake.com/…`, which turned `/__dev` off (localhost only)
+  and would have made local magic links point at production. `npm run dev`, `npm run poll` and
+  `npm run measure:cpu` pass it.
+
+### Production after deploy (first hours, 2026-10-11)
+- Both tick crons fire: the dashboard's trigger list and the metrics show invocations at :00 and :03
+  (and every 5 minutes after). First ~2 hours: 148 invocations, 0 errors, **0 "Exceeded CPU Time
+  Limits"**, CPU P50 12.8 ms / P99 50 ms across versions (secret changes each create a version).
+- **This is not yet the real test**: production's first catalog sync is the 06:07 UTC daily run, so
+  the ticks so far had no polls to run. The few-days check (exceededCpu rate, parked polls on
+  `/admin/sources`) and the Workers Paid decision move to the start of M6 (prompts/06-m6-launch.md,
+  step 1). If more than 1% of invocations on any day exceed CPU, move to Workers Paid (SPEC §4.2);
+  the first candidates to drop instead are sentry.io/pricing and the Twilio pricing pages.
+
+### Checks at the end of M5
+- `npm test`: 257 tests pass (13 new: app JWT and PKCS#1 wrapping, installation-token cache and
+  expiry, webhook signatures, push re-import rules, installation removal and suspension, private
+  import end to end with forged-choice refusal, staging tools end to end). `tsc` is clean.
+- `npm run eval` passes with 59 catalog entries: one run, $0.099.
+- Production is deployed on stackquake.com and not announced.
