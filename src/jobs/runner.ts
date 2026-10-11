@@ -21,11 +21,16 @@ export type StepResult = { type: "done" } | { type: "reschedule"; at: number } |
  * CPU-heavy step per tick, which keeps a tick inside the Free plan's 10 ms CPU limit.
  */
 export class HostGate {
-  private readonly used = new Set<string>();
-  /** Takes all hosts or none. Synchronous, so jobs running concurrently cannot both win. */
+  private readonly used = new Map<string, number>();
+  /**
+   * `limits`: tokens other than 1 per tick, e.g. `{ [HEAVY]: 8 }` on Workers Paid (HEAVY_PER_TICK).
+   * Website hosts always get one token per tick (politeness).
+   */
+  constructor(private readonly limits: Record<string, number> = {}) {}
+  /** Takes all tokens or none. Synchronous, so jobs running concurrently cannot both win. */
   take(hosts: string[]): boolean {
-    if (hosts.some((h) => this.used.has(h))) return false;
-    for (const h of hosts) this.used.add(h);
+    if (hosts.some((h) => (this.used.get(h) ?? 0) >= (this.limits[h] ?? 1))) return false;
+    for (const h of hosts) this.used.set(h, (this.used.get(h) ?? 0) + 1);
     return true;
   }
 }
@@ -112,7 +117,7 @@ export async function runJob(ctx: Ctx, job: Job, gate: HostGate, steps: Record<J
 export async function runTick(ctx: Ctx, steps: Record<JobKind, StepHandler> = STEPS): Promise<TickReport> {
   const claimed = [...(await claimJobs(ctx, ctx.config.jobsPerTick)), ...(await claimJobs(ctx, ctx.config.alertJobsPerTick, "alerts"))];
   const report: TickReport = { claimed: claimed.length, sources: claimed.map((j) => j.sourceId), kinds: claimed.map((j) => j.kind), done: 0, rescheduled: 0, deferred: 0, retried: 0, parked: 0 };
-  const gate = new HostGate();
+  const gate = new HostGate({ [HEAVY]: ctx.config.heavyPerTick });
   // A job that did not finish cleanly last time may be one that kills the invocation (CPU
   // limit). Run it alone, after handing the others back, so it cannot take them down with it.
   const suspect = claimed.find((j) => j.attempts >= 2);

@@ -31,7 +31,7 @@ const ROBOTS_TTL = DAY;
 export const REQUEST_TIMEOUT_MS = 20_000;
 const AGENT_TOKEN = "stackquakebot";
 
-/** Gate token for CPU-heavy steps (HTML pages, feeds, diffs): one per tick on the Free plan. */
+/** Gate token for CPU-heavy steps (HTML pages, feeds, diffs): HEAVY_PER_TICK per tick (1 on Workers Free). */
 export const HEAVY = "#heavy";
 
 export function hostOf(url: string): string {

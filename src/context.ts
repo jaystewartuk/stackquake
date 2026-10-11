@@ -16,6 +16,8 @@ export interface Config {
   jobsPerTick: number;
   /** Fan-out, delivery and digest jobs per tick, on top of jobsPerTick. */
   alertJobsPerTick: number;
+  /** CPU-heavy steps (HTML pages, feeds, diffs, post fetches) per tick: 1 on Workers Free. */
+  heavyPerTick: number;
   userAgent: string;
   githubToken?: string;
   models: LlmModels;
@@ -60,6 +62,7 @@ export const DEFAULT_MODELS: LlmModels = {
 export interface ConfigEnv {
   JOBS_PER_TICK?: string;
   ALERT_JOBS_PER_TICK?: string;
+  HEAVY_PER_TICK?: string;
   GITHUB_TOKEN?: string;
   LLM_MODEL_CLASSIFY?: string;
   LLM_MODEL_SUMMARISE?: string;
@@ -94,9 +97,11 @@ export const GITHUB_RAW = "https://raw.githubusercontent.com";
 export function configFromEnv(env: ConfigEnv): Config {
   const n = Number(env.JOBS_PER_TICK ?? "3");
   const a = Number(env.ALERT_JOBS_PER_TICK ?? "2");
+  const h = Number(env.HEAVY_PER_TICK ?? "1");
   return {
     jobsPerTick: Number.isInteger(n) && n > 0 ? n : 3,
     alertJobsPerTick: Number.isInteger(a) && a >= 0 ? a : 2,
+    heavyPerTick: Number.isInteger(h) && h > 0 ? h : 1,
     userAgent: USER_AGENT,
     githubToken: env.GITHUB_TOKEN || undefined,
     models: {

@@ -195,3 +195,17 @@ describe("HostGate", () => {
     expect(g.take(["c"])).toBe(true);
   });
 });
+
+describe("HostGate limits (Workers Paid)", () => {
+  it("allows HEAVY_PER_TICK heavy steps but still one request per website host", async () => {
+    const { HEAVY } = await import("../src/sources/http");
+    const gate = new HostGate({ [HEAVY]: 2 });
+    expect(gate.take([HEAVY, "a.example"])).toBe(true);
+    expect(gate.take([HEAVY, "a.example"])).toBe(false);
+    expect(gate.take([HEAVY, "b.example"])).toBe(true);
+    expect(gate.take([HEAVY, "c.example"])).toBe(false);
+    const free = new HostGate();
+    expect(free.take([HEAVY])).toBe(true);
+    expect(free.take([HEAVY])).toBe(false);
+  });
+});

@@ -31,9 +31,13 @@
   ],
   "workers_dev": false,
   "vars": {
-    "JOBS_PER_TICK": "3",
+    // Workers Paid since 2026-10-11 (30 s CPU per invocation; docs/DECISIONS.md, M6 "Production CPU").
+    // On the Free plan these were 3 / 2 / 1.
+    "JOBS_PER_TICK": "20",
     // Fan-out, delivery and digest jobs per tick, on top of JOBS_PER_TICK (docs/DECISIONS.md, M4).
-    "ALERT_JOBS_PER_TICK": "2",
+    "ALERT_JOBS_PER_TICK": "10",
+    // CPU-heavy steps (pages, feeds, diffs, post fetches) per tick. Website hosts stay at one per tick.
+    "HEAVY_PER_TICK": "10",
     // Model per pipeline step (docs/DECISIONS.md, M2). Changing one is a config change only.
     "LLM_MODEL_CLASSIFY": "claude-haiku-5-5",
     "LLM_MODEL_SUMMARISE": "claude-haiku-5-5",
@@ -66,8 +70,9 @@
       ],
       "r2_buckets": [{ "binding": "SNAPSHOTS", "bucket_name": "stackquake-staging-snapshots" }],
       "vars": {
-        "JOBS_PER_TICK": "3",
-        "ALERT_JOBS_PER_TICK": "2",
+        "JOBS_PER_TICK": "20",
+        "ALERT_JOBS_PER_TICK": "10",
+        "HEAVY_PER_TICK": "10",
         "LLM_MODEL_CLASSIFY": "claude-haiku-5-5",
         "LLM_MODEL_SUMMARISE": "claude-haiku-5-5",
         "LLM_MODEL_SUMMARISE_HIGH": "claude-opus-5-5",
