@@ -879,3 +879,37 @@ Read this after SPEC.md; where they disagree, this file wins.
   through the installation token in about 15 s (33 root entries, 22 manifests, 53 npm packages
   ranked) and found 12 catalog services, 2 runtimes and 57 packages; the project page groups them
   by risk. The first attempt had stopped on GitHub's authorise page, not in our code.
+
+### Managed Payments, tax and the legal pages (2026-10-11, later)
+- **Stripe Managed Payments** (owner's choice): Stripe, through Link, is the merchant of record:
+  it collects and remits VAT and sales tax in 80+ countries, handles fraud, disputes and
+  transaction support, and applies consumer cooling-off rules, for 3.5% per transaction. Without
+  it, a UK seller owes EU VAT on B2C digital services from the first sale (non-Union OSS). Code:
+  Checkout sessions send `managed_payments[enabled]=true` and every Stripe call pins
+  `Stripe-Version: 2025-03-31.basil` (MP needs basil or later; webhook parsing already handled both
+  period-end shapes). We send none of the parameters MP forbids. Statements read "LINK.COM*
+  STACKQUAKE.COM". Checked: staging created an MP session (Stripe request log:
+  `managed_payments.enabled: true`, restricted key, pinned version). Product tax code
+  `txcd_10103001` (SaaS, business use), marked eligible.
+- **Prices include tax** (owner's choice; UK consumer pricing expects VAT-inclusive prices): test
+  mode "Include tax in prices" = Yes. **Set the same in live mode** when live billing is set up.
+- **Account activation** (live): details reused from the owner's Beckon account (sole trader,
+  bank payouts), statement descriptor changed from PROJECT-H.EXAMPLE to STACKQUAKE.COM, Radar Lite
+  (MP already covers fraud), no climate contribution. The final "Agree and submit" (Stripe
+  Services Agreement, Bacs authorisation) is the owner's click.
+- **Terms and privacy rewritten** without a lawyer (the owner can't get one), against: Consumer
+  Rights Act 2015 (no exclusion of reasonable care and skill for consumers, death/injury or fraud;
+  foreseeable-loss wording for consumers, a cap only for business users), Consumer Contracts
+  Regulations 2013 (cancellation: we simply refund in full on request within 14 days of the first
+  payment or a yearly renewal, which is more than the law requires), the DMCC Act subscription
+  regime (expected January 2027: renewal reminders, easy cancellation; Link sends UK 6/12-month
+  reminders and cancellation is in the Portal), E-Commerce Regulations 2002 reg. 6 (name,
+  geographic address, email), UK GDPR Art. 13 (controller, purposes, lawful bases, recipients,
+  transfers, retention, rights including a separate right-to-object paragraph, ICO complaint),
+  PECR (two strictly necessary cookies, no banner). Governing law England and Wales.
+- Retention promised in the notice is now true: the daily run deletes expired sessions, sign-in
+  links a day after expiry, and rate-limit counters after two days (`prunePersonal`).
+- **Still owner actions**: a business address service (the site says "being set up" until
+  `ADDRESS` in `src/web/site.tsx` is filled; reg. 6 needs it); the **ICO data protection fee**
+  (tier 1, about £52 a year; a sole trader processing customers' personal data must pay unless
+  exempt); set the Stripe support email to hello@stackquake.com in live public details.

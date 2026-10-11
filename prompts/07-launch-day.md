@@ -26,17 +26,21 @@ and deployed on branch `m6-launch` (merge it to `main` first if it isn't). What 
    sources yet"). The owner's production user exists (GitHub); time a fresh project from
    "New project" to a populated dashboard, or ask the owner to time a brand-new sign-up on a
    phone. Target: under 2 minutes (SPEC §12 M6).
-3. **Live billing.** The owner must first activate the Stripe account "Stackquake"
-   (acct_PLACEHOLDER, "Verify your business": business and bank details). Then, with the
-   owner's explicit approval of the live product and prices ($19/month, $190/year, USD): repeat
-   the M6 test-mode setup in live mode (product, prices with lookup keys, webhook to
+3. **Live billing (Managed Payments, prices include tax; DECISIONS M6, last section).** Check the
+   Stripe account "Stackquake" (acct_PLACEHOLDER) is activated (the owner clicks "Agree and
+   submit"). Then, with the owner's explicit approval of the live product and prices ($19/month,
+   $190/year, USD, tax included): in live mode, run the Managed Payments setup (Settings → Managed
+   Payments; accepting its terms is the owner's click), set "Include tax in prices" = Yes, set the
+   support email to hello@stackquake.com, and repeat the M6 test-mode setup (product with tax code
+   `txcd_10103001`, prices with lookup keys, webhook to
    `https://stackquake.com/stripe/webhook`, Portal configuration, a restricted key
    `stackquake-production-worker` with Customers, Checkout Sessions, Customer Portal and
    Subscriptions write), put the four `STRIPE_*` secrets on production with `wrangler secret
    bulk` from a 0600 scratch file, and check that /pricing shows the buttons. Do not make a live
    charge unless the owner wants to buy one themselves and refund it.
-4. **Terms review.** /terms is a plain-language draft. Remind the owner to have it reviewed before
-   taking real customers' money (SPEC §14 Q5).
+4. **Legal leftovers (owner):** a business address for /terms and /privacy (`ADDRESS` in
+   src/web/site.tsx; E-Commerce Regulations reg. 6) and the ICO data protection fee. The terms
+   were reviewed by Claude against UK law in M6, not by a lawyer.
 5. **Show HN.** Walk the checklist at the bottom of docs/SHOW_HN.md (Resend's 100 emails/day free
    limit matters on launch day: magic links count). Give the owner the final text; do not post.
 6. After launch: watch alert feedback (G3: < 10% "not relevant"), `/admin` review queue, LLM
