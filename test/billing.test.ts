@@ -302,3 +302,13 @@ describe("public pages", () => {
     expect(await signed.html("/pricing")).toContain('action="/app/billing/checkout"');
   });
 });
+
+describe("www", () => {
+  it("redirects www to the apex, keeping the path", async () => {
+    const t = await setup();
+    const { createApp } = await import("../src/web");
+    const res = await createApp(() => t.ctx).fetch(new Request("https://www.stackquake.com/pricing?x=1"), {} as never, { waitUntil() {}, passThroughOnException() {} } as never);
+    expect(res.status).toBe(301);
+    expect(res.headers.get("location")).toBe("https://stackquake.com/pricing?x=1");
+  });
+});

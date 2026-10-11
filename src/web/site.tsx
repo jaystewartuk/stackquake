@@ -14,6 +14,7 @@ export const site = new Hono<WebEnv>();
 /** Where people write to. Mail to this address is routed to the owner (Cloudflare Email Routing). */
 export const CONTACT = "hello@stackquake.com";
 export const LEGAL_UPDATED = "2026-10-11";
+export const OPERATOR = "Jay Stewart";
 
 const startHref = (c: WebContext) => (c.get("user") ? "/app/projects/new" : "/signin?next=/app/projects/new");
 
@@ -269,7 +270,7 @@ site.get("/terms", (c) =>
     <article class="prose">
       <h1>Terms of service</h1>
       <p class="meta">Last updated {LEGAL_UPDATED}.</p>
-      <p>These terms cover your use of Stackquake (stackquake.com). By creating an account you agree to them. Questions: {CONTACT}.</p>
+      <p>These terms cover your use of Stackquake (stackquake.com), run by {OPERATOR} (“we”). By creating an account you agree to them. Questions: {CONTACT}.</p>
       <h2>What Stackquake is</h2>
       <p>
         Stackquake watches public sources (vendor blogs, pricing and terms pages, package registries, GitHub repositories and endoflife.date) for changes to the services and software you tell us you use, and sends you short notes about the changes that may affect you.
@@ -302,7 +303,7 @@ site.get("/privacy", (c) =>
     <article class="prose">
       <h1>Privacy notice</h1>
       <p class="meta">Last updated {LEGAL_UPDATED}.</p>
-      <p>Short version: we keep what we need to send you alerts, nothing more. No ads, no tracking scripts, no analytics cookies, and we don't sell data. Questions or requests: {CONTACT}.</p>
+      <p>Stackquake is run by {OPERATOR}, who is responsible for the data described here. Short version: we keep what we need to send you alerts, nothing more. No ads, no tracking scripts, no analytics cookies, and we don't sell data. Questions or requests: {CONTACT}.</p>
       <h2>What we store</h2>
       <ul>
         <li>Your email address, and your GitHub user id and name if you sign in with GitHub.</li>

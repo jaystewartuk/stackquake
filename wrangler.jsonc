@@ -24,7 +24,11 @@
     }
   ],
   "r2_buckets": [{ "binding": "SNAPSHOTS", "bucket_name": "stackquake-snapshots" }],
-  "routes": [{ "pattern": "stackquake.com", "custom_domain": true }],
+  // www only redirects to the apex (src/web/index.tsx).
+  "routes": [
+    { "pattern": "stackquake.com", "custom_domain": true },
+    { "pattern": "www.stackquake.com", "custom_domain": true }
+  ],
   "workers_dev": false,
   "vars": {
     "JOBS_PER_TICK": "3",

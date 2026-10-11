@@ -20,6 +20,14 @@ import { team } from "./team";
 
 export function createApp(makeCtx: (env: AppEnv) => Ctx) {
   const web = new Hono<WebEnv>();
+  // www.stackquake.com is attached to the Worker only to send people to the apex.
+  web.use("*", async (c, next) => {
+    const url = new URL(c.req.url);
+    if (!url.hostname.startsWith("www.")) return next();
+    url.hostname = url.hostname.slice(4);
+    url.protocol = "https:";
+    return c.redirect(url.toString(), 301);
+  });
   web.get("/health", (c) => c.json({ ok: true }));
   // JSON routes for local scripts only (DEV_ROUTES=1 on localhost); no session or CSRF.
   web.route("/__dev", devRoutes as unknown as Hono<WebEnv>);
