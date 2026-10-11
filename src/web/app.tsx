@@ -364,7 +364,7 @@ app.get("/projects/:id/services", async (c) => {
           Not in the catalog yet. Send it as a request below and we'll consider adding it.
         </p>
         <label for="request">Something missing? Tell us what you use</label>
-        <input type="text" id="request" name="request" maxlength={200} placeholder="e.g. Upstash, Hetzner Cloud" value={groups.length === 0 ? q : ""} />
+        <input type="text" id="request" name="request" maxlength={200} placeholder="e.g. Hetzner Cloud, CockroachDB" value={groups.length === 0 ? q : ""} />
         <div class="sticky row">
           <button class="primary" type="submit">
             Save and continue
