@@ -978,3 +978,15 @@ Read this after SPEC.md; where they disagree, this file wins.
   the dashboard; system serifs vary, a webfont costs 40–80 KB) and a bold status board (loud, and its "magnitude" would be a
   score the pipeline does not compute). System fonts only; severities (act/watch/quiet) derived from existing event kinds
   and alert matches, no new data.
+- Stage 2: legacy class names (`.card`, `.flash`, `.pill`, `button.primary`…) are restyled with the new tokens rather than
+  removed, so every page keeps working while stages 3–4 convert them to components; remove the aliases in stage 5.
+- Stage 2: the CSS stays one inline `<style>` (no extra request, no build step), written readable in `src/web/styles/*.ts`
+  and minified by a small regex at module load; about 10 KB gzipped for the largest public page with the HTML.
+- Stage 2: the mobile nav is a horizontally scrolling second row of the header and the account links sit in a `<details>`
+  menu: both work without JS and keep the header to one line plus the nav row.
+- Stage 2: light and dark tokens are defined once in TS and emitted both for `:root` and per element, so the gallery
+  shows both schemes side by side on one page instead of relying on two screenshots.
+- Stage 2: NoteCard uses no headings (styled paragraphs), so the example note can sit anywhere in a page's outline;
+  the full event note keeps real h2s.
+- Stage 2: the trace's spikes are links when they have a target, so the SVG is `role="group"` (an `img` may not contain
+  links); its aria-label gives the count.

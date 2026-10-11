@@ -175,6 +175,19 @@ Built once in stage 2 as JSX components and CSS in `src/web/styles/*.ts`, then u
 19. **Tabs** as links (admin status filter, settings sections if needed).
 20. **DataList** (dt/dd) for sources, plan details, repository.
 
+## As built (stage 2)
+
+- Tokens: `src/web/styles/tokens.ts` (the table above, plus `--accent-bg` for a faint accent tint). Dark
+  mode drops `--shadow-1` (lighter surfaces instead).
+- Styles: `src/web/styles/{tokens,base,components,pages}.ts`, joined and minified in `styles/index.ts`.
+  Add component CSS to `components.ts` next to its neighbours; page layouts to `pages.ts`.
+- Components: `src/web/ui.tsx` (Button, ButtonLink, Field, InputGroup, Choice, PickTile, Panel, Badge,
+  Severity, Callout, Flash, PageHeader, DataTable, Tabs, EmptyState, Quote, DataList, NoteCard, StatusLine,
+  Trace, StickyBar, Avatar); icons in `src/web/icons.tsx`; shell (SiteHeader, Layout) in `layout.tsx`.
+- See them all at `/__dev/ui` with `npm run dev`.
+- Still to build when a page needs them: UpgradePanel, PlanCard, DiffView, OptionCard (effort meter),
+  AlertRow and DepRow in their final form, EventNote's right rail.
+
 ## The pages that matter most
 
 ### 1. Landing `/`
