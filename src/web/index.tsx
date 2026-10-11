@@ -13,15 +13,15 @@ import { auth } from "./auth";
 import { billing, stripeWebhook } from "./billing";
 import { github } from "./github";
 import { page } from "./layout";
-import { ButtonLink, EmptyState } from "./ui";
+import { ButtonLink, ErrorPage } from "./ui";
 import { pub } from "./public";
 import { sessionMiddleware, type WebEnv } from "./session";
 import { site } from "./site";
 import { team } from "./team";
 
 const NotFound = ({ signedIn }: { signedIn: boolean }) => (
-  <EmptyState
-    page
+  <ErrorPage
+    code={404}
     icon="search"
     title="Not found"
     actions={
@@ -36,8 +36,8 @@ const NotFound = ({ signedIn }: { signedIn: boolean }) => (
       </>
     }
   >
-    There's no page at this address. It may have moved, or the link may be mistyped.
-  </EmptyState>
+    <p>There's no page at this address. It may have moved, or the link may be mistyped.</p>
+  </ErrorPage>
 );
 
 export function createApp(makeCtx: (env: AppEnv) => Ctx) {

@@ -7,7 +7,9 @@ import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { magicLinks, users, type User } from "../db/schema";
 import { HOUR, MINUTE, safeEqual, sha256Hex } from "../util";
 import { Csrf, page } from "./layout";
-import { Button, ButtonLink, Field, PageHeader } from "./ui";
+import type { Child } from "hono/jsx";
+import { Icon, type IconName } from "./icons";
+import { Button, ButtonLink, ErrorPage, Field } from "./ui";
 import { appOrigin, clientIp, createSession, endSession, hitRateLimit, randomToken, safeNext, type WebContext, type WebEnv } from "./session";
 
 export const auth = new Hono<WebEnv>();
@@ -33,9 +35,25 @@ async function findOrCreateUser(c: WebContext, email: string, extra: { githubId?
   return (await ctx.db.select().from(users).where(eq(users.email, email)).get())!;
 }
 
+/** The narrow, centred column the sign-in pages share. */
+const AuthShell = ({ title, description, icon = "logo", children }: { title: string; description?: Child; icon?: IconName; children?: Child }) => (
+  <div class="auth">
+    <Icon name={icon} size={24} class="auth-mark" />
+    <h1>{title}</h1>
+    {description && <p class="auth-desc">{description}</p>}
+    {children}
+  </div>
+);
+
+const SignInPage = ({ c, email, next, error }: { c: WebContext; email?: string; next: string; error?: string }) => (
+  <AuthShell title="Sign in to Stackquake" description="New here? The same link creates your account.">
+    <SignInForm c={c} email={email} next={next} error={error} />
+  </AuthShell>
+);
+
 const SignInForm = ({ c, email, next, error }: { c: WebContext; email?: string; next: string; error?: string }) => (
   <>
-    <form method="post" action="/auth/email" class="panel" style="max-width:28rem">
+    <form method="post" action="/auth/email" class="panel auth-form">
       <Csrf token={c.get("csrf")} />
       <input type="hidden" name="next" value={next} />
       <Field id="email" type="email" label="Email" required autocomplete="email" value={email ?? ""} error={error} hint="We'll email you a link that signs you in. No password." />
@@ -44,13 +62,18 @@ const SignInForm = ({ c, email, next, error }: { c: WebContext; email?: string; 
       </Button>
     </form>
     {c.env.GITHUB_CLIENT_ID && (
-      <p>
-        or{" "}
-        <ButtonLink href={`/auth/github?next=${encodeURIComponent(next)}`} icon="github">
+      <>
+        <p class="auth-or">
+          <span>or</span>
+        </p>
+        <ButtonLink href={`/auth/github?next=${encodeURIComponent(next)}`} icon="github" class="auth-alt">
           Sign in with GitHub
         </ButtonLink>
-      </p>
+      </>
     )}
+    <p class="meta auth-fine">
+      By signing in you agree to the <a href="/terms">terms</a>. We use your email only for sign-in and alerts (<a href="/privacy">privacy</a>).
+    </p>
   </>
 );
 
@@ -60,10 +83,7 @@ auth.get("/signin", (c) => {
   return page(
     c,
     "Sign in",
-    <>
-      <PageHeader title="Sign in to Stackquake" description="New here? The same link creates your account." />
-      <SignInForm c={c} next={next} />
-    </>,
+    <SignInPage c={c} next={next} />,
     { noindex: true },
   );
 });
@@ -95,32 +115,40 @@ auth.post("/auth/email", async (c) => {
   const email = normaliseEmail(form.email);
   const next = safeNext(typeof form.next === "string" ? form.next : null);
   if (!validEmail(email)) {
-    return page(c, "Sign in", <><h1>Sign in to Stackquake</h1><SignInForm c={c} email={email} next={next} error="That doesn't look like an email address." /></>, { status: 400, noindex: true });
+    return page(c, "Sign in", <SignInPage c={c} email={email} next={next} error="That doesn't look like an email address." />, { status: 400, noindex: true });
   }
   if (!(await magicLinkAllowed(c, email))) {
-    return page(c, "Slow down", <><h1>Too many sign-in emails</h1><p>Too many links were requested for this address or from this network. Try again in an hour.</p></>, { status: 429, noindex: true });
+    return page(c, "Slow down", <ErrorPage code={429} icon="clock" title="Too many sign-in emails" actions={<ButtonLink href="/">Home</ButtonLink>}><p>Too many links were requested for this address or from this network. Try again in an hour.</p></ErrorPage>, { status: 429, noindex: true });
   }
   await sendMagicLink(c, email, { next });
   return page(
     c,
     "Check your email",
-    <>
-      <h1>Check your email</h1>
-      <p>
-        We sent a sign-in link to <strong>{email}</strong>. It works once and expires in 15 minutes.
-      </p>
-    </>,
+    <AuthShell icon="mail" title="Check your email">
+      <div class="panel auth-form" role="status">
+        <p>
+          We sent a sign-in link to <strong class="overflow-anywhere">{email}</strong>. It works once and expires in 15 minutes.
+        </p>
+        <p class="meta">Nothing after a few minutes? Check your spam folder, or <a href={`/signin${next !== "/app" ? `?next=${encodeURIComponent(next)}` : ""}`}>ask for another link</a>.</p>
+      </div>
+    </AuthShell>,
     { noindex: true },
   );
 });
 
 const LinkProblem = () => (
-  <>
-    <h1>This link has expired or was already used</h1>
-    <p>
-      <a href="/signin">Request a new sign-in link</a>.
-    </p>
-  </>
+  <ErrorPage
+    code={400}
+    icon="clock"
+    title="This link has expired or was already used"
+    actions={
+      <ButtonLink variant="primary" href="/signin" icon="mail">
+        Request a new sign-in link
+      </ButtonLink>
+    }
+  >
+    <p>Sign-in links work once and expire after 15 minutes, so a link from an older email, or one already opened, can't be used again.</p>
+  </ErrorPage>
 );
 
 auth.get("/auth/email/confirm", async (c) => {
@@ -131,9 +159,8 @@ auth.get("/auth/email/confirm", async (c) => {
   return page(
     c,
     "Confirm",
-    <>
-      <h1>{link.userId ? "Confirm your new email" : "Sign in to Stackquake"}</h1>
-      <form method="post" action="/auth/email/confirm" class="card">
+    <AuthShell title={link.userId ? "Confirm your new email" : "Sign in to Stackquake"}>
+      <form method="post" action="/auth/email/confirm" class="panel auth-form">
         <Csrf token={c.get("csrf")} />
         <input type="hidden" name="token" value={token} />
         <input type="hidden" name="next" value={safeNext(c.req.query("next"))} />
@@ -141,11 +168,11 @@ auth.get("/auth/email/confirm", async (c) => {
           {link.userId ? "Use" : "Continue as"} <strong>{link.email}</strong>
           {link.userId ? " for your account." : "."}
         </p>
-        <button class="primary" type="submit">
+        <Button variant="primary" block>
           {link.userId ? "Confirm email" : "Sign in"}
-        </button>
+        </Button>
       </form>
-    </>,
+    </AuthShell>,
     { noindex: true },
   );
 });
@@ -164,7 +191,7 @@ auth.post("/auth/email/confirm", async (c) => {
   if (!link) return page(c, "Link expired", <LinkProblem />, { status: 400, noindex: true });
   if (link.userId) {
     const taken = await ctx.db.select({ id: users.id }).from(users).where(eq(users.email, link.email)).get();
-    if (taken && taken.id !== link.userId) return page(c, "Email in use", <><h1>That email belongs to another account</h1><p><a href="/app/settings">Back to settings</a></p></>, { status: 400, noindex: true });
+    if (taken && taken.id !== link.userId) return page(c, "Email in use", <ErrorPage code={400} title="That email belongs to another account" actions={<ButtonLink href="/app/settings">Back to settings</ButtonLink>} />, { status: 400, noindex: true });
     await ctx.db.update(users).set({ email: link.email }).where(eq(users.id, link.userId));
     return c.redirect("/app/settings?msg=email");
   }
@@ -182,7 +209,7 @@ auth.post("/signout", async (c) => {
 // ---------- GitHub OAuth ----------
 
 auth.get("/auth/github", (c) => {
-  if (!c.env.GITHUB_CLIENT_ID) return page(c, "Not available", <><h1>GitHub sign-in is not configured</h1><p><a href="/signin">Use an email link instead</a>.</p></>, { status: 503, noindex: true });
+  if (!c.env.GITHUB_CLIENT_ID) return page(c, "Not available", <ErrorPage code={503} icon="github" title="GitHub sign-in is not configured" actions={<ButtonLink variant="primary" href="/signin" icon="mail">Use an email link instead</ButtonLink>} />, { status: 503, noindex: true });
   const state = randomToken(16);
   const next = safeNext(c.req.query("next"));
   setCookie(c, OAUTH_COOKIE, `${state}|${next}`, { httpOnly: true, secure: true, sameSite: "Lax", path: "/auth/github", maxAge: 600 });
@@ -196,13 +223,19 @@ auth.get("/auth/github", (c) => {
 });
 
 const OAuthProblem = ({ why }: { why: string }) => (
-  <>
-    <h1>GitHub sign-in didn't work</h1>
+  <ErrorPage
+    code={400}
+    icon="github"
+    title="GitHub sign-in didn't work"
+    actions={
+      <ButtonLink variant="primary" href="/signin">
+        Try again
+      </ButtonLink>
+    }
+  >
     <p>{why}</p>
-    <p>
-      <a href="/signin">Try again</a>, or use an email link.
-    </p>
-  </>
+    <p>Try again, or use an email link.</p>
+  </ErrorPage>
 );
 
 auth.get("/auth/github/callback", async (c) => {

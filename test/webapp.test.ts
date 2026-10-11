@@ -201,6 +201,11 @@ describe("public pages", () => {
     expect(page).toContain('href="https://supabase.com/pricing"');
     expect(page).toContain("Summary, not legal advice; read the source.");
     expect(page).toContain('<a href="/catalog/neon">Neon</a>');
+    // Shareable: a link preview with no remote image.
+    expect(page).toContain('<meta property="og:title" content="Supabase: Free projects pause after 3 days"/>');
+    expect(page).toContain('<meta property="og:type" content="article"/>');
+    expect(page).toContain(`<link rel="canonical" href="https://stackquake.com/events/${pub.id}"/>`);
+    expect(page).not.toContain("og:image");
     expect((await b.get(`/events/${pending.id}`)).status).toBe(404);
     expect((await b.get(`/events/${rejected.id}`)).status).toBe(404);
     const cat = await b.html("/catalog/supabase");
