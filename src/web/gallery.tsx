@@ -20,6 +20,7 @@ import {
   Field,
   InputGroup,
   NoteCard,
+  OptionCard,
   PageHeader,
   Panel,
   PickTile,
@@ -270,6 +271,14 @@ const Demo: FC<{ p: string }> = ({ p }) => (
     <EmptyState title="Nothing here yet" level={3} actions={<ButtonLink href="#x" variant="primary">Pick what you run on</ButtonLink>}>
       Tick the services, runtimes and tools this project uses.
     </EmptyState>
+
+    <h2>Ways out</h2>
+    <p class="meta">PlanCard and ErrorPage carry headings and ids, so they are shown live on /pricing and /no-such-page instead.</p>
+    <ul class="options">
+      <OptionCard name={<a href="#x">Node.js</a>} effort="low" why="Mature runtime with long support windows." />
+      <OptionCard name="Bun" effort="medium" why="TypeScript-first and fast to start." />
+      <OptionCard name="Cloudflare Workers" effort="high" />
+    </ul>
 
     <h2>Quote</h2>
     <Quote text={QUOTE} href="https://deno.com/blog/cloudflare" />

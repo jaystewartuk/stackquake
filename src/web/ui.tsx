@@ -199,8 +199,8 @@ export const PageHeader: FC<{ title: Child; crumbs?: Crumb[]; kicker?: Child; de
 export type Column = { label: string; num?: boolean };
 
 /** A table that scrolls sideways when it must, or (`stack`) becomes label/value rows under 40rem. */
-export const DataTable: FC<{ columns: Column[]; rows: Child[][]; caption?: Child; stack?: boolean }> = ({ columns, rows, caption, stack = true }) => (
-  <div class="table-wrap">
+export const DataTable: FC<{ columns: Column[]; rows: Child[][]; caption?: Child; stack?: boolean; rowHeader?: boolean; class?: string }> = ({ columns, rows, caption, stack = true, rowHeader, class: cls }) => (
+  <div class={cx("table-wrap", cls)} {...(stack ? {} : { tabindex: 0, role: "region", "aria-label": typeof caption === "string" ? caption : undefined })}>
     <table class={stack ? "table-stack" : undefined}>
       {caption && <caption class="visually-hidden">{caption}</caption>}
       <thead>
@@ -215,11 +215,17 @@ export const DataTable: FC<{ columns: Column[]; rows: Child[][]; caption?: Child
       <tbody>
         {rows.map((r) => (
           <tr>
-            {r.map((cell, i) => (
-              <td data-label={columns[i]?.label} class={columns[i]?.num ? "num" : undefined}>
-                {cell}
-              </td>
-            ))}
+            {r.map((cell, i) =>
+              rowHeader && i === 0 ? (
+                <th scope="row" data-label={columns[i]?.label}>
+                  {cell}
+                </th>
+              ) : (
+                <td data-label={columns[i]?.label} class={columns[i]?.num ? "num" : undefined}>
+                  {cell}
+                </td>
+              ),
+            )}
           </tr>
         ))}
       </tbody>
@@ -452,3 +458,67 @@ export const StickyBar: FC<PropsWithChildren> = ({ children }) => <div class="st
 
 /** Initials from an email address, for the account menu and team lists. */
 export const Avatar: FC<{ email: string; hidden?: boolean }> = ({ email, hidden }) => <span class="avatar" aria-hidden={hidden ? "true" : undefined}>{email.replace(/[^a-z0-9]/gi, "").slice(0, 2) || "?"}</span>;
+
+// ---------- Ways out, plans, error pages ----------
+
+export type Effort = "low" | "medium" | "high";
+const EFFORT_BARS: Record<Effort, number> = { low: 1, medium: 2, high: 3 };
+
+/** How much work a way out is: three bars, filled by level, with the word beside them. */
+export const EffortMeter: FC<{ effort: Effort }> = ({ effort }) => (
+  <span class={`effort ${effort}`}>
+    <span class="bars" aria-hidden="true">
+      {[1, 2, 3].map((i) => (
+        <span class={i <= EFFORT_BARS[effort] ? "on" : undefined} />
+      ))}
+    </span>
+    {effort[0].toUpperCase() + effort.slice(1)} effort
+  </span>
+);
+
+/** One alternative in a note's "Ways out": name (linked when it is in the catalog), effort, why. */
+export const OptionCard: FC<{ name: Child; effort: Effort; why?: Child }> = ({ name, effort, why }) => (
+  <li class="option">
+    <div class="option-head">
+      <strong>{name}</strong>
+      <EffortMeter effort={effort} />
+    </div>
+    {why && <p>{why}</p>}
+  </li>
+);
+
+/** A plan on /pricing and in Settings. `featured` is the plan we recommend. */
+export const PlanCard: FC<PropsWithChildren<{ name: string; price: Child; period?: Child; note?: Child; features: Child[]; featured?: boolean; badge?: Child }>> = (p) => (
+  <section class={cx("plan", p.featured && "featured")} aria-labelledby={`plan-${p.name.toLowerCase()}`}>
+    <div class="plan-head">
+      <h2 id={`plan-${p.name.toLowerCase()}`}>{p.name}</h2>
+      {p.badge && <Badge tone="info">{p.badge}</Badge>}
+    </div>
+    <p class="plan-price">
+      <span class="amount">{p.price}</span>
+      {p.period && <span class="period">{p.period}</span>}
+    </p>
+    {p.note && <p class="plan-note">{p.note}</p>}
+    <ul class="plan-features">
+      {p.features.map((f) => (
+        <li>
+          <Icon name="check" />
+          <span>{f}</span>
+        </li>
+      ))}
+    </ul>
+    <div class="plan-action">{p.children}</div>
+  </section>
+);
+
+/** A whole-page error (404, 400, 429, 503): what happened, in plain words, and the next step. */
+export const ErrorPage: FC<PropsWithChildren<{ code: number; title: Child; icon?: IconName; actions?: Child }>> = ({ code, title, icon = "alert-triangle", actions, children }) => (
+  <div class="error-page">
+    <p class="error-code">
+      <Icon name={icon} /> Error <span class="num">{code}</span>
+    </p>
+    <h1>{title}</h1>
+    {children && <div class="error-body">{children}</div>}
+    {actions && <div class="actions">{actions}</div>}
+  </div>
+);

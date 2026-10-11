@@ -5,7 +5,7 @@ import { raw } from "hono/html";
 import type { Child, FC, PropsWithChildren } from "hono/jsx";
 import type { User } from "../db/schema";
 import { FAVICON, Icon } from "./icons";
-import { isAdmin, type WebContext } from "./session";
+import { appOrigin, isAdmin, type WebContext } from "./session";
 import { CSS } from "./styles";
 import { THEME_COLOR } from "./styles/tokens";
 import { Avatar, ButtonLink } from "./ui";
@@ -85,8 +85,12 @@ export const SiteHeader: FC<{ user?: User | null; csrf: string; admin?: boolean;
   </header>
 );
 
-export const Layout: FC<PropsWithChildren<{ title: string; user?: User | null; csrf: string; admin?: boolean; noindex?: boolean; head?: Child; description?: string; path?: string }>> = ({
+/** Link-preview metadata for an indexable page. No og:image: no remote images, and the main consumers don't render SVG. */
+export type OpenGraph = { url: string; type?: "website" | "article" };
+
+export const Layout: FC<PropsWithChildren<{ title: string; user?: User | null; csrf: string; admin?: boolean; noindex?: boolean; head?: Child; description?: string; path?: string; og?: OpenGraph }>> = ({
   title,
+  og,
   user,
   csrf,
   admin,
@@ -106,6 +110,17 @@ export const Layout: FC<PropsWithChildren<{ title: string; user?: User | null; c
       {noindex && <meta name="robots" content="noindex" />}
       {description && <meta name="description" content={description} />}
       <title>{title === "Stackquake" ? title : `${title} · Stackquake`}</title>
+      {og && !noindex && (
+        <>
+          <link rel="canonical" href={og.url} />
+          <meta property="og:site_name" content="Stackquake" />
+          <meta property="og:type" content={og.type ?? "website"} />
+          <meta property="og:title" content={title === "Stackquake" ? "Stackquake: know when the services you build on change the deal" : title} />
+          {description && <meta property="og:description" content={description} />}
+          <meta property="og:url" content={og.url} />
+          <meta name="twitter:card" content="summary" />
+        </>
+      )}
       <link rel="icon" href={FAVICON} type="image/svg+xml" />
       <link rel="alternate" type="application/rss+xml" title="Stackquake events" href="/events.rss" />
       <style>{raw(CSS)}</style>
@@ -143,14 +158,17 @@ export const safeHref = (url: string | null | undefined) => (url && /^https?:\/\
 
 export const fmtDate = (ms: number | null | undefined) => (ms ? new Date(ms).toISOString().slice(0, 10) : "");
 
-type PageOpts = { status?: 200 | 400 | 402 | 403 | 404 | 429 | 503; noindex?: boolean; head?: Child; description?: string };
+type PageOpts = { status?: 200 | 400 | 402 | 403 | 404 | 429 | 503; noindex?: boolean; head?: Child; description?: string; ogType?: OpenGraph["type"] };
+
+/** Pages worth a canonical URL and a link preview: not the app, admin or one-click alert links. */
+const publicPage = (path: string) => !/^\/(app|admin|a|auth)(\/|$)/.test(path);
 
 /** Renders a page in the shared layout with the request's user and CSRF token. */
 export function page(c: WebContext, title: string, body: Child, opts: PageOpts = {}) {
   return c.html(
     <>
       {raw("<!doctype html>")}
-      <Layout title={title} user={c.get("user")} csrf={c.get("csrf")} admin={isAdmin(c)} noindex={opts.noindex} head={opts.head} description={opts.description} path={c.req.path}>
+      <Layout title={title} user={c.get("user")} csrf={c.get("csrf")} admin={isAdmin(c)} noindex={opts.noindex} head={opts.head} description={opts.description} path={c.req.path} og={publicPage(c.req.path) && (opts.status ?? 200) === 200 ? { url: appOrigin(c) + c.req.path, type: opts.ogType } : undefined}>
         {body}
       </Layout>
     </>,
