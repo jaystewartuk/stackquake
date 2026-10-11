@@ -5,7 +5,9 @@ import type { Ctx } from "../context";
 import { catalogSources, events, sources, type Event } from "../db/schema";
 import type { Note } from "../llm/schemas";
 import { catalogEntry } from "./catalog-view";
+import type { IconName } from "./icons";
 import { fmtDate, safeHref } from "./layout";
+import { Badge, DataList, Quote } from "./ui";
 
 export type PublicEvent = Pick<Event, "id" | "kind" | "title" | "publishedAt" | "effectiveDate" | "catalogId" | "quote" | "quoteUrl" | "note"> & { sourceKind: string; sourceKey: string };
 
@@ -79,9 +81,13 @@ export const KIND_LABELS: Record<string, string> = {
   other: "Other",
 };
 
-const URGENT = new Set(["license", "eol", "acquisition", "free_tier"]);
+/** Kinds that need action when they affect you (DIRECTION.md "Severity mapping"). */
+export const URGENT = new Set(["license", "eol", "acquisition", "free_tier"]);
 
-export const KindPill: FC<{ kind: string }> = ({ kind }) => <span class={`pill ${URGENT.has(kind) ? "warn" : ""}`}>{KIND_LABELS[kind] ?? kind}</span>;
+const KIND_ICONS: Record<string, IconName> = { license: "shield", eol: "clock", acquisition: "users", pricing: "calendar", free_tier: "calendar", deprecated: "alert-triangle", archived: "inbox" };
+
+/** An event's kind: neutral, with an icon. Severity is about the user, so it is shown separately. */
+export const KindPill: FC<{ kind: string }> = ({ kind }) => <Badge icon={KIND_ICONS[kind] ?? "info"}>{KIND_LABELS[kind] ?? kind}</Badge>;
 
 export const EventRow: FC<{ e: PublicEvent }> = ({ e }) => {
   const n = e.note as Note | null;
@@ -109,37 +115,41 @@ export const NoteView: FC<{ e: PublicEvent }> = ({ e }) => {
   const alternatives = (n?.options ?? []).map((o) => ({ ...o, entry: catalogEntry(o.catalog_id) }));
   return (
     <article>
-      <div class="row meta">
-        <KindPill kind={e.kind} />
-        <span>published {fmtDate(e.publishedAt)}</span>
-        {e.effectiveDate && <span>· effective {e.effectiveDate}</span>}
-      </div>
-      {n?.what_changed && <p>{n.what_changed}</p>}
-      {e.quote && (
+      <DataList
+        strip
+        label="Facts"
+        items={[
+          { term: "Published", value: <time datetime={fmtDate(e.publishedAt)}>{fmtDate(e.publishedAt)}</time> },
+          ...(e.effectiveDate ? [{ term: "Takes effect", value: e.effectiveDate, highlight: true }] : []),
+        ]}
+      />
+      {n?.what_changed && <p class="lede">{n.what_changed}</p>}
+      {e.quote ? (
         <>
-          <h3>From the source</h3>
-          <blockquote>{e.quote}</blockquote>
+          <h2>From the source</h2>
+          <Quote text={e.quote} href={href} url={e.quoteUrl} />
         </>
+      ) : (
+        <p>
+          Source:{" "}
+          {href ? (
+            <a href={href} rel="noopener noreferrer nofollow">
+              {e.quoteUrl}
+            </a>
+          ) : (
+            e.quoteUrl
+          )}
+        </p>
       )}
-      <p>
-        Source:{" "}
-        {href ? (
-          <a href={href} rel="noopener noreferrer nofollow">
-            {e.quoteUrl}
-          </a>
-        ) : (
-          e.quoteUrl
-        )}
-      </p>
       {n?.who_is_not_affected && (
         <>
-          <h3>Who is not affected</h3>
+          <h2>Who is not affected</h2>
           <p>{n.who_is_not_affected}</p>
         </>
       )}
       {alternatives.length > 0 && (
         <>
-          <h3>Options</h3>
+          <h2>Ways out</h2>
           <ul>
             {alternatives.map((o) => (
               <li>
@@ -151,7 +161,7 @@ export const NoteView: FC<{ e: PublicEvent }> = ({ e }) => {
       )}
       {n && n.uncertain.length > 0 && (
         <>
-          <h3>What the source does not say</h3>
+          <h2>What the source doesn't say</h2>
           <ul>
             {n.uncertain.map((u) => (
               <li>{u}</li>

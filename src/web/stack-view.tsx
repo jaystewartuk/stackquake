@@ -9,8 +9,9 @@ import { SHOWN_PACKAGES } from "../stack/import";
 import { describeProfile, effectiveProfile, questionsFor } from "../stack/profile";
 import { DAY } from "../util";
 import { catalogEntry } from "./catalog-view";
-import { KindPill } from "./events-view";
+import { KindPill, URGENT } from "./events-view";
 import { fmtDate } from "./layout";
+import { Badge, type Level, type TracePoint } from "./ui";
 
 export interface DepView {
   dep: Dep;
@@ -116,6 +117,32 @@ export function riskOf(v: DepView, now: number): RiskGroup {
   return "other";
 }
 
+/** How much a dep needs the user now (DIRECTION.md "Severity mapping"), from data we already have. */
+export function depLevel(v: DepView, now: number): Level {
+  if (v.dep.mutedUntil && v.dep.mutedUntil > now) return "quiet";
+  if (v.archived) return "act";
+  const risk = riskOf(v, now);
+  if (risk === "recent") return URGENT.has(v.latest!.kind) ? "act" : "watch";
+  if (risk === "unlicensed" || risk === "single_vendor") return "watch";
+  return "quiet";
+}
+
+/** One spike per recent change across the given deps, at its strongest level. */
+export function tracePoints(list: DepView[], now: number): TracePoint[] {
+  const rank: Record<Level, number> = { act: 2, watch: 1, quiet: 0 };
+  const byEvent = new Map<number, TracePoint>();
+  for (const v of list) {
+    if (!v.latest || now - v.latest.publishedAt >= RECENT_MS) continue;
+    const level = depLevel(v, now);
+    const seen = byEvent.get(v.latest.id);
+    if (seen && rank[seen.level as Level] >= rank[level]) continue;
+    byEvent.set(v.latest.id, { at: v.latest.publishedAt, level, href: `/events/${v.latest.id}`, label: `${v.name}: ${v.latest.title}, ${fmtDate(v.latest.publishedAt)}` });
+  }
+  return [...byEvent.values()];
+}
+
+export { RECENT_MS };
+
 /** Risk groups in order, plus the packages collapsed under "also watching" (SPEC §7.1). */
 export function groupDeps(list: DepView[], now: number): { groups: { risk: RiskGroup; deps: DepView[] }[]; also: DepView[] } {
   const groups = new Map<RiskGroup, DepView[]>();
@@ -156,15 +183,22 @@ const DepRow: FC<{ v: DepView; now: number }> = ({ v, now }) => (
   </li>
 );
 
-export const StackView: FC<{ list: DepView[]; now: number }> = ({ list, now }) => {
+/** `level` is the risk groups' heading level: 3 under a project's h2 on the dashboard, 2 on the project page. */
+export const StackView: FC<{ list: DepView[]; now: number; level?: 2 | 3 }> = ({ list, now, level = 3 }) => {
   const { groups, also } = groupDeps(list, now);
   return (
     <>
       {groups.map((g) => (
         <>
-          <h3>
-            {RISK_LABELS[g.risk]} <span class="meta">({g.deps.length})</span>
-          </h3>
+          {level === 2 ? (
+            <h2 class="risk-head">
+              {RISK_LABELS[g.risk]} <Badge count>{g.deps.length}</Badge>
+            </h2>
+          ) : (
+            <h3 class="risk-head">
+              {RISK_LABELS[g.risk]} <Badge count>{g.deps.length}</Badge>
+            </h3>
+          )}
           <ul class="plain">
             {g.deps.map((v) => (
               <DepRow v={v} now={now} />

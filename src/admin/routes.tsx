@@ -13,6 +13,7 @@ import { getText } from "../pipeline/post";
 import { quoteFound } from "../pipeline/quote";
 import { DAY } from "../util";
 import { Csrf, fmtDate, page, safeHref } from "../web/layout";
+import { Callout, Tabs } from "../web/ui";
 import { requireAdmin, type WebContext, type WebEnv } from "../web/session";
 
 export const adminRoutes = new Hono<WebEnv>();
@@ -22,13 +23,16 @@ const STATUSES: EventStatus[] = ["pending_review", "published", "rejected", "pen
 
 adminRoutes.get("/", (c) => c.redirect("/admin/events"));
 
-const AdminNav = ({ staging }: { staging?: boolean }) => (
-  <nav class="row" style="margin-bottom:1rem">
-    <a href="/admin/events">Review queue</a>
-    <a href="/admin/sources">Blocked sources</a>
-    <a href="/admin/requests">Catalog requests</a>
-    {staging && <a href="/admin/staging">Staging tools</a>}
-  </nav>
+const AdminNav = ({ staging, current }: { staging?: boolean; current: string }) => (
+  <Tabs
+    label="Admin"
+    items={[
+      { href: "/admin/events", label: "Review queue" },
+      { href: "/admin/sources", label: "Blocked sources" },
+      { href: "/admin/requests", label: "Catalog requests" },
+      ...(staging ? [{ href: "/admin/staging", label: "Staging tools" }] : []),
+    ].map((t) => ({ ...t, current: t.href === current }))}
+  />
 );
 
 const EventCard: FC<{ e: Event; csrf: string }> = ({ e, csrf }) => {
@@ -127,15 +131,9 @@ adminRoutes.get("/events", async (c) => {
     c,
     "Admin: events",
     <>
-      <AdminNav staging={c.env.STAGING_TOOLS === "1"} />
+      <AdminNav staging={c.env.STAGING_TOOLS === "1"} current="/admin/events" />
       <h1>Events: {status.replace("_", " ")}</h1>
-      <nav class="row">
-        {STATUSES.map((s) => (
-          <a href={`/admin/events?status=${s}`}>
-            {s.replace("_", " ")} ({n(s)})
-          </a>
-        ))}
-      </nav>
+      <Tabs variant="segmented" label="Status" items={STATUSES.map((s) => ({ href: `/admin/events?status=${s}`, label: s.replace("_", " "), count: n(s), current: s === status }))} />
       <p class="meta">
         LLM, last 7 days: ${(week?.usd ?? 0).toFixed(4)} over {week?.calls ?? 0} calls; weekly budget ${budget.budget.toFixed(2)}.{" "}
         {budget.paused ? (
@@ -147,7 +145,7 @@ adminRoutes.get("/events", async (c) => {
       <p class="meta">
         Alerts, last 7 days: {al.sent} sent, {al.held} held for digests, {al.suppressed} suppressed; feedback {al.useful} useful, {al.not_relevant} not relevant.
       </p>
-      {flash && <p class="flash error">{flash}</p>}
+      {flash && <Callout tone="error">{flash}</Callout>}
       {list.length === 0 ? <p>Nothing here.</p> : list.map((e) => <EventCard e={e} csrf={c.get("csrf")} />)}
     </>,
     { noindex: true },
@@ -280,7 +278,7 @@ adminRoutes.get("/sources", async (c) => {
     c,
     "Admin: sources",
     <>
-      <AdminNav staging={c.env.STAGING_TOOLS === "1"} />
+      <AdminNav staging={c.env.STAGING_TOOLS === "1"} current="/admin/sources" />
       <h1>Blocked and failing sources</h1>
       {list.length === 0 ? (
         <p>None.</p>
@@ -328,7 +326,7 @@ adminRoutes.get("/requests", async (c) => {
     c,
     "Admin: catalog requests",
     <>
-      <AdminNav staging={c.env.STAGING_TOOLS === "1"} />
+      <AdminNav staging={c.env.STAGING_TOOLS === "1"} current="/admin/requests" />
       <h1>Catalog requests</h1>
       <p class="muted">Free text from the picker that matched no entry. Add the popular ones to catalog/.</p>
       {list.length === 0 ? (

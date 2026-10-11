@@ -4,8 +4,9 @@ import { sql } from "drizzle-orm";
 import type { FC } from "hono/jsx";
 import type { Ctx } from "../context";
 import type { AlertChannel, AlertStatus, Feedback, HeldReason } from "../db/schema";
-import { KindPill } from "./events-view";
+import { KindPill, URGENT } from "./events-view";
 import { Csrf, fmtDate } from "./layout";
+import { Badge, Button, EmptyState, Severity, type Level } from "./ui";
 import { depName } from "./stack-view";
 
 export interface AlertRow {
@@ -73,34 +74,47 @@ export function alertState(a: Pick<AlertRow, "status" | "channel" | "held" | "se
   return { label: "Sending", tone: "" };
 }
 
+/** Compact "Useful / Not relevant" feedback; the pressed state shows the answer already given. */
 export const FeedbackButtons: FC<{ a: AlertRow; csrf: string; back: string }> = ({ a, csrf, back }) => (
-  <form class="inline" method="post" action={`/app/alerts/${a.id}/feedback`}>
+  <form class="inline cluster" method="post" action={`/app/alerts/${a.id}/feedback`} style="gap:var(--s-1)">
     <Csrf token={csrf} />
     <input type="hidden" name="back" value={back} />
-    <button class={a.feedback === "useful" ? "primary" : ""} type="submit" name="value" value="useful" aria-pressed={a.feedback === "useful" ? "true" : "false"}>
+    <Button size="sm" variant="quiet" name="value" value="useful" pressed={a.feedback === "useful"} icon="check">
       Useful
-    </button>{" "}
-    <button class={a.feedback === "not_relevant" ? "primary" : ""} type="submit" name="value" value="not_relevant" aria-pressed={a.feedback === "not_relevant" ? "true" : "false"}>
+    </Button>
+    <Button size="sm" variant="quiet" name="value" value="not_relevant" pressed={a.feedback === "not_relevant"} icon="x">
       Not relevant
-    </button>
+    </Button>
   </form>
 );
+
+/** Act for an urgent kind that affects the user, watch for the rest, quiet when it didn't affect them. */
+export const alertLevel = (a: Pick<AlertRow, "status" | "kind">): Level => (a.status === "suppressed" ? "quiet" : URGENT.has(a.kind) ? "act" : "watch");
 
 const AlertItem: FC<{ a: AlertRow; csrf: string; back: string; showDep: boolean }> = ({ a, csrf, back, showDep }) => {
   const s = alertState(a);
   return (
     <li>
       <div class="spread">
-        <span>
-          <KindPill kind={a.kind} /> {showDep && <a href={`/app/deps/${a.depId}`}>{a.name}</a>}
-          {showDep ? ": " : ""}
-          <a href={`/events/${a.eventId}`}>{a.title}</a>
+        <span class="cluster" style="gap:var(--s-2)">
+          <Severity level={alertLevel(a)} /> <KindPill kind={a.kind} />
+          <span>
+            {showDep && <a href={`/app/deps/${a.depId}`}>{a.name}</a>}
+            {showDep ? ": " : ""}
+            <a href={`/events/${a.eventId}`}>{a.title}</a>
+          </span>
         </span>
-        <span class={`pill ${s.tone}`}>{s.label}</span>
+        {s.tone === "bad" ? (
+          <Badge tone="act" icon="alert-triangle">
+            {s.label}
+          </Badge>
+        ) : (
+          <span class="meta">{s.label}</span>
+        )}
       </div>
       <div class="meta">{a.status === "suppressed" ? a.because : `Affects you because: ${a.because}`}</div>
       {a.status !== "suppressed" && (
-        <div style="margin-top:.35rem">
+        <div style="margin-top:var(--s-1)">
           <FeedbackButtons a={a} csrf={csrf} back={back} />
         </div>
       )}
@@ -121,7 +135,9 @@ export const AlertList: FC<{ list: AlertRow[]; csrf: string; back: string; showD
           ))}
         </ul>
       ) : (
-        <p class="muted">No alerts yet. We'll email you when a change affects you.</p>
+        <EmptyState title="No alerts yet" icon="mail" level={3}>
+          We'll email you when a change affects you.
+        </EmptyState>
       )}
       {quiet.length > 0 && (
         <details>

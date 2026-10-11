@@ -4,9 +4,10 @@ import { Hono } from "hono";
 import { CATALOG } from "../catalog/entries";
 import type { Note } from "../llm/schemas";
 import { catalogEntry, CATEGORY_LABELS, groupByCategory, searchCatalog } from "./catalog-view";
-import { EventRow, KIND_LABELS, NoteView, publishedEvent, publishedEvents, subjectName } from "./events-view";
+import { EventRow, KIND_LABELS, KindPill, NoteView, publishedEvent, publishedEvents, subjectName } from "./events-view";
 import { page, safeHref } from "./layout";
 import { appOrigin, type WebEnv } from "./session";
+import { Button, ButtonLink, EmptyState, InputGroup, PageHeader } from "./ui";
 
 export const pub = new Hono<WebEnv>();
 
@@ -19,15 +20,32 @@ pub.get("/catalog", (c) => {
     c,
     "Catalog",
     <>
-      <h1>What Stackquake watches</h1>
-      <p class="muted">
-        {CATALOG.length} services, runtimes and tools. For each we watch the vendor's announcements, pricing and limits pages, licences and end-of-life dates.
-      </p>
-      <form method="get" action="/catalog" class="row">
-        <input type="search" name="q" value={q} placeholder="Search by name, e.g. Supabase or workers" aria-label="Search the catalog" style="max-width:24rem" />
-        <button type="submit">Search</button>
+      <PageHeader
+        title="What Stackquake watches"
+        description={`${CATALOG.length} services, runtimes and tools. For each we watch the vendor's announcements, pricing and limits pages, licences and end-of-life dates.`}
+      />
+      <form method="get" action="/catalog" role="search">
+        <InputGroup>
+          <input type="search" name="q" value={q} placeholder="Search by name, e.g. Supabase or workers" aria-label="Search the catalog" />
+          <Button icon="search">Search</Button>
+        </InputGroup>
       </form>
-      {groups.length === 0 && <p>Nothing matches “{q}”. Sign in and add it from the picker to request it.</p>}
+      {groups.length === 0 && (
+        <EmptyState
+          icon="search"
+          title={`Nothing matches “${q}”`}
+          actions={
+            <>
+              <ButtonLink href="/catalog">Show everything</ButtonLink>
+              <ButtonLink href="/signin?next=/app/projects/new" variant="quiet">
+                Sign in to request it
+              </ButtonLink>
+            </>
+          }
+        >
+          Sign in and add it from the picker to request it.
+        </EmptyState>
+      )}
       {groups.map((g) => (
         <>
           <h2>{g.label}</h2>
@@ -35,7 +53,9 @@ pub.get("/catalog", (c) => {
             {g.entries.map((e) => (
               <a class="card" href={`/catalog/${e.id}`} style="margin:0;text-decoration:none">
                 <strong>{e.name}</strong>
-                <div class="meta">{e.sources.length} sources watched</div>
+                <div class="meta">
+                  {e.sources.length} source{e.sources.length === 1 ? "" : "s"} watched
+                </div>
               </a>
             ))}
           </div>
@@ -166,23 +186,16 @@ pub.get("/events/:id{[0-9]+}", async (c) => {
     c,
     `${subjectName(e)}: ${e.title}`,
     <>
-      <p class="meta">
-        <a href="/events">Events</a>
-        {entry && (
-          <>
-            {" · "}
-            <a href={`/catalog/${entry.id}`}>{entry.name}</a>
-          </>
-        )}
-      </p>
-      <h1>
-        {subjectName(e)}: {e.title}
-      </h1>
+      <PageHeader
+        crumbs={[{ href: "/events", label: "Events" }, ...(entry ? [{ href: `/catalog/${entry.id}`, label: entry.name }] : [])]}
+        kicker={<KindPill kind={e.kind} />}
+        title={`${subjectName(e)}: ${e.title}`}
+      />
       <NoteView e={e} />
       <p>
-        <a class="btn primary" href={c.get("user") ? "/app" : "/signin?next=/app/projects/new"}>
+        <ButtonLink variant="primary" size="lg" iconEnd="arrow-right" href={c.get("user") ? "/app" : "/signin?next=/app/projects/new"}>
           Get alerts when your stack changes
-        </a>
+        </ButtonLink>
       </p>
     </>,
     { description: n?.what_changed?.slice(0, 200) ?? `${KIND_LABELS[e.kind]} change: ${e.title}` },

@@ -7,6 +7,7 @@ import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { magicLinks, users, type User } from "../db/schema";
 import { HOUR, MINUTE, safeEqual, sha256Hex } from "../util";
 import { Csrf, page } from "./layout";
+import { Button, ButtonLink, Field, PageHeader } from "./ui";
 import { appOrigin, clientIp, createSession, endSession, hitRateLimit, randomToken, safeNext, type WebContext, type WebEnv } from "./session";
 
 export const auth = new Hono<WebEnv>();
@@ -32,25 +33,22 @@ async function findOrCreateUser(c: WebContext, email: string, extra: { githubId?
   return (await ctx.db.select().from(users).where(eq(users.email, email)).get())!;
 }
 
-const SignInForm = ({ c, email, next }: { c: WebContext; email?: string; next: string }) => (
+const SignInForm = ({ c, email, next, error }: { c: WebContext; email?: string; next: string; error?: string }) => (
   <>
-    <form method="post" action="/auth/email" class="card">
+    <form method="post" action="/auth/email" class="panel" style="max-width:28rem">
       <Csrf token={c.get("csrf")} />
       <input type="hidden" name="next" value={next} />
-      <label for="email">Email</label>
-      <input type="email" id="email" name="email" required autocomplete="email" value={email ?? ""} />
-      <p>
-        <button class="primary" type="submit">
-          Email me a sign-in link
-        </button>
-      </p>
+      <Field id="email" type="email" label="Email" required autocomplete="email" value={email ?? ""} error={error} hint="We'll email you a link that signs you in. No password." />
+      <Button variant="primary" icon="mail" block>
+        Email me a sign-in link
+      </Button>
     </form>
     {c.env.GITHUB_CLIENT_ID && (
       <p>
         or{" "}
-        <a class="btn" href={`/auth/github?next=${encodeURIComponent(next)}`}>
+        <ButtonLink href={`/auth/github?next=${encodeURIComponent(next)}`} icon="github">
           Sign in with GitHub
-        </a>
+        </ButtonLink>
       </p>
     )}
   </>
@@ -63,8 +61,7 @@ auth.get("/signin", (c) => {
     c,
     "Sign in",
     <>
-      <h1>Sign in to Stackquake</h1>
-      <p class="muted">New here? The same link creates your account.</p>
+      <PageHeader title="Sign in to Stackquake" description="New here? The same link creates your account." />
       <SignInForm c={c} next={next} />
     </>,
     { noindex: true },
@@ -98,7 +95,7 @@ auth.post("/auth/email", async (c) => {
   const email = normaliseEmail(form.email);
   const next = safeNext(typeof form.next === "string" ? form.next : null);
   if (!validEmail(email)) {
-    return page(c, "Sign in", <><h1>Sign in to Stackquake</h1><p class="flash error">That doesn't look like an email address.</p><SignInForm c={c} email={email} next={next} /></>, { status: 400, noindex: true });
+    return page(c, "Sign in", <><h1>Sign in to Stackquake</h1><SignInForm c={c} email={email} next={next} error="That doesn't look like an email address." /></>, { status: 400, noindex: true });
   }
   if (!(await magicLinkAllowed(c, email))) {
     return page(c, "Slow down", <><h1>Too many sign-in emails</h1><p>Too many links were requested for this address or from this network. Try again in an hour.</p></>, { status: 429, noindex: true });

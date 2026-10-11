@@ -22,7 +22,8 @@ import { catalogEntry, exactMatch, groupByCategory, searchCatalog, searchText } 
 import { EventRow, publishedEvents } from "./events-view";
 import { Csrf, fmtDate, page, safeHref } from "./layout";
 import { endSession, getAccount, requireUser, type WebContext, type WebEnv } from "./session";
-import { depName, loadDeps, projectDeps, riskOf, RISK_LABELS, StackView, WATCHED_ECOSYSTEMS } from "./stack-view";
+import { depLevel, depName, loadDeps, projectDeps, RECENT_MS, riskOf, RISK_LABELS, StackView, tracePoints, WATCHED_ECOSYSTEMS } from "./stack-view";
+import { Badge, Button, ButtonLink, Callout, Choice, DataList, DataTable, EmptyState, Field, Flash, InputGroup, PageHeader, Panel, PickTile, StatusLine, StickyBar, Trace } from "./ui";
 
 export const app = new Hono<WebEnv>();
 app.use("*", requireUser);
@@ -54,7 +55,6 @@ async function ownDep(c: WebContext): Promise<{ dep: Dep; project: Project } | u
   return row ?? undefined;
 }
 
-const Flash: FC<{ msg?: string }> = ({ msg }) => (msg ? <p class="flash">{msg}</p> : null);
 
 const MESSAGES: Record<string, string> = {
   saved: "Saved.",
@@ -84,56 +84,64 @@ app.get("/", async (c) => {
   const byProject = await loadDeps(ctx, list);
   const recent = await userAlerts(ctx, uid(c), { limit: 30 });
   const now = ctx.clock.now();
+  const allDeps = [...byProject.values()].flat();
+  const levels = { act: 0, watch: 0, quiet: 0 };
+  for (const v of allDeps) levels[depLevel(v, now)]++;
+  const trace = tracePoints(allDeps, now);
   return page(
     c,
     "Dashboard",
     <>
-      <div class="spread">
-        <h1>Your stack</h1>
-        <span class="row">
-          {account.plan === "team" && (
-            <a class="btn" href="/app/export.csv">
-              Export CSV
-            </a>
-          )}
-          <a class="btn" href="/app/projects/new">
-            New project
-          </a>
-        </span>
-      </div>
+      <PageHeader
+        title="Your stack"
+        actions={
+          <>
+            {account.plan === "team" && (
+              <ButtonLink href="/app/export.csv" icon="download">
+                Export CSV
+              </ButtonLink>
+            )}
+            <ButtonLink href="/app/projects/new" icon="plus">
+              New project
+            </ButtonLink>
+          </>
+        }
+      />
       <Flash msg={flash(c)} />
       {quiet.length > 0 && (
-        <p class="flash">
+        <Callout>
           The Free plan alerts on one project, your oldest. {quiet.map((p) => p.name).join(", ")} {quiet.length === 1 ? "is" : "are"} shown but quiet. <a href="/pricing">Team</a> alerts on every project.
-        </p>
+        </Callout>
       )}
+      <Panel label="Status">
+        <StatusLine act={levels.act} watch={levels.watch} quiet={levels.quiet} />
+        <Trace points={trace} from={now - RECENT_MS} to={now} label={`${trace.length} change${trace.length === 1 ? "" : "s"} to your dependencies in the last 90 days`} axis={["90 days ago", "today"]} />
+      </Panel>
       {recent.length > 0 && (
-        <section class="card">
-          <h2 style="margin-top:0">Alerts</h2>
+        <Panel title="Alerts">
           <AlertList list={recent} csrf={c.get("csrf")} back="/app" />
-        </section>
+        </Panel>
       )}
       {list.map((p) => {
         const ds = byProject.get(p.id)!;
         return (
-          <section class="card">
-            <div class="spread">
-              <h2 style="margin:0">
-                <a href={`/app/projects/${p.id}`}>{p.name}</a>
-              </h2>
-              <span class="meta">
-                {ds.length} watched{p.repoFullName ? ` · ${p.repoFullName}` : ""}
+          <Panel
+            title={<a href={`/app/projects/${p.id}`}>{p.name}</a>}
+            meta={
+              <>
+                <span class="num">{ds.length}</span> watched{p.repoFullName ? ` · ${p.repoFullName}` : ""}
                 {p.userId !== uid(c) ? " · team" : ""}
-              </span>
-            </div>
+              </>
+            }
+          >
             {ds.length ? (
               <StackView list={ds} now={now} />
             ) : (
-              <p>
-                Nothing here yet. <a href={`/app/projects/${p.id}/services`}>Pick what you run on</a>.
-              </p>
+              <EmptyState title="Nothing here yet" level={3} actions={<ButtonLink variant="primary" href={`/app/projects/${p.id}/services`}>Pick what you run on</ButtonLink>}>
+                Tick the services, runtimes and tools this project uses.
+              </EmptyState>
             )}
-          </section>
+          </Panel>
         );
       })}
     </>,
@@ -149,17 +157,14 @@ const ProfileFields: FC<{ profile: Profile; dims?: Dimension[]; prefix?: string;
       const q = QUESTIONS[d];
       const def = defaults?.[d] ? q.options.find((o) => o.value === defaults[d])?.label : null;
       return (
-        <fieldset>
-          <legend>{q.label}</legend>
-          {q.options.map((o) => (
-            <label>
-              <input type="radio" name={`${prefix}${d}`} value={o.value} checked={profile[d] === o.value} /> {o.label}
-            </label>
-          ))}
-          <label>
-            <input type="radio" name={`${prefix}${d}`} value="" checked={!profile[d]} /> {defaults ? (def ? `Project default (${def.toLowerCase()})` : "Not sure") : "Not sure / it varies"}
-          </label>
-        </fieldset>
+        <Choice
+          legend={q.label}
+          name={`${prefix}${d}`}
+          options={[
+            ...q.options.map((o) => ({ value: o.value, label: o.label, checked: profile[d] === o.value })),
+            { value: "", label: defaults ? (def ? `Project default (${def.toLowerCase()})` : "Not sure") : "Not sure / it varies", checked: !profile[d] },
+          ]}
+        />
       );
     })}
   </>
@@ -190,29 +195,27 @@ app.get("/projects/new", async (c) => {
     c,
     "New project",
     <>
-      <h1>What do you run on?</h1>
-      <p class="muted">Start a project, then pick the services, runtimes and tools it uses. Have a public repo? Paste it and we'll pre-fill the list.</p>
-      <form method="post" action="/app/projects" class="card">
+      <PageHeader title="What do you run on?" description="Start a project, then pick the services, runtimes and tools it uses. Have a public repo? Paste it and we'll pre-fill the list." />
+      <form method="post" action="/app/projects" class="panel">
         <Csrf token={c.get("csrf")} />
-        <label for="name">Project name</label>
-        <input type="text" id="name" name="name" value="My stack" required maxlength={80} />
+        <Field id="name" label="Project name" value="My stack" required maxlength={80} />
         <details>
           <summary>Defaults for every dependency (optional)</summary>
           <p class="meta">Used when you don't answer for a dependency. Unknown means we assume a change affects you.</p>
           <ProfileFields profile={{}} />
         </details>
         <p class="row" style="margin-top:1rem">
-          <button class="primary" type="submit" name="next" value="pick">
+          <Button variant="primary" name="next" value="pick" iconEnd="arrow-right">
             Pick services
-          </button>
+          </Button>
         </p>
         <label for="repo">Or import a public GitHub repo</label>
-        <div class="row">
-          <input type="url" id="repo" name="repo" placeholder="https://github.com/owner/repo" style="flex:1;min-width:14rem" inputmode="url" />
-          <button type="submit" name="next" value="import">
+        <InputGroup>
+          <input type="url" id="repo" name="repo" placeholder="https://github.com/owner/repo" inputmode="url" />
+          <Button name="next" value="import" icon="github">
             Import
-          </button>
-        </div>
+          </Button>
+        </InputGroup>
         <p class="meta">
           We read up to 30 manifest files (package.json, pyproject.toml, Dockerfile, wrangler.toml…) through the GitHub API.
           {ctx.config.githubApp ? (
@@ -265,22 +268,26 @@ app.get("/projects/:id", async (c) => {
     c,
     project.name,
     <>
-      <p class="meta">
-        <a href="/app">Dashboard</a>
-      </p>
-      <div class="spread">
-        <h1>{project.name}</h1>
-        <span class="row">
-          <a class="btn primary" href={`/app/projects/${project.id}/services`}>
-            Add or remove services
-          </a>
-          <a class="btn" href={`/app/projects/${project.id}/profiles`}>
-            How you use them
-          </a>
-        </span>
-      </div>
+      <PageHeader
+        crumbs={[{ href: "/app", label: "Dashboard" }]}
+        title={project.name}
+        actions={
+          <>
+            <ButtonLink variant="primary" href={`/app/projects/${project.id}/services`}>
+              Add or remove services
+            </ButtonLink>
+            <ButtonLink href={`/app/projects/${project.id}/profiles`}>How you use them</ButtonLink>
+          </>
+        }
+      />
       <Flash msg={flash(c)} />
-      {list.length ? <StackView list={list} now={ctx.clock.now()} /> : <p>Nothing watched yet.</p>}
+      {list.length ? (
+        <StackView list={list} now={ctx.clock.now()} level={2} />
+      ) : (
+        <EmptyState title="Nothing watched yet" actions={<ButtonLink variant="primary" href={`/app/projects/${project.id}/services`}>Pick what you run on</ButtonLink>}>
+          Pick services from the catalog or import a repo below.
+        </EmptyState>
+      )}
       <h2>Repository</h2>
       {project.repoFullName ? (
         <form method="post" action={`/app/projects/${project.id}/import`} class="row">
@@ -297,26 +304,30 @@ app.get("/projects/:id", async (c) => {
       ) : (
         <form method="post" action={`/app/projects/${project.id}/import`} class="row">
           <Csrf token={c.get("csrf")} />
-          <input type="url" name="repo" placeholder="https://github.com/owner/repo" style="flex:1;min-width:14rem" required />
-          <button type="submit">Import a public repo</button>
+          <InputGroup>
+            <input type="url" name="repo" placeholder="https://github.com/owner/repo" aria-label="Public GitHub repo URL" required />
+            <Button icon="github">Import a public repo</Button>
+          </InputGroup>
           {ctx.config.githubApp && (await getAccount(c)).plan === "team" && <a href={`/app/github/connect?project=${project.id}`}>or a private repo</a>}
         </form>
       )}
       <h2>Project settings</h2>
-      <form method="post" action={`/app/projects/${project.id}`} class="card">
+      <form method="post" action={`/app/projects/${project.id}`} class="panel">
         <Csrf token={c.get("csrf")} />
-        <label for="name">Name</label>
-        <input type="text" id="name" name="name" value={project.name} required maxlength={80} />
+        <Field id="name" label="Name" value={project.name} required maxlength={80} />
         <p class="meta">Defaults for every dependency you haven't answered for:</p>
         <ProfileFields profile={project.defaultProfile} />
-        <button type="submit">Save</button>
+        <Button variant="primary">Save</Button>
       </form>
-      <form method="post" action={`/app/projects/${project.id}/delete`}>
-        <Csrf token={c.get("csrf")} />
-        <button class="danger" type="submit">
-          Delete this project
-        </button>
-      </form>
+      <Panel title="Danger zone" danger>
+        <form method="post" action={`/app/projects/${project.id}/delete`} class="spread">
+          <Csrf token={c.get("csrf")} />
+          <p class="muted" style="margin:0">Stops watching everything in this project. This can't be undone.</p>
+          <Button variant="danger" icon="trash">
+            Delete this project
+          </Button>
+        </form>
+      </Panel>
     </>,
     { noindex: true },
   );
@@ -377,16 +388,16 @@ app.get("/projects/:id/services", async (c) => {
     c,
     "Pick services",
     <>
-      <p class="meta">
-        <a href={`/app/projects/${project.id}`}>{project.name}</a>
-      </p>
-      <h1>What do you run on?</h1>
+      <PageHeader
+        crumbs={[{ href: "/app", label: "Dashboard" }, { href: `/app/projects/${project.id}`, label: project.name }]}
+        title="What do you run on?"
+        description="Tick the hosting, databases, APIs and runtimes this project uses. We watch their pricing, free tiers, terms, licences and end-of-life dates."
+      />
       {imp && counts && (
-        <p class="flash">
+        <Callout tone="ok">
           Imported {imp.repo}: we found {counts.catalog} services and tools{counts.runtimes ? `, ${counts.runtimes} runtimes` : ""} and {counts.packages} packages. The ones we recognised are ticked; untick anything you don't use.
-        </p>
+        </Callout>
       )}
-      <p class="muted">Tick the hosting, databases, APIs and runtimes this project uses. We watch their pricing, free tiers, terms, licences and end-of-life dates.</p>
       <form method="post" action={`/app/projects/${project.id}/services`}>
         <Csrf token={c.get("csrf")} />
         <input type="search" id="q" name="q" value={q} placeholder="Search, e.g. postgres, stripe, workers" aria-label="Search the catalog" autocomplete="off" />
@@ -395,30 +406,26 @@ app.get("/projects/:id/services", async (c) => {
             <h2>{g.label}</h2>
             <div class="grid">
               {g.entries.map((e) => (
-                <label class="pick" data-s={searchText(e)}>
-                  <input type="checkbox" name="ids" value={e.id} checked={have.has(e.id)} />
-                  <span>
-                    {e.name}
-                    {imported.has(e.id) && <span class="meta"> · found in repo</span>}
-                    {e.aliases?.length ? <span class="meta" style="display:block">{e.aliases.slice(0, 3).join(", ")}</span> : null}
-                  </span>
+                <PickTile name="ids" value={e.id} checked={have.has(e.id)} search={searchText(e)} label={e.name} note={imported.has(e.id) ? "found in repo" : undefined} sub={e.aliases?.length ? e.aliases.slice(0, 3).join(", ") : undefined}>
                   <input type="hidden" name="shown" value={e.id} />
-                </label>
+                </PickTile>
               ))}
             </div>
           </section>
         ))}
-        <p id="none" class="flash" hidden={groups.length > 0}>
+        <Callout id="none" hidden={groups.length > 0}>
           Not in the catalog yet. Send it as a request below and we'll consider adding it.
-        </p>
+        </Callout>
         <label for="request">Something missing? Tell us what you use</label>
         <input type="text" id="request" name="request" maxlength={200} placeholder="e.g. Hetzner Cloud, CockroachDB" value={groups.length === 0 ? q : ""} />
-        <div class="sticky row">
-          <button class="primary" type="submit">
+        <StickyBar>
+          <Button variant="primary" iconEnd="arrow-right">
             Save and continue
-          </button>
-          <a href={`/app/projects/${project.id}`}>Cancel</a>
-        </div>
+          </Button>
+          <ButtonLink variant="quiet" href={`/app/projects/${project.id}`}>
+            Cancel
+          </ButtonLink>
+        </StickyBar>
       </form>
       <script>{raw(PICKER_JS)}</script>
     </>,
@@ -471,12 +478,12 @@ app.get("/projects/:id/profiles", async (c) => {
     c,
     "How you use them",
     <>
-      <p class="meta">
-        <a href={`/app/projects/${project.id}`}>{project.name}</a>
-      </p>
-      <h1>How do you use them?</h1>
+      <PageHeader
+        crumbs={[{ href: "/app", label: "Dashboard" }, { href: `/app/projects/${project.id}`, label: project.name }]}
+        title="How do you use them?"
+        description="Optional. It lets us skip changes that don't apply to you (a self-hosting licence change when you use the hosted service, say). Anything you leave unanswered counts as affected."
+      />
       <Flash msg={flash(c)} />
-      <p class="muted">Optional. It lets us skip changes that don't apply to you (a self-hosting licence change when you use the hosted service, say). Anything you leave unanswered counts as affected.</p>
       {asked.length === 0 ? (
         <p>
           Nothing to ask: none of this project's services have usage questions. <a href={`/app/projects/${project.id}`}>Go to the project</a>.
@@ -485,17 +492,16 @@ app.get("/projects/:id/profiles", async (c) => {
         <form method="post" action={`/app/projects/${project.id}/profiles`}>
           <Csrf token={c.get("csrf")} />
           {asked.map(({ d, entry }) => (
-            <section class="card">
-              <h3 style="margin-top:0">{entry!.name}</h3>
+            <Panel title={entry!.name}>
               <ProfileFields profile={d.profile} dims={questionsFor(entry)} prefix={`d${d.id}_`} defaults={project.defaultProfile} />
-            </section>
+            </Panel>
           ))}
-          <div class="sticky row">
-            <button class="primary" type="submit">
-              Save
-            </button>
-            <a href={`/app/projects/${project.id}`}>Skip</a>
-          </div>
+          <StickyBar>
+            <Button variant="primary">Save</Button>
+            <ButtonLink variant="quiet" href={`/app/projects/${project.id}`}>
+              Skip
+            </ButtonLink>
+          </StickyBar>
         </form>
       )}
     </>,
@@ -612,27 +618,24 @@ app.get("/deps/:id", async (c) => {
     c,
     name,
     <>
-      <p class="meta">
-        <a href={`/app/projects/${project.id}`}>{project.name}</a>
-      </p>
-      <h1>
-        {name}
-        {dep.eolCycle ? ` ${dep.eolCycle}` : ""}
-      </h1>
+      <PageHeader
+        crumbs={[{ href: "/app", label: "Dashboard" }, { href: `/app/projects/${project.id}`, label: project.name }]}
+        title={`${name}${dep.eolCycle ? ` ${dep.eolCycle}` : ""}`}
+      />
       <Flash msg={flash(c)} />
-      <p class="meta">
-        {entry ? (
-          <a href={`/catalog/${entry.id}`}>In the catalog</a>
-        ) : dep.ecosystem === "eol" ? (
-          "Runtime"
-        ) : (
-          `${dep.ecosystem} package${dep.versionSpec ? ` ${dep.versionSpec}` : ""}`
-        )}
-        {" · "}
-        {dep.origin === "import" ? "found by repo import" : "added by you"}
-        {dep.foundIn?.length ? ` in ${dep.foundIn.slice(0, 4).join(", ")}` : ""}
-        {dep.rank ? ` · importance #${dep.rank}` : ""}
-      </p>
+      {muted && (
+        <Callout tone="warn" title={`Muted until ${fmtDate(dep.mutedUntil)}`}>
+          No alerts for this dependency until then. Unmute at the bottom of the page.
+        </Callout>
+      )}
+      <DataList
+        label="About this dependency"
+        items={[
+          { term: "What", value: entry ? <a href={`/catalog/${entry.id}`}>In the catalog</a> : dep.ecosystem === "eol" ? "Runtime" : `${dep.ecosystem} package${dep.versionSpec ? ` ${dep.versionSpec}` : ""}` },
+          { term: "Added", value: `${dep.origin === "import" ? "found by repo import" : "added by you"}${dep.foundIn?.length ? ` in ${dep.foundIn.slice(0, 4).join(", ")}` : ""}` },
+          ...(dep.rank ? [{ term: "Importance", value: <span class="num">#{dep.rank}</span> }] : []),
+        ]}
+      />
       <h2>Changes</h2>
       {evs.length ? (
         <ul class="plain">
@@ -641,32 +644,43 @@ app.get("/deps/:id", async (c) => {
           ))}
         </ul>
       ) : (
-        <p class="muted">No published changes yet.</p>
+        <EmptyState title="No published changes yet" level={3} icon="eye">
+          We check its sources several times a day and publish a note when something changes the deal.
+        </EmptyState>
       )}
       {dims.length > 0 && (
         <>
           <h2>How you use it</h2>
-          <form method="post" action={`/app/deps/${dep.id}/profile`} class="card">
+          <form method="post" action={`/app/deps/${dep.id}/profile`} class="panel">
             <Csrf token={c.get("csrf")} />
             <ProfileFields profile={dep.profile} dims={dims} defaults={project.defaultProfile} />
             <p class="meta">Assumed now: {assumed === "not set" ? "nothing yet, so every change counts as affecting you" : assumed}.</p>
-            <button type="submit">Save</button>
+            <Button>Save</Button>
           </form>
         </>
       )}
       <h2>What we watch</h2>
       {linked.length ? (
-        <ul>
-          {linked.map((s) => {
+        <DataTable
+          caption="Sources we watch"
+          columns={[{ label: "Kind" }, { label: "Source" }, { label: "Status" }]}
+          rows={linked.map((s) => {
             const href = safeHref(s.kind === "npm" ? `https://www.npmjs.com/package/${s.key}` : s.kind === "pypi" ? `https://pypi.org/project/${s.key}/` : s.kind === "github_repo" ? `https://github.com/${s.key}` : s.kind === "eol" ? `https://endoflife.date/${s.key.split("@")[0]}` : s.url);
-            return (
-              <li>
-                {s.kind}: {href ? <a href={href} rel="noopener noreferrer nofollow">{s.kind === "page" || s.kind === "feed" ? s.url : s.key}</a> : s.key}{" "}
-                {s.state !== "active" ? <span class="pill bad">{s.state}</span> : <span class="meta">{s.lastOkAt ? `checked ${fmtDate(s.lastOkAt)}` : "first check pending"}</span>}
-              </li>
-            );
+            return [
+              s.kind,
+              <span class="overflow-anywhere">
+                {href ? (
+                  <a href={href} rel="noopener noreferrer nofollow">
+                    {s.kind === "page" || s.kind === "feed" ? s.url : s.key}
+                  </a>
+                ) : (
+                  s.key
+                )}
+              </span>,
+              s.state !== "active" ? <Badge tone="act">{s.state}</Badge> : <span class="meta">{s.lastOkAt ? <>checked <time>{fmtDate(s.lastOkAt)}</time></> : "first check pending"}</span>,
+            ];
           })}
-        </ul>
+        />
       ) : (
         <p class="muted">{dep.ecosystem && !WATCHED_ECOSYSTEMS.has(dep.ecosystem) && dep.ecosystem !== "eol" ? `We don't watch ${dep.ecosystem} packages yet.` : "No sources yet."}</p>
       )}
@@ -677,19 +691,19 @@ app.get("/deps/:id", async (c) => {
           <form method="post" action={`/app/deps/${dep.id}/unmute`}>
             <Csrf token={c.get("csrf")} />
             <span>Muted until {fmtDate(dep.mutedUntil)}. </span>
-            <button type="submit">Unmute</button>
+            <Button>Unmute</Button>
           </form>
         ) : (
           <form method="post" action={`/app/deps/${dep.id}/mute`}>
             <Csrf token={c.get("csrf")} />
-            <button type="submit">Mute for 90 days</button>
+            <Button icon="bell-off">Mute for 90 days</Button>
           </form>
         )}
         <form method="post" action={`/app/deps/${dep.id}/delete`}>
           <Csrf token={c.get("csrf")} />
-          <button class="danger" type="submit">
+          <Button variant="danger" icon="trash">
             Stop watching
-          </button>
+          </Button>
         </form>
       </div>
     </>,

@@ -13,10 +13,32 @@ import { auth } from "./auth";
 import { billing, stripeWebhook } from "./billing";
 import { github } from "./github";
 import { page } from "./layout";
+import { ButtonLink, EmptyState } from "./ui";
 import { pub } from "./public";
 import { sessionMiddleware, type WebEnv } from "./session";
 import { site } from "./site";
 import { team } from "./team";
+
+const NotFound = ({ signedIn }: { signedIn: boolean }) => (
+  <EmptyState
+    page
+    icon="search"
+    title="Not found"
+    actions={
+      <>
+        <ButtonLink variant="primary" href={signedIn ? "/app" : "/"}>
+          {signedIn ? "Your dashboard" : "Home"}
+        </ButtonLink>
+        <ButtonLink href="/catalog">Catalog</ButtonLink>
+        <ButtonLink href="/events" variant="quiet">
+          Recent changes
+        </ButtonLink>
+      </>
+    }
+  >
+    There's no page at this address. It may have moved, or the link may be mistyped.
+  </EmptyState>
+);
 
 export function createApp(makeCtx: (env: AppEnv) => Ctx) {
   const web = new Hono<WebEnv>();
@@ -57,6 +79,6 @@ export function createApp(makeCtx: (env: AppEnv) => Ctx) {
   web.route("/app", appRoutes);
   web.route("/admin/staging", stagingRoutes);
   web.route("/admin", adminRoutes);
-  web.notFound((c) => (c.get("csrf") !== undefined ? page(c, "Not found", <><h1>Not found</h1><p><a href="/">Home</a></p></>, { status: 404, noindex: true }) : c.text("Not found", 404)));
+  web.notFound((c) => (c.get("csrf") !== undefined ? page(c, "Not found", <NotFound signedIn={!!c.get("user")} />, { status: 404, noindex: true }) : c.text("Not found", 404)));
   return web;
 }

@@ -6,7 +6,9 @@ import type { FC } from "hono/jsx";
 import { FREE_PROJECTS, PRICES, TEAM_SIZE } from "../billing/plans";
 import { CATALOG } from "../catalog/entries";
 import { EventRow, publishedEvents } from "./events-view";
+import { Icon } from "./icons";
 import { Csrf, page } from "./layout";
+import { Badge, NoteCard } from "./ui";
 import type { WebContext, WebEnv } from "./session";
 
 export const site = new Hono<WebEnv>();
@@ -26,25 +28,30 @@ const DEMO_QUOTE = "We will support the Deno runtime for another year with month
 
 /** A static example of an alert, from SPEC scenario 1 (the Deno announcement of 2026-10-09). */
 const ExampleAlert: FC = () => (
-  <figure class="card example" aria-label="Example alert">
-    <p class="meta" style="margin:0 0 .4rem">Example alert · email</p>
-    <p style="margin:0">
-      <span class="pill bad">end of life</span> <strong>Deno: development of the runtime ends in about a year</strong>
-    </p>
-    <p>Deno is joining Cloudflare. The runtime gets monthly bug-fix and security releases for one more year, then development stops. Deno Deploy shuts down in six months.</p>
-    <blockquote>
-      {DEMO_QUOTE}{" "}
-      <a href="https://deno.com/blog/cloudflare" rel="noopener noreferrer">
-        deno.com/blog/cloudflare
-      </a>
-    </blockquote>
-    <p>
-      <strong>Takes effect:</strong> 2027-10 · <strong>Affects you because:</strong> you run Deno in production in “api”.
-    </p>
-    <p style="margin-bottom:0">
-      <strong>Options:</strong> Node.js 24 LTS (medium effort) · Bun (medium) · Cloudflare Workers (high)
-    </p>
-  </figure>
+  <NoteCard
+    label="Example alert"
+    bar={
+      <>
+        <span>
+          <Icon name="mail" /> Example alert · email
+        </span>
+        <time datetime="2026-10-09">2026-10-09</time>
+      </>
+    }
+    kind={<Badge tone="act" icon="clock">End of life</Badge>}
+    subject="Deno"
+    title="Development of the runtime ends in about a year"
+    summary="Deno is joining Cloudflare. The runtime gets monthly bug-fix and security releases for one more year, then development stops. Deno Deploy shuts down in six months."
+    quote={DEMO_QUOTE}
+    quoteHref="https://deno.com/blog/cloudflare"
+    facts={[{ term: "Takes effect", value: "2027-10", highlight: true }]}
+    because={<>You run Deno in production in “api”.</>}
+    options={[
+      { name: "Node.js 24 LTS", effort: "medium" },
+      { name: "Bun", effort: "medium" },
+      { name: "Cloudflare Workers", effort: "high" },
+    ]}
+  />
 );
 
 const WATCH = [
