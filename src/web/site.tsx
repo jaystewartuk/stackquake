@@ -12,7 +12,9 @@ import type { WebContext, WebEnv } from "./session";
 export const site = new Hono<WebEnv>();
 
 /** Where people write to. Mail to this address is routed to the owner (Cloudflare Email Routing). */
-export const CONTACT = "hello@stackquake.com";
+export const CONTACT = "support@stackquake.com";
+/** Role addresses that forward to the owner (Cloudflare Email Routing); security.txt names this one. */
+export const SECURITY_CONTACT = "security@stackquake.com";
 export const LEGAL_UPDATED = "2026-10-11";
 export const OPERATOR = "Jay Stewart";
 /** Geographic address (Electronic Commerce Regulations 2002, reg. 6): a business address service, once the owner has one. */
@@ -427,7 +429,7 @@ site.get("/privacy", (c) =>
 
       <h2>Who else handles data</h2>
       <ul>
-        <li>Cloudflare (hosting, database, storage, request logs and our hello@ email forwarding)</li>
+        <li>Cloudflare (hosting, database, storage, request logs and our email forwarding)</li>
         <li>Resend (sending email: your address and the alert's content)</li>
         <li>GitHub (sign-in and repo import, when you use them)</li>
         <li>Slack (your alerts, if you connect a webhook)</li>
@@ -485,6 +487,11 @@ site.get("/bot", (c) =>
       <p>To ask us to stop or slow down, disallow it in robots.txt or write to {CONTACT}.</p>
     </article>,
   ),
+);
+
+// RFC 9116. Expires must be renewed yearly.
+site.get("/.well-known/security.txt", (c) =>
+  c.text(`Contact: mailto:${SECURITY_CONTACT}\nExpires: 2027-10-11T00:00:00.000Z\nPreferred-Languages: en\nCanonical: https://stackquake.com/.well-known/security.txt\n`),
 );
 
 site.get("/robots.txt", (c) => c.text("User-agent: *\nDisallow: /app\nDisallow: /admin\nDisallow: /a/\nDisallow: /auth\n\nSitemap: https://stackquake.com/sitemap.xml\n"));

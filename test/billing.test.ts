@@ -308,6 +308,7 @@ describe("public pages", () => {
     expect(pricing).toContain('href="/signin?next=/app/settings"');
     for (const p of ["/terms", "/privacy", "/bot"]) expect((await b.get(p)).status).toBe(200);
     expect(await (await b.get("/robots.txt")).text()).toContain("Disallow: /app");
+    expect(await (await b.get("/.well-known/security.txt")).text()).toContain("Contact: mailto:security@stackquake.com");
     const sitemap = await (await b.get("/sitemap.xml")).text();
     expect(sitemap).toContain("<loc>https://stackquake.com/catalog/cloudflare-workers</loc>");
 

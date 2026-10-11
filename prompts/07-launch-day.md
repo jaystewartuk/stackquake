@@ -31,7 +31,7 @@ and deployed on branch `m6-launch` (merge it to `main` first if it isn't). What 
    submit"). Then, with the owner's explicit approval of the live product and prices ($19/month,
    $190/year, USD, tax included): in live mode, run the Managed Payments setup (Settings → Managed
    Payments; accepting its terms is the owner's click), set "Include tax in prices" = Yes, set the
-   support email to hello@stackquake.com, and repeat the M6 test-mode setup (product with tax code
+   support email to support@stackquake.com (already set on the account; check it), and repeat the M6 test-mode setup (product with tax code
    `txcd_10103001`, prices with lookup keys, webhook to
    `https://stackquake.com/stripe/webhook`, Portal configuration, a restricted key
    `stackquake-production-worker` with Customers, Checkout Sessions, Customer Portal and

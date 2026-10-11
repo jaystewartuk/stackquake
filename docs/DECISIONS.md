@@ -851,7 +851,7 @@ Read this after SPEC.md; where they disagree, this file wins.
   alert (the real Deno quote), what we watch, the catalog's common entries, "Where it differs" with
   three competitor quotes **re-read on the live pages** (docs/COMPETITORS.md, "Re-check before
   launch"; GitHub's new PR-time licence-compliance preview noted there), and the plans.
-- `/pricing`, `/terms`, `/privacy` (operator: Jay Stewart; contact hello@stackquake.com), `/bot` (the
+- `/pricing`, `/terms`, `/privacy` (operator: Jay Stewart; contact support@stackquake.com), `/bot` (the
   User-Agent's URL had no page), `robots.txt`, `sitemap.xml` (catalog and up to 500 events).
   **The terms are a plain-language draft, not reviewed by a lawyer** (SPEC §14 Q5); have them
   reviewed before charging real customers.
@@ -912,4 +912,15 @@ Read this after SPEC.md; where they disagree, this file wins.
 - **Still owner actions**: a business address service (the site says "being set up" until
   `ADDRESS` in `src/web/site.tsx` is filled; reg. 6 needs it); the **ICO data protection fee**
   (tier 1, about £52 a year; a sole trader processing customers' personal data must pay unless
-  exempt); set the Stripe support email to hello@stackquake.com in live public details.
+  exempt).
+
+### Email addresses (2026-10-11)
+- One prefix per purpose, the same across the owner's products (Beckon already uses support@):
+  **support@stackquake.com** is the customer contact on the site (`CONTACT`), in Stripe's public
+  details and the Managed Payments escalation address (Stripe may refund after 48 hours without a
+  reply). hello@ keeps forwarding so nothing sent earlier bounces.
+- Role addresses forwarding to the owner (Cloudflare Email Routing, added through the dashboard's
+  API): postmaster@, abuse@ (RFC 2142 / mail operators), hostmaster@, webmaster@, security@ (named in
+  `/.well-known/security.txt`, RFC 9116, renew `Expires` by 2027-10-11), privacy@, billing@, dmarc@
+  (for DMARC aggregate reports once `_dmarc` gets `rua=mailto:dmarc@stackquake.com`, a DNS change for
+  the owner to approve). No catch-all: it mostly attracts spam.

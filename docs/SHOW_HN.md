@@ -67,7 +67,7 @@ Some things that were harder than expected:
 - [ ] Golden set passes on production's models; review gate on (SPEC §12).
 - [ ] Sign-up to populated dashboard under 2 minutes in production (timed in M6).
 - [ ] At least a few published events on /events, so the public feed isn't empty.
-- [ ] hello@stackquake.com forwards (Cloudflare Email Routing).
+- [ ] support@stackquake.com forwards (Cloudflare Email Routing; send it a test message).
 - [ ] Watch Resend's daily limit (100/day on the free plan): a launch day can pass it with
       magic links alone. Upgrade Resend first if sign-ups look likely to pass ~80 a day.
 - [ ] Owner online for a few hours after posting to answer comments.
