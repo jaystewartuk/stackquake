@@ -932,3 +932,23 @@ Read this after SPEC.md; where they disagree, this file wins.
   touched: project-d.example and project-g.example (and jaystewart.co.uk/.dev) receive mail elsewhere; role
   addresses there are aliases. Stackquake's Stripe support email is
   support@stackquake.com.
+
+### Production CPU: moved to Workers Paid (2026-10-11, owner approved)
+- **What production showed** (Workers analytics through the dashboard's GraphQL, 2026-10-11 00:00–20:53
+  UTC): 2,609 invocations, 2,364 ok, **244 `exceededResources`** (the CPU limit), 1 exception. Before the
+  first catalog sync at 06:07 the ticks had nothing to do (CPU p50 1–5 ms). From 07:00 on, **20–24 of the
+  24 ticks every hour were killed**: 9.4% of all invocations, nearly 100% of cron ticks. Jobs did finish
+  before the kills (112 of 117 sources had been polled once), but 52 polls and the one classify and
+  summarise step were on their 5th attempt, about to be parked. Web requests were unaffected.
+- That is far past SPEC §4.2's 1% line. Staying on Free would have meant dropping most HTML pricing
+  pages (the product's main point) with no guarantee the rest fits, so the owner moved the account to
+  **Workers Paid ($5/month**, 30 s CPU per invocation, 30 M CPU-ms and 10 M requests a month included;
+  the plan is account-wide, so another-project benefits too).
+- Then: `JOBS_PER_TICK` 3 → **20**, `ALERT_JOBS_PER_TICK` 2 → **10**, and the HEAVY token became
+  `HEAVY_PER_TICK` (1 → **10**; `HostGate` now counts tokens). Website hosts still get one request per
+  tick (politeness). The "a job with ≥ 2 attempts runs alone" rule stays. The 54 jobs in backoff were
+  reset (attempts 0, due now); none were parked.
+- **First ticks on Paid**: 20 polls claimed and completed per tick, **192–298 ms CPU** and 3–8 s wall each,
+  no errors; the stuck summarise and classify steps ran. So a full tick costs ~10–15 ms of CPU per poll in
+  production, well above the profiler's local estimates, which is why Free could never fit. Budget: 576
+  ticks a day × ~250 ms ≈ 4.3 M CPU-ms a month, about 15% of the included 30 M.

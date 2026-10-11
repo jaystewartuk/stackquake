@@ -10,18 +10,10 @@ move them by clipboard (see DECISIONS M5 "Secrets" and M6 "Billing").
 Read docs/DECISIONS.md M5 and M6 first (it wins over SPEC.md), then docs/SHOW_HN.md. M6 is built
 and deployed on branch `m6-launch` (merge it to `main` first if it isn't). What is left:
 
-1. **Production CPU decision (numbers).** M6 shipped before production's first catalog sync
-   (06:07 UTC on 2026-10-11), so it only saw ~1 hour of idle ticks (158 invocations, 0 errors,
-   CPU P99 52 ms). Read at least one full day after that sync. The dashboard's GraphQL works from
-   the Cloudflare dashboard tab: `fetch('/api/v4/graphql', …)` with
-   `workersInvocationsAdaptive(filter:{scriptName:"stackquake", datetime_geq, datetime_leq})`,
-   dimensions `date`/`datetimeHour` and `status`, quantiles `cpuTimeP50/P99` (ranges ≤ 1 week).
-   Count `exceededCpu` (and `exceededResources`) per day against all invocations. Also open
-   `/admin/sources` on stackquake.com (the owner's account is signed in through GitHub in
-   Chrome) for parked polls; watch sentry.io/pricing, the Twilio pricing pages, the Rust and
-   Elastic feeds. If any day is over 1%: recommend Workers Paid ($5/month), ask the owner, then
-   raise `JOBS_PER_TICK` and drop the HEAVY one-per-tick rule (DECISIONS M1/M4). Otherwise drop or
-   swap the worst sources. Record the numbers either way.
+1. **Production CPU: decided in M6** (Workers Paid since 2026-10-11, DECISIONS M6 "Production CPU").
+   Check a day of ticks on Paid: `exceededResources` should be 0, CPU per tick well under 30 s, monthly
+   CPU-ms well under the included 30 M; `/admin/sources` (or D1) for failing or blocked sources. Tune
+   `JOBS_PER_TICK`/`HEAVY_PER_TICK` if feeds or pages fall behind.
 2. **Re-time sign-up in production** once the sync has linked sources (the M6 run showed "no
    sources yet"). The owner's production user exists (GitHub); time a fresh project from
    "New project" to a populated dashboard, or ask the owner to time a brand-new sign-up on a
