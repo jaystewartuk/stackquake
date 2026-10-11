@@ -35,7 +35,7 @@ const port = await freePort();
 // Passes GITHUB_TOKEN through when it is set (raises the GitHub API limit from 60 to 5,000/h). As a
 // --var, because wrangler ignores process env whenever a .dev.vars file exists.
 const tokenVar = process.env.GITHUB_TOKEN ? ["--var", `GITHUB_TOKEN:${process.env.GITHUB_TOKEN}`] : [];
-const wrangler = spawn("npx", ["wrangler", "dev", "--port", String(port), "--ip", "127.0.0.1", "--var", "DEV_ROUTES:1", ...tokenVar, "--show-interactive-dev-session=false"], {
+const wrangler = spawn("npx", ["wrangler", "dev", "--port", String(port), "--ip", "127.0.0.1", "--local-upstream", `127.0.0.1:${port}`, "--var", "DEV_ROUTES:1", ...tokenVar, "--show-interactive-dev-session=false"], {
   stdio: ["ignore", "pipe", "pipe"],
 });
 let log = "";

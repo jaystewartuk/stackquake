@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build:catalog": "node scripts/build-catalog.mjs",
-    "dev": "npm run build:catalog && wrangler dev",
+    "dev": "npm run build:catalog && wrangler dev --local-upstream localhost:8787",
     "test": "npm run build:catalog && vitest run",
     "typecheck": "npm run build:catalog && tsc --noEmit",
     "db:generate": "drizzle-kit generate",

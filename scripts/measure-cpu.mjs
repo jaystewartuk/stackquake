@@ -96,7 +96,7 @@ process.on("exit", () => stub.close());
 const [port, inspectorPort] = [await freePort(), await freePort()];
 const wrangler = spawn(
   "npx",
-  ["wrangler", "dev", "--test-scheduled", "--port", String(port), "--ip", "127.0.0.1", "--inspector-port", String(inspectorPort), "--persist-to", persist,
+  ["wrangler", "dev", "--test-scheduled", "--port", String(port), "--ip", "127.0.0.1", "--local-upstream", `127.0.0.1:${port}`, "--inspector-port", String(inspectorPort), "--persist-to", persist,
     "--var", `JOBS_PER_TICK:${JOBS_PER_TICK}`, "--var", "DEV_ROUTES:1", "--var", `ANTHROPIC_BASE_URL:http://127.0.0.1:${stubPort}`, "--var", "ANTHROPIC_API_KEY:stub",
     "--var", `ALERT_JOBS_PER_TICK:${ALERT_JOBS_PER_TICK}`, "--var", `RESEND_API_BASE:http://127.0.0.1:${stubPort}/resend`, "--var", "RESEND_API_KEY:stub", "--var", "LINK_SECRET:measure-link-secret-0123456789",
     "--var", `GITHUB_API_BASE:http://127.0.0.1:${stubPort}/gh`, "--var", `GITHUB_RAW_BASE:http://127.0.0.1:${stubPort}/raw`,
