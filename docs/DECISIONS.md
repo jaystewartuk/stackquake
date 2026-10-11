@@ -952,3 +952,14 @@ Read this after SPEC.md; where they disagree, this file wins.
   no errors; the stuck summarise and classify steps ran. So a full tick costs ~10–15 ms of CPU per poll in
   production, well above the profiler's local estimates, which is why Free could never fit. Budget: 576
   ticks a day × ~250 ms ≈ 4.3 M CPU-ms a month, about 15% of the included 30 M.
+
+## UI redesign (started 2026-10-11)
+
+- The owner asked for a world-class UI and delegated the choices ("you choose"). It runs unattended on the
+  devbox (Hetzner, Tailscale only; see the Beckon repo's docs/devbox.md) as a Beckon chain of five prompts,
+  `prompts/08-ui-*.md`, sharing `prompts/ui/BRIEF.md`: audit and direction, foundation, public pages, app,
+  polish. Each stage is a fresh Claude Code session; the check after each is `npm run typecheck && npm test`.
+- The direction is chosen by stage 1 from three sketches, not up front: it should come from the audit.
+- The box holds no secrets for this repo: no GitHub token, no Cloudflare login, a `.dev.vars` with no real
+  keys. The repo reaches it through a bare repo on the box (`dev@devbox:git/repo.git`, pushed from the
+  laptop over SSH); the work comes back the same way and is reviewed on the laptop before main or deploy.
