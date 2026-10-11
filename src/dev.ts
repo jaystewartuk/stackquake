@@ -12,6 +12,8 @@ import { extractDiff } from "./watch/extract-diff";
 import { recordEvent } from "./watch/events";
 import { loadSnapshot, pollSafely, snapshotKey, type PollReport } from "./watch/poll";
 import { gzip, sha256Hex, utf8 } from "./util";
+import { seedDemo } from "./dev-seed";
+import { signLink, type LinkAction } from "./alerts/links";
 import { randomToken, SESSION_MS } from "./web/session";
 
 export const devRoutes = new Hono<{ Bindings: AppEnv }>();
@@ -207,4 +209,15 @@ devRoutes.post("/test-email", async (c) => {
 devRoutes.get("/sources", async (c) => {
   const ctx = makeCtx(c.env);
   return c.json(await ctx.db.select().from(sources).all());
+});
+
+/** Wipes users, projects, events and alerts, then writes the demo data (src/dev-seed.ts; `npm run ui:seed`). */
+devRoutes.post("/seed", async (c) => c.json(await seedDemo(makeCtx(c.env))));
+
+/** A signed one-click alert link (/a/{token}) for screenshots of the confirm page. */
+devRoutes.get("/link", async (c) => {
+  const ctx = makeCtx(c.env);
+  if (!ctx.config.linkSecret) return c.json({ error: "LINK_SECRET is not set" }, 400);
+  const token = await signLink(ctx.config.linkSecret, (c.req.query("action") ?? "mute") as LinkAction, Number(c.req.query("id") ?? "1"), ctx.clock.now());
+  return c.json({ path: `/a/${token}` });
 });

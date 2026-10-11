@@ -16,7 +16,10 @@
     "deploy:production": "npm run typecheck && npm test && npm run db:migrate:production && wrangler deploy",
     "poll": "npm run build:catalog --silent && node scripts/poll.mjs",
     "measure:cpu": "npm run build:catalog --silent && node scripts/measure-cpu.mjs",
-    "eval": "npm run build:catalog --silent && vitest run --config vitest.eval.config.ts"
+    "eval": "npm run build:catalog --silent && vitest run --config vitest.eval.config.ts",
+    "ui:seed": "node scripts/ui/seed.mjs",
+    "ui:shots": "node scripts/ui/shots.mjs",
+    "ui:audit": "node scripts/ui/audit.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",
@@ -24,11 +27,16 @@
     "hono": "^4.13.13"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@cloudflare/vitest-plugin": "^1.4.0",
     "@cloudflare/workers-types": "^5.20261010.1",
     "@vitest/runner": "^4.1.11",
     "@vitest/snapshot": "^4.1.11",
+    "axe-core": "^4.14.0",
+    "chrome-launcher": "1.2.2",
     "drizzle-kit": "^0.31.11",
+    "lighthouse": "^13.5.0",
+    "playwright": "1.64.0",
     "typescript": "^7.0.2",
     "vitest": "^4.1.11",
     "wrangler": "^4.149.0",

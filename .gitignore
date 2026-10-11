@@ -7,3 +7,4 @@ src/catalog/catalog.gen.json
 .data/
 .eval/
 .claude/worktrees/
+.ui/

@@ -963,3 +963,18 @@ Read this after SPEC.md; where they disagree, this file wins.
 - The box holds no secrets for this repo: no GitHub token, no Cloudflare login, a `.dev.vars` with no real
   keys. The repo reaches it through a bare repo on the box (`dev@devbox:git/repo.git`, pushed from the
   laptop over SSH); the work comes back the same way and is reviewed on the laptop before main or deploy.
+- Stage 1 tooling: demo data comes from a local-only `POST /__dev/seed` (src/dev-seed.ts) rather than SQL files, so it
+  reuses the real dep and source helpers and stays in step with the schema. It wipes all users, projects, events and alerts
+  in the local D1 (never anywhere else: `/__dev` needs `DEV_ROUTES=1` and localhost). Dates are fixed around 2026-10-11 so
+  before/after shots match; "changed recently" is still judged against today, so re-check the seed if stages run after
+  mid-November 2026.
+- Screenshots sign in through the existing `/__dev/session` route (a real session row and cookie) instead of reading magic
+  links from the log: same pages, no rate limits; the sign-in form itself is still shot, submitted, as "signin-sent".
+- `.dev.vars` on the box also has a random `LINK_SECRET` (to shoot the one-click alert page) and a random
+  `CHANNEL_KEY` (so Settings shows the Slack form); all generated locally, none real. Not `APP_ORIGIN`: vitest's Workers pool reads `.dev.vars` and three tests expect it unset.
+- Playwright pinned to exactly 1.64.0 (the Chromium build already cached on the box); Lighthouse runs in Chrome launched by
+  chrome-launcher with that Chromium, the session cookie set over CDP (Chrome ignores a Cookie header in extraHeaders).
+- Direction: "Seismograph", a calm instrument (docs/design/DIRECTION.md). Chosen over an editorial serif direction (weak for
+  the dashboard; system serifs vary, a webfont costs 40–80 KB) and a bold status board (loud, and its "magnitude" would be a
+  score the pipeline does not compute). System fonts only; severities (act/watch/quiet) derived from existing event kinds
+  and alert matches, no new data.
