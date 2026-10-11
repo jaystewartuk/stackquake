@@ -835,8 +835,13 @@ Read this after SPEC.md; where they disagree, this file wins.
   Checkout (the browser extension may not drive checkout.stripe.com, so no card was typed); a
   subscription created by API with `pm_card_visa` on that same customer arrived as a signed
   webhook and set Team (monthly, active, period end); `cancel_at_period_end` set the flag; the
-  `deleted` event set Free. "Billing, invoices and cancelling" opens the Portal. Not exercised live:
-  `checkout.session.completed` (covered by tests).
+  `deleted` event set Free. "Billing, invoices and cancelling" opens the Portal. Then the owner
+  paid a real test Checkout with card 4242: `checkout.session.completed` set Team.
+- **Bug found by that checkout, fixed**: Stripe creates the subscription (and its `created` event)
+  before the session completes, so the checkout's later timestamp made `subscription.created`
+  look stale; it was dropped and the interval and period end never saved. Checkout no longer moves
+  `plan_event_at` (it still respects it: a checkout older than a `deleted` changes nothing).
+  Beckon's `src/lib/billing.ts` has the same ordering logic and likely the same bug.
 - **Live mode is not set up**: it needs the owner to activate the account (business and bank
   details) and approve the live product and prices. Then the same script and a live restricted key
   for production.
@@ -868,3 +873,9 @@ Read this after SPEC.md; where they disagree, this file wins.
   browser extension may not act on github.com) and the agent's own turn latency; the in-app steps
   after GitHub took under a minute. The dashboard showed the 5 services as "no sources yet",
   because production's first catalog sync is the 06:07 UTC daily run. Re-time after that.
+- **Private import against a real private repo** (staging, owner's OK, 2026-10-11): the owner
+  authorised the staging GitHub App and installed it on one private repo (the extension may not act
+  on github.com, so those clicks were the owner's); the repo list showed it; the import read it
+  through the installation token in about 15 s (33 root entries, 22 manifests, 53 npm packages
+  ranked) and found 12 catalog services, 2 runtimes and 57 packages; the project page groups them
+  by risk. The first attempt had stopped on GitHub's authorise page, not in our code.
