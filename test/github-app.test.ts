@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { GITHUB_API } from "../src/context";
-import { githubInstallations, imports, jobs, projects } from "../src/db/schema";
+import { githubInstallations, imports, jobs, projects, users } from "../src/db/schema";
 import { appJwt, GithubAppError, installationToken, pkcs1ToPkcs8, verifyWebhookSignature, type GithubAppConfig } from "../src/github/app";
 import { handlePush, isManifestPath } from "../src/github/webhook";
 import { startImport } from "../src/stack/import";
@@ -140,6 +140,7 @@ describe("webhook", () => {
 
   it("re-imports connected projects on a default-branch push that touches a manifest", async () => {
     const { ctx } = await webCtx();
+    await ctx.db.insert(users).values({ id: 1, email: "team@example.com", plan: "team", createdAt: 0 }); // private repos are a Team feature
     const [p] = await ctx.db.insert(projects).values({ userId: 1, name: "x", repoFullName: "acme/private", githubInstallationId: 42, createdAt: 0 }).returning();
     // Same repo, imported publicly (no installation): not this webhook's business.
     await ctx.db.insert(projects).values({ userId: 2, name: "y", repoFullName: "acme/private", createdAt: 0 });
@@ -192,6 +193,9 @@ describe("private repo import through the GitHub App", () => {
     http.set(`${GITHUB_API}/user/installations/42/repositories?per_page=100`, { repositories: [{ full_name: "acme/private", private: true }] });
     const b = new Browser(ctx);
     await b.signIn("dev@example.com");
+    expect(await b.html("/app/projects/new")).toContain("Private repos through our GitHub App are on the");
+    expect((await b.get("/app/github/connect")).status).toBe(402);
+    await ctx.db.update(users).set({ plan: "team" }).where(eq(users.email, "dev@example.com"));
 
     expect(await b.html("/app/projects/new")).toContain('href="/app/github/connect"');
     const go = await b.get("/app/github/connect");

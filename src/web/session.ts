@@ -4,6 +4,7 @@
 import { eq, sql } from "drizzle-orm";
 import type { Context, MiddlewareHandler } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import { accountOf, type Account } from "../billing/plans";
 import type { Ctx } from "../context";
 import { sessions, users, type User } from "../db/schema";
 import type { AppEnv } from "../env";
@@ -11,9 +12,19 @@ import { DAY, safeEqual, sha256Hex } from "../util";
 
 export type WebEnv = {
   Bindings: AppEnv;
-  Variables: { ctx: Ctx; user: User | null; csrf: string };
+  Variables: { ctx: Ctx; user: User | null; csrf: string; account?: Account };
 };
 export type WebContext = Context<WebEnv>;
+
+/** The signed-in user's plan and project scope (src/billing/plans.ts), loaded once per request. */
+export async function getAccount(c: WebContext): Promise<Account> {
+  let a = c.get("account");
+  if (!a) {
+    a = await accountOf(c.get("ctx"), c.get("user")!);
+    c.set("account", a);
+  }
+  return a;
+}
 
 export const SESSION_COOKIE = "sq_session";
 export const CSRF_COOKIE = "sq_csrf";

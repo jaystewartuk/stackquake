@@ -1,3 +1,4 @@
+import { STRIPE_API, type StripeConfig } from "./billing/stripe";
 import type { GithubAppConfig } from "./github/app";
 import type { Llm } from "./llm/llm";
 import type { BlobStore, Clock, Db, Http, Mailer } from "./ports";
@@ -32,6 +33,8 @@ export interface Config {
   adminEmails: string[];
   /** GitHub App for private repos (M5). Unset: private import is hidden. */
   githubApp?: GithubAppConfig;
+  /** Stripe (M6). Unset: everyone stays on Free and the upgrade buttons are hidden. */
+  stripe?: StripeConfig;
 }
 
 /** Everything a step needs. Built once per invocation. */
@@ -73,6 +76,11 @@ export interface ConfigEnv {
   GITHUB_APP_CLIENT_SECRET?: string;
   GITHUB_APP_PRIVATE_KEY?: string;
   GITHUB_WEBHOOK_SECRET?: string;
+  STRIPE_SECRET_KEY?: string;
+  STRIPE_WEBHOOK_SECRET?: string;
+  STRIPE_PRICE_MONTHLY?: string;
+  STRIPE_PRICE_YEARLY?: string;
+  STRIPE_API_BASE?: string;
 }
 
 export const DEFAULT_ORIGIN = "https://stackquake.com";
@@ -106,6 +114,10 @@ export function configFromEnv(env: ConfigEnv): Config {
     githubApp:
       env.GITHUB_APP_SLUG && env.GITHUB_APP_CLIENT_ID && env.GITHUB_APP_CLIENT_SECRET && env.GITHUB_APP_PRIVATE_KEY && env.GITHUB_WEBHOOK_SECRET
         ? { slug: env.GITHUB_APP_SLUG, clientId: env.GITHUB_APP_CLIENT_ID, clientSecret: env.GITHUB_APP_CLIENT_SECRET, privateKey: env.GITHUB_APP_PRIVATE_KEY, webhookSecret: env.GITHUB_WEBHOOK_SECRET }
+        : undefined,
+    stripe:
+      env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET && env.STRIPE_PRICE_MONTHLY && env.STRIPE_PRICE_YEARLY
+        ? { secretKey: env.STRIPE_SECRET_KEY, webhookSecret: env.STRIPE_WEBHOOK_SECRET, priceMonthly: env.STRIPE_PRICE_MONTHLY, priceYearly: env.STRIPE_PRICE_YEARLY, api: (env.STRIPE_API_BASE || STRIPE_API).replace(/\/$/, "") }
         : undefined,
   };
 }

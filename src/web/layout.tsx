@@ -106,7 +106,7 @@ export const safeHref = (url: string | null | undefined) => (url && /^https?:\/\
 
 export const fmtDate = (ms: number | null | undefined) => (ms ? new Date(ms).toISOString().slice(0, 10) : "");
 
-type PageOpts = { status?: 200 | 400 | 403 | 404 | 429 | 503; noindex?: boolean; head?: Child; description?: string };
+type PageOpts = { status?: 200 | 400 | 402 | 403 | 404 | 429 | 503; noindex?: boolean; head?: Child; description?: string };
 
 /** Renders a page in the shared layout with the request's user and CSRF token. */
 export function page(c: WebContext, title: string, body: Child, opts: PageOpts = {}) {

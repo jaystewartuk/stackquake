@@ -6,10 +6,12 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { raw } from "hono/html";
 import type { FC } from "hono/jsx";
+import { canCreateProject, FREE_PROJECTS, PRICES } from "../billing/plans";
+import { cancelSubscriptionNow } from "../billing/stripe";
 import { CATALOG } from "../catalog/entries";
 import { encrypt } from "../alerts/secretbox";
 import { postSlack, validSlackWebhook } from "../alerts/slack";
-import { alerts, catalogRequests, channels, deps, FEEDBACK, imports, jobs, magicLinks, projects, sessions, sources, users, type Dep, type Feedback, type Profile, type Project } from "../db/schema";
+import { alerts, catalogRequests, channels, deps, FEEDBACK, imports, jobs, magicLinks, projects, sessions, sources, teamMembers, users, type Dep, type Feedback, type Profile, type Project } from "../db/schema";
 import { addCatalogDeps, deleteDeps } from "../stack/deps";
 import { importJobKey, kickImport, latestImport, parseRepoInput, startImport, type ImportState } from "../stack/import";
 import { describeProfile, DIMENSIONS, effectiveProfile, profileFromForm, QUESTIONS, questionsFor, type Dimension } from "../stack/profile";
@@ -19,8 +21,8 @@ import { magicLinkAllowed, normaliseEmail, sendMagicLink, validEmail } from "./a
 import { catalogEntry, exactMatch, groupByCategory, searchCatalog, searchText } from "./catalog-view";
 import { EventRow, publishedEvents } from "./events-view";
 import { Csrf, fmtDate, page, safeHref } from "./layout";
-import { endSession, requireUser, type WebContext, type WebEnv } from "./session";
-import { depName, loadDeps, projectDeps, StackView, WATCHED_ECOSYSTEMS } from "./stack-view";
+import { endSession, getAccount, requireUser, type WebContext, type WebEnv } from "./session";
+import { depName, loadDeps, projectDeps, riskOf, RISK_LABELS, StackView, WATCHED_ECOSYSTEMS } from "./stack-view";
 
 export const app = new Hono<WebEnv>();
 app.use("*", requireUser);
@@ -34,8 +36,11 @@ const idParam = (c: WebContext) => {
 };
 const str = (v: unknown, max = 200) => (typeof v === "string" ? v.trim().slice(0, max) : "");
 
+/** Projects the user can see: their own, plus their team owner's (src/billing/plans.ts). */
+const visible = async (c: WebContext) => inArray(projects.userId, (await getAccount(c)).projectOwners);
+
 async function ownProject(c: WebContext): Promise<Project | undefined> {
-  return c.get("ctx").db.select().from(projects).where(and(eq(projects.id, idParam(c)), eq(projects.userId, uid(c)))).get();
+  return c.get("ctx").db.select().from(projects).where(and(eq(projects.id, idParam(c)), await visible(c))).get();
 }
 
 async function ownDep(c: WebContext): Promise<{ dep: Dep; project: Project } | undefined> {
@@ -44,7 +49,7 @@ async function ownDep(c: WebContext): Promise<{ dep: Dep; project: Project } | u
     .db.select({ dep: deps, project: projects })
     .from(deps)
     .innerJoin(projects, eq(projects.id, deps.projectId))
-    .where(and(eq(deps.id, idParam(c)), eq(projects.userId, uid(c))))
+    .where(and(eq(deps.id, idParam(c)), await visible(c)))
     .get();
   return row ?? undefined;
 }
@@ -63,6 +68,7 @@ const MESSAGES: Record<string, string> = {
   feedback: "Thanks for the feedback.",
   slack: "Slack connected. We posted a test message to the channel.",
   slackremoved: "Slack disconnected.",
+  subscribed: "You're already on Team.",
 };
 const flash = (c: WebContext) => MESSAGES[c.req.query("msg") ?? ""];
 
@@ -70,8 +76,11 @@ const flash = (c: WebContext) => MESSAGES[c.req.query("msg") ?? ""];
 
 app.get("/", async (c) => {
   const ctx = c.get("ctx");
-  const list = await ctx.db.select().from(projects).where(eq(projects.userId, uid(c))).orderBy(asc(projects.id)).all();
+  const account = await getAccount(c);
+  const list = await ctx.db.select().from(projects).where(await visible(c)).orderBy(asc(projects.id)).all();
   if (!list.length) return c.redirect("/app/projects/new");
+  // On Free only the oldest project alerts (src/billing/plans.ts); say so when there are more.
+  const quiet = account.plan === "free" ? list.filter((p) => p.userId === uid(c)).slice(FREE_PROJECTS) : [];
   const byProject = await loadDeps(ctx, list);
   const recent = await userAlerts(ctx, uid(c), { limit: 30 });
   const now = ctx.clock.now();
@@ -81,11 +90,23 @@ app.get("/", async (c) => {
     <>
       <div class="spread">
         <h1>Your stack</h1>
-        <a class="btn" href="/app/projects/new">
-          New project
-        </a>
+        <span class="row">
+          {account.plan === "team" && (
+            <a class="btn" href="/app/export.csv">
+              Export CSV
+            </a>
+          )}
+          <a class="btn" href="/app/projects/new">
+            New project
+          </a>
+        </span>
       </div>
       <Flash msg={flash(c)} />
+      {quiet.length > 0 && (
+        <p class="flash">
+          The Free plan alerts on one project, your oldest. {quiet.map((p) => p.name).join(", ")} {quiet.length === 1 ? "is" : "are"} shown but quiet. <a href="/pricing">Team</a> alerts on every project.
+        </p>
+      )}
       {recent.length > 0 && (
         <section class="card">
           <h2 style="margin-top:0">Alerts</h2>
@@ -102,6 +123,7 @@ app.get("/", async (c) => {
               </h2>
               <span class="meta">
                 {ds.length} watched{p.repoFullName ? ` · ${p.repoFullName}` : ""}
+                {p.userId !== uid(c) ? " · team" : ""}
               </span>
             </div>
             {ds.length ? (
@@ -143,7 +165,27 @@ const ProfileFields: FC<{ profile: Profile; dims?: Dimension[]; prefix?: string;
   </>
 );
 
-app.get("/projects/new", (c) => {
+const UpgradeForProjects: FC = () => (
+  <>
+    <h1>One project on the Free plan</h1>
+    <p>
+      The Free plan watches one project. Add services to it, or move to <a href="/pricing">Team</a> (${PRICES.month}/month) for unlimited projects, private repos, Slack and up to 10 people.
+    </p>
+    <p class="row">
+      <a class="btn primary" href="/pricing">
+        See plans
+      </a>
+      <a class="btn" href="/app">
+        Back to the dashboard
+      </a>
+    </p>
+  </>
+);
+
+app.get("/projects/new", async (c) => {
+  const ctx = c.get("ctx");
+  const account = await getAccount(c);
+  if (!(await canCreateProject(ctx, account))) return page(c, "New project", <UpgradeForProjects />, { noindex: true });
   return page(
     c,
     "New project",
@@ -173,11 +215,15 @@ app.get("/projects/new", (c) => {
         </div>
         <p class="meta">
           We read up to 30 manifest files (package.json, pyproject.toml, Dockerfile, wrangler.toml…) through the GitHub API.
-          {c.get("ctx").config.githubApp ? (
-            <>
-              {" "}
-              Private repo? <a href="/app/github/connect">Import it through the GitHub App</a> (read-only; we re-import when a manifest changes).
-            </>
+          {ctx.config.githubApp ? (
+            account.plan === "team" ? (
+              <>
+                {" "}
+                Private repo? <a href="/app/github/connect">Import it through the GitHub App</a> (read-only; we re-import when a manifest changes).
+              </>
+            ) : (
+              <> Private repos through our GitHub App are on the <a href="/pricing">Team plan</a>.</>
+            )
           ) : null}
         </p>
       </form>
@@ -191,6 +237,8 @@ app.post("/projects", async (c) => {
   const form = await c.req.parseBody();
   const name = str(form.name, 80) || "My stack";
   const repoInput = str(form.repo, 300);
+  const account = await getAccount(c);
+  if (!(await canCreateProject(ctx, account))) return page(c, "New project", <UpgradeForProjects />, { status: 402, noindex: true });
   const wantsImport = form.next === "import" || (form.next !== "pick" && repoInput !== "");
   const repo = wantsImport ? parseRepoInput(repoInput) : null;
   if (wantsImport && !repo) {
@@ -198,7 +246,7 @@ app.post("/projects", async (c) => {
   }
   const [project] = await ctx.db
     .insert(projects)
-    .values({ userId: uid(c), name, defaultProfile: profileFromForm(form), createdAt: ctx.clock.now() })
+    .values({ userId: account.ownerId, name, defaultProfile: profileFromForm(form), createdAt: ctx.clock.now() })
     .returning();
   if (repo) {
     await startImport(ctx, project.id, repo);
@@ -251,7 +299,7 @@ app.get("/projects/:id", async (c) => {
           <Csrf token={c.get("csrf")} />
           <input type="url" name="repo" placeholder="https://github.com/owner/repo" style="flex:1;min-width:14rem" required />
           <button type="submit">Import a public repo</button>
-          {ctx.config.githubApp && <a href={`/app/github/connect?project=${project.id}`}>or a private repo</a>}
+          {ctx.config.githubApp && (await getAccount(c)).plan === "team" && <a href={`/app/github/connect?project=${project.id}`}>or a private repo</a>}
         </form>
       )}
       <h2>Project settings</h2>
@@ -482,6 +530,7 @@ app.post("/projects/:id/import", async (c) => {
   const running = await latestImport(c.get("ctx"), project.id);
   // "Import again" keeps the project's GitHub App installation; a different repo is a public import.
   const installation = project.githubInstallationId && repo.toLowerCase() === project.repoFullName?.toLowerCase() ? project.githubInstallationId : null;
+  if (installation && (await getAccount(c)).plan !== "team") return page(c, "Import", <><h1>Private repos are on the Team plan</h1><p>This project's repo is private, imported through the GitHub App. <a href="/pricing">Team</a> keeps it in sync.</p><p><a href={`/app/projects/${project.id}`}>Back</a></p></>, { status: 402, noindex: true });
   if (running?.status !== "running") await startImport(c.get("ctx"), project.id, installation ? project.repoFullName! : repo, installation);
   return c.redirect(`/app/projects/${project.id}/import`);
 });
@@ -697,18 +746,112 @@ app.post("/alerts/:id/feedback", async (c) => {
   return c.redirect(`${/^\/app(\/deps\/\d+)?$/.test(back) ? back : "/app"}?msg=feedback`);
 });
 
+// ---------- CSV export of vendor risk (Team) ----------
+
+const csvCell = (v: unknown) => {
+  let s = v === null || v === undefined ? "" : String(v);
+  // Spreadsheet formula injection: a cell starting with = + - @ is read as a formula.
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+
+app.get("/export.csv", async (c) => {
+  const ctx = c.get("ctx");
+  if ((await getAccount(c)).plan !== "team") return page(c, "Export", <><h1>CSV export is on the Team plan</h1><p><a href="/pricing">See plans</a></p></>, { status: 402, noindex: true });
+  const list = await ctx.db.select().from(projects).where(await visible(c)).orderBy(asc(projects.id)).all();
+  const byProject = await loadDeps(ctx, list);
+  const now = ctx.clock.now();
+  const origin = ctx.config.appOrigin;
+  const lines = [["project", "repository", "dependency", "type", "details", "risk", "latest_change", "latest_change_kind", "latest_change_date", "latest_change_url", "muted_until", "catalog_url"].join(",")];
+  for (const p of list)
+    for (const v of byProject.get(p.id) ?? []) {
+      const type = v.entry ? v.entry.category : v.dep.ecosystem === "eol" ? "runtime" : `${v.dep.ecosystem} package`;
+      lines.push(
+        [p.name, p.repoFullName, v.name, type, v.detail, RISK_LABELS[riskOf(v, now)], v.latest?.title, v.latest?.kind, v.latest ? fmtDate(v.latest.publishedAt) : "", v.latest ? `${origin}/events/${v.latest.id}` : "", v.dep.mutedUntil && v.dep.mutedUntil > now ? fmtDate(v.dep.mutedUntil) : "", v.entry ? `${origin}/catalog/${v.entry.id}` : ""]
+          .map(csvCell)
+          .join(","),
+      );
+    }
+  return c.body(lines.join("\r\n") + "\r\n", 200, { "content-type": "text/csv; charset=utf-8", "content-disposition": `attachment; filename="stackquake-vendor-risk-${fmtDate(now)}.csv"` });
+});
+
 // ---------- Settings ----------
+
+const PlanSection: FC<{ c: WebContext; user: typeof users.$inferSelect; account: Awaited<ReturnType<typeof getAccount>>; billing: boolean }> = ({ c, user, account, billing }) => {
+  const csrf = c.get("csrf");
+  if (account.role === "member")
+    return (
+      <div class="card">
+        <p>
+          Team, through <strong>{account.ownerEmail}</strong>'s team. <a href="/app/team">Team page</a>
+        </p>
+      </div>
+    );
+  if (user.plan === "team")
+    return (
+      <div class="card">
+        <p>
+          <strong>Team</strong>
+          {user.planInterval ? `, billed ${user.planInterval === "year" ? "yearly" : "monthly"}` : ""}.
+          {user.planStatus === "past_due" && <span class="pill bad"> payment failed: update your card</span>}
+          {user.planPeriodEnd ? (user.cancelAtPeriodEnd ? ` Ends on ${fmtDate(user.planPeriodEnd)}.` : ` Renews on ${fmtDate(user.planPeriodEnd)}.`) : ""}
+        </p>
+        <p class="row">
+          <a class="btn" href="/app/team">
+            Manage the team
+          </a>
+          {billing && user.stripeCustomerId && (
+            <form method="post" action="/app/billing/portal" class="inline">
+              <Csrf token={csrf} />
+              <button type="submit">Billing, invoices and cancelling</button>
+            </form>
+          )}
+        </p>
+      </div>
+    );
+  return (
+    <div class="card">
+      <p>
+        <strong>Free</strong>: one project, email alerts and the weekly digest.
+      </p>
+      <p class="meta">Team: unlimited projects, private repos through the GitHub App, Slack, up to 10 people and a CSV export of vendor risk.</p>
+      {billing ? (
+        <form method="post" action="/app/billing/checkout" class="row">
+          <Csrf token={csrf} />
+          <button class="primary" type="submit" name="interval" value="month">
+            Team, ${PRICES.month}/month
+          </button>
+          <button type="submit" name="interval" value="year">
+            ${PRICES.year}/year (2 months free)
+          </button>
+          {user.stripeCustomerId && (
+            <button class="link" type="submit" formaction="/app/billing/portal">
+              Past invoices
+            </button>
+          )}
+        </form>
+      ) : (
+        <p class="meta">Paid plans aren't open on this server yet.</p>
+      )}
+      <p class="meta">
+        <a href="/app/team">Team invites</a> · <a href="/pricing">Plans</a>
+      </p>
+    </div>
+  );
+};
 
 app.get("/settings", async (c) => {
   const user = c.get("user")!;
   const ctx = c.get("ctx");
+  const account = await getAccount(c);
   const slack = await ctx.db.select().from(channels).where(and(eq(channels.userId, user.id), eq(channels.kind, "slack"))).get();
+  const billingMsg = c.req.query("billing") === "success" ? (user.plan === "team" ? "Welcome to Team. Thanks for subscribing." : "Thanks. Stripe is confirming the payment; this page shows Team within a minute.") : undefined;
   return page(
     c,
     "Settings",
     <>
       <h1>Settings</h1>
-      <Flash msg={flash(c)} />
+      <Flash msg={billingMsg ?? flash(c)} />
       <h2>Email</h2>
       <form method="post" action="/app/settings/email" class="card">
         <Csrf token={c.get("csrf")} />
@@ -745,6 +888,10 @@ app.get("/settings", async (c) => {
       <div class="card">
         {!ctx.config.channelKey ? (
           <p class="muted">Slack alerts are not available on this server yet.</p>
+        ) : account.plan !== "team" ? (
+          <p class="muted">
+            Slack alerts are on the <a href="/pricing">Team plan</a>.{slack ? ` Your webhook ending …${slack.hint} is kept but gets nothing until then.` : ""}
+          </p>
         ) : slack ? (
           <form method="post" action="/app/settings/slack/delete">
             <Csrf token={c.get("csrf")} />
@@ -771,11 +918,13 @@ app.get("/settings", async (c) => {
         )}
       </div>
       <h2>Plan</h2>
-      <p>Free. Paid plans with private repos come later.</p>
+      <PlanSection c={c} user={user} account={account} billing={!!ctx.config.stripe} />
       <h2>Delete account</h2>
       <form method="post" action="/app/settings/delete" class="card">
         <Csrf token={c.get("csrf")} />
-        <p>This removes your account, projects, dependencies, alerts, Slack connection and sessions. Public events stay, since they are not yours. It can't be undone.</p>
+        <p>
+          This removes your account, projects, dependencies, alerts, Slack connection, team and sessions{user.stripeSubscriptionId && user.plan === "team" ? ", and cancels your Team subscription now" : ""}. Public events stay, since they are not yours. It can't be undone.
+        </p>
         <label for="confirm">Type DELETE to confirm</label>
         <input type="text" id="confirm" name="confirm" autocomplete="off" required />
         <p>
@@ -811,6 +960,7 @@ const SlackProblem: FC<{ why: string }> = ({ why }) => (
 app.post("/settings/slack", async (c) => {
   const ctx = c.get("ctx");
   if (!ctx.config.channelKey) return c.notFound();
+  if ((await getAccount(c)).plan !== "team") return page(c, "Slack", <SlackProblem why="Slack alerts are on the Team plan." />, { status: 402, noindex: true });
   const form = await c.req.parseBody();
   const url = validSlackWebhook(str(form.url, 300));
   if (!url) return page(c, "Slack", <SlackProblem why="That isn't a Slack incoming webhook URL. It should look like https://hooks.slack.com/services/T…/B…/…" />, { status: 400, noindex: true });
@@ -841,6 +991,13 @@ app.post("/settings/delete", async (c) => {
   if (str(form.confirm) !== "DELETE") return c.redirect("/app/settings");
   const ctx = c.get("ctx");
   const user = c.get("user")!;
+  if (ctx.config.stripe && user.stripeSubscriptionId && user.plan === "team") {
+    try {
+      await cancelSubscriptionNow(ctx, ctx.config.stripe, user.stripeSubscriptionId);
+    } catch {
+      return page(c, "Settings", <><h1>Account not deleted</h1><p class="flash error">We couldn't cancel your subscription with Stripe, so nothing was deleted. Try again in a minute, or cancel it first from the billing portal.</p><p><a href="/app/settings">Back</a></p></>, { status: 503, noindex: true });
+    }
+  }
   const owned = await ctx.db.select({ id: projects.id }).from(projects).where(eq(projects.userId, user.id)).orderBy(desc(projects.id)).all();
   for (const p of owned) await deleteProject(c, p.id);
   // SPEC §8: user, projects, deps, alerts and channels go; sources and events are global and stay.
@@ -848,6 +1005,8 @@ app.post("/settings/delete", async (c) => {
   await ctx.db.run(sql`DELETE FROM jobs WHERE kind = 'digest' AND json_extract(payload, '$.userId') = ${user.id}`);
   await ctx.db.delete(alerts).where(eq(alerts.userId, user.id));
   await ctx.db.delete(channels).where(eq(channels.userId, user.id));
+  // Their team (members lose access to its projects, which go with it), their memberships and invites.
+  await ctx.db.delete(teamMembers).where(sql`${teamMembers.ownerId} = ${user.id} OR ${teamMembers.userId} = ${user.id} OR ${teamMembers.email} = ${user.email.toLowerCase()}`);
   await ctx.db.delete(catalogRequests).where(eq(catalogRequests.userId, user.id));
   await ctx.db.delete(magicLinks).where(eq(magicLinks.email, user.email));
   await endSession(c);

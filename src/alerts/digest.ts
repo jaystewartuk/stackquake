@@ -66,8 +66,10 @@ export async function digestStep(ctx: Ctx, job: Job): Promise<StepResult> {
   }
 
   const [counts] = await ctx.db.all<{ deps: number; projects: number }>(sql`
-    SELECT (SELECT count(*) FROM deps d JOIN projects p ON p.id = d.project_id WHERE p.user_id = ${userId}) AS deps,
-           (SELECT count(*) FROM projects WHERE user_id = ${userId}) AS projects`);
+    WITH owners AS (SELECT ${userId} AS id UNION SELECT tm.owner_id FROM team_members tm JOIN users o ON o.id = tm.owner_id
+                    WHERE tm.user_id = ${userId} AND tm.joined_at IS NOT NULL AND o.plan = 'team')
+    SELECT (SELECT count(*) FROM deps d JOIN projects p ON p.id = d.project_id WHERE p.user_id IN (SELECT id FROM owners)) AS deps,
+           (SELECT count(*) FROM projects WHERE user_id IN (SELECT id FROM owners)) AS projects`);
   const mail = renderDigest({ held, suppressed, watching: counts }, await userFooter(ctx, userId, false));
   await ctx.mailer.send({ to: user.email, ...mail, idempotencyKey: `digest-${userId}-${isoDay(day)}` });
   const now = ctx.clock.now();

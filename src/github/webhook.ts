@@ -6,6 +6,7 @@ import { Hono } from "hono";
 import { CATALOG } from "../catalog/entries";
 import type { CatalogEntry } from "../catalog/catalog";
 import type { Ctx } from "../context";
+import { teamPlanSql } from "../billing/plans";
 import { githubInstallations, projects } from "../db/schema";
 import type { AppEnv } from "../env";
 import { latestImport, startImport } from "../stack/import";
@@ -48,7 +49,8 @@ export async function handlePush(ctx: Ctx, p: PushPayload, entries: CatalogEntry
   const rows = await ctx.db
     .select({ id: projects.id, repo: projects.repoFullName })
     .from(projects)
-    .where(and(sql`lower(${projects.repoFullName}) = ${repo.toLowerCase()}`, eq(projects.githubInstallationId, installationId)))
+    // Private repos are a Team feature: a lapsed plan stops re-imports (SPEC §10).
+    .where(and(sql`lower(${projects.repoFullName}) = ${repo.toLowerCase()}`, eq(projects.githubInstallationId, installationId), teamPlanSql(sql`${projects.userId}`)))
     .all();
   if (!rows.length) return "no_project";
   const started: number[] = [];

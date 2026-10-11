@@ -42,6 +42,12 @@ export interface AppEnv extends Env {
   GITHUB_WEBHOOK_SECRET?: string;
   /** "1" on staging: /admin/staging runs ticks by hand and adds sample events (no cron there). */
   STAGING_TOOLS?: string;
+  /** Stripe (M6): restricted key, webhook signing secret and the Team prices. All four or billing is off. */
+  STRIPE_SECRET_KEY?: string;
+  STRIPE_WEBHOOK_SECRET?: string;
+  STRIPE_PRICE_MONTHLY?: string;
+  STRIPE_PRICE_YEARLY?: string;
+  STRIPE_API_BASE?: string;
 }
 
 const noLlm: Llm = {

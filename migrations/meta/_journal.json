@@ -36,6 +36,13 @@
       "when": 1791681445427,
       "tag": "0004_m5_github_app",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1791684818513,
+      "tag": "0005_m6_plans",
+      "breakpoints": true
     }
   ]
 }

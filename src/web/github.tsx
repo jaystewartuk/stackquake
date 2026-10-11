@@ -4,7 +4,7 @@
 // that one request and never stored; imports then use the installation token (src/github/app.ts).
 // GitHub App settings: callback URL /app/github/callback; setup URL /app/github/connect
 // ("redirect on update" on), so a fresh install comes straight back here.
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { projects } from "../db/schema";
@@ -12,10 +12,16 @@ import { ghApiHeaders, rememberInstallation } from "../github/app";
 import { startImport } from "../stack/import";
 import { HOUR, safeEqual, utf8 } from "../util";
 import { Csrf, page } from "./layout";
-import { appOrigin, randomToken, requireUser, type WebContext, type WebEnv } from "./session";
+import { appOrigin, getAccount, randomToken, requireUser, type WebContext, type WebEnv } from "./session";
 
 export const github = new Hono<WebEnv>();
 github.use("*", requireUser);
+// Private repos are a Team feature (SPEC §10).
+github.use("*", async (c, next) => {
+  if (c.get("ctx").config.githubApp && (await getAccount(c)).plan !== "team")
+    return page(c, "Team plan", <><h1>Private repos are on the Team plan</h1><p>Importing private repos through our GitHub App, with re-import on every push that changes a manifest, is part of <a href="/pricing">Team</a>. Public repos and the service picker work on Free.</p><p><a href="/app">Back to the dashboard</a></p></>, { status: 402, noindex: true });
+  await next();
+});
 
 const STATE_COOKIE = "sq_ghapp";
 const AUTHORIZE = "https://github.com/login/oauth/authorize";
@@ -189,12 +195,12 @@ github.post("/import", async (c) => {
   let projectId: number;
   const existing = typeof form.project === "string" && /^\d{1,15}$/.test(form.project) ? Number(form.project) : null;
   if (existing) {
-    const own = await ctx.db.select().from(projects).where(and(eq(projects.id, existing), eq(projects.userId, userId))).get();
+    const own = await ctx.db.select().from(projects).where(and(eq(projects.id, existing), inArray(projects.userId, (await getAccount(c)).projectOwners))).get();
     if (!own) return c.notFound();
     projectId = own.id;
   } else {
     const name = typeof form.name === "string" ? form.name.trim().slice(0, 80) || "My stack" : "My stack";
-    const [row] = await ctx.db.insert(projects).values({ userId, name, createdAt: ctx.clock.now() }).returning();
+    const [row] = await ctx.db.insert(projects).values({ userId: (await getAccount(c)).ownerId, name, createdAt: ctx.clock.now() }).returning();
     projectId = row.id;
   }
   await startImport(ctx, projectId, choice.repo, choice.installationId);

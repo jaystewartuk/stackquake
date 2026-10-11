@@ -6,6 +6,7 @@
 // Email carries an Idempotency-Key, so a send whose result was lost is dropped by Resend on retry.
 // A Slack post has no such key: one that started and never recorded a result is not repeated.
 import { and, eq, isNull, sql } from "drizzle-orm";
+import { teamPlanSql } from "../billing/plans";
 import type { Ctx } from "../context";
 import { alerts, channels, deps, events, sources, users, type Alert, type Channel, type Job } from "../db/schema";
 import type { StepResult } from "../jobs/runner";
@@ -73,9 +74,10 @@ export async function userFooter(ctx: Ctx, userId: number, digestOnlyLink: boole
   };
 }
 
+/** The user's Slack webhook, if they have one and are on Team (Slack is a Team feature, M6). */
 async function slackChannel(ctx: Ctx, userId: number): Promise<Channel | undefined> {
   if (!ctx.config.channelKey) return undefined;
-  return ctx.db.select().from(channels).where(and(eq(channels.userId, userId), eq(channels.kind, "slack"), sql`${channels.verifiedAt} IS NOT NULL`)).get();
+  return ctx.db.select().from(channels).where(and(eq(channels.userId, userId), eq(channels.kind, "slack"), sql`${channels.verifiedAt} IS NOT NULL`, teamPlanSql(sql`${userId}`))).get();
 }
 
 const setAlert = (ctx: Ctx, id: number, values: Partial<Alert>) => ctx.db.update(alerts).set(values).where(eq(alerts.id, id));

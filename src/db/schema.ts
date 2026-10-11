@@ -174,6 +174,16 @@ export const users = sqliteTable("users", {
   emailImmediate: integer("email_immediate", { mode: "boolean" }).notNull().default(true),
   /** When the last weekly digest was sent (the "first digest of the month" rule). */
   lastDigestAt: integer("last_digest_at"),
+  // M6 additions: billing state, written only by the Stripe webhook (src/billing/stripe.ts).
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  /** none | active | past_due */
+  planStatus: text("plan_status").notNull().default("none"),
+  /** month | year */
+  planInterval: text("plan_interval"),
+  planPeriodEnd: integer("plan_period_end"),
+  cancelAtPeriodEnd: integer("cancel_at_period_end", { mode: "boolean" }).notNull().default(false),
+  /** Stripe `created` (ms) of the last subscription event applied, so a late older event is ignored. */
+  planEventAt: integer("plan_event_at"),
 });
 
 /** `id` is the sha256 of the cookie value, so a database leak does not leak live sessions. */
@@ -392,3 +402,34 @@ export const githubInstallations = sqliteTable("github_installations", {
   updatedAt: integer("updated_at").notNull(),
 });
 export type GithubInstallation = typeof githubInstallations.$inferSelect;
+
+// ---- M6: plans, teams and billing (SPEC §10) ----
+
+export const PLANS = ["free", "team"] as const;
+export type Plan = (typeof PLANS)[number];
+
+/**
+ * Team members (M6). A team is a Team-plan user (the owner) and up to 9 others. An invite is a row
+ * with `user_id` null; the invited address accepts it on /app/team once signed in with that email.
+ * Members share the owner's projects and get their alerts while the owner is on Team.
+ */
+export const teamMembers = sqliteTable(
+  "team_members",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    ownerId: integer("owner_id").notNull(),
+    email: text("email").notNull(),
+    userId: integer("user_id"),
+    invitedAt: integer("invited_at").notNull(),
+    joinedAt: integer("joined_at"),
+  },
+  (t) => [uniqueIndex("team_members_owner_email").on(t.ownerId, t.email), index("team_members_user").on(t.userId), index("team_members_email").on(t.email)],
+);
+export type TeamMember = typeof teamMembers.$inferSelect;
+
+/** Stripe webhook event ids already applied (idempotency). */
+export const stripeEvents = sqliteTable("stripe_events", {
+  id: text("id").primaryKey(),
+  type: text("type").notNull(),
+  createdAt: integer("created_at").notNull(),
+});

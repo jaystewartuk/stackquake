@@ -10,10 +10,12 @@ import { githubWebhook } from "../github/webhook";
 import { alertLinks } from "./alert-links";
 import { app as appRoutes } from "./app";
 import { auth } from "./auth";
+import { billing, stripeWebhook } from "./billing";
 import { github } from "./github";
 import { page } from "./layout";
 import { pub } from "./public";
 import { sessionMiddleware, type WebEnv } from "./session";
+import { team } from "./team";
 
 export function createApp(makeCtx: (env: AppEnv) => Ctx) {
   const web = new Hono<WebEnv>();
@@ -22,8 +24,10 @@ export function createApp(makeCtx: (env: AppEnv) => Ctx) {
   web.route("/__dev", devRoutes as unknown as Hono<WebEnv>);
   // GitHub App webhooks: signed by GitHub, so no session or CSRF.
   web.route("/", githubWebhook(makeCtx) as unknown as Hono<WebEnv>);
+  // Stripe webhooks: signed by Stripe, so no session or CSRF.
+  web.route("/", stripeWebhook(makeCtx) as unknown as Hono<WebEnv>);
   web.use("*", async (c, next) => {
-    if (c.req.path.startsWith("/__dev") || c.req.path === "/github/webhook") return next();
+    if (c.req.path.startsWith("/__dev") || c.req.path === "/github/webhook" || c.req.path === "/stripe/webhook") return next();
     return sessionMiddleware(makeCtx)(c, next);
   });
   web.use("*", async (c, next) => {
@@ -38,6 +42,8 @@ export function createApp(makeCtx: (env: AppEnv) => Ctx) {
   web.route("/", pub);
   web.route("/", alertLinks);
   web.route("/app/github", github);
+  web.route("/app/billing", billing);
+  web.route("/app/team", team);
   web.route("/app", appRoutes);
   web.route("/admin/staging", stagingRoutes);
   web.route("/admin", adminRoutes);

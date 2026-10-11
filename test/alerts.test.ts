@@ -47,7 +47,7 @@ describe("fan-out", () => {
 
   it("makes one alert per user, from the dep that matches best", async () => {
     const t = await setup();
-    const u = await addUser(t.ctx, "two@example.com");
+    const u = await addUser(t.ctx, "two@example.com", { plan: "team" }); // two projects
     await addDep(t.ctx, u.id, { catalogId: "redis" }, { hosting: "hosted" });
     const selfHosted = await addDep(t.ctx, u.id, { catalogId: "redis" }, { hosting: "self_hosted" });
     await publish(t.ctx, await redisNpm(t), { note: note({ applies_when: { hosting: ["self_hosted"], use: [], tier: [] } }) });
@@ -192,7 +192,7 @@ describe("idempotence", () => {
 describe("rate limit (SPEC §7.5)", () => {
   it("the 4th immediate alert in a day goes to the digest; the next day's goes out", async () => {
     const t = await setup();
-    const u = await addUser(t.ctx, "busy@example.com");
+    const u = await addUser(t.ctx, "busy@example.com", { plan: "team" }); // four projects
     for (const id of ["redis", "stripe", "vercel", "sentry"]) await addDep(t.ctx, u.id, { catalogId: id });
     const npm = ["redis", "stripe", "vercel", "@sentry/node"];
     for (const pkg of npm) {
@@ -227,7 +227,7 @@ describe("Slack delivery", () => {
       posts.push(await req.json());
       return new Response(answer === 200 ? "ok" : "no_service", { status: answer });
     });
-    const u = await addUser(t.ctx, "slack@example.com");
+    const u = await addUser(t.ctx, "slack@example.com", { plan: "team" }); // Slack is a Team feature
     await t.ctx.db.insert(channels).values({ userId: u.id, kind: "slack", webhookUrlEnc: await encrypt(TEST_CHANNEL_KEY, HOOK), verifiedAt: t.clock.now(), hint: "uvwx", createdAt: t.clock.now() });
     await addDep(t.ctx, u.id, { catalogId: "redis" });
     return { ...t, u, posts, answer: (s: number) => (answer = s) };

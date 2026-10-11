@@ -3,6 +3,7 @@
 // alert for the digest. Chunked: each step handles FANOUT_CHUNK deps and reschedules itself, so
 // an event that touches thousands of deps never runs in one invocation.
 import { eq, sql } from "drizzle-orm";
+import { projectAlertsSql, teamPlanSql } from "../billing/plans";
 import { CATALOG } from "../catalog/entries";
 import type { Ctx } from "../context";
 import { catalogSources, events, jobs, type HeldReason, type Job, type Profile } from "../db/schema";
@@ -72,19 +73,30 @@ export async function fanoutStep(ctx: Ctx, job: Job): Promise<StepResult> {
   const after = Number((job.payload as { after?: number } | null)?.after ?? 0);
   const now = ctx.clock.now();
 
+  // A chunk is FANOUT_CHUNK deps (picked first), each expanded to its recipients: the project's
+  // owner and, while the owner is on Team, the team's members (M6). On Free only the owner's oldest
+  // project alerts, and Slack counts only on Team (src/billing/plans.ts).
   const rows = await ctx.db.all<DepRow>(sql`
     SELECT d.id, d.catalog_id, d.ecosystem, d.package, d.eol_product, d.profile, d.muted_until,
-           p.name AS project_name, p.default_profile, p.user_id, u.email_immediate,
-           EXISTS (SELECT 1 FROM channels c WHERE c.user_id = p.user_id AND c.verified_at IS NOT NULL) AS has_slack
-    FROM dep_sources ds
-    JOIN deps d ON d.id = ds.dep_id
-    JOIN projects p ON p.id = d.project_id
-    JOIN users u ON u.id = p.user_id
-    WHERE ds.source_id = ${event.sourceId} AND d.id > ${after}
-    ORDER BY d.id
-    LIMIT ${FANOUT_CHUNK + 1}`);
-  const more = rows.length > FANOUT_CHUNK;
-  const chunk = more ? rows.slice(0, FANOUT_CHUNK) : rows;
+           d.project_name, d.default_profile, r.user_id, u.email_immediate,
+           (EXISTS (SELECT 1 FROM channels c WHERE c.user_id = r.user_id AND c.verified_at IS NOT NULL) AND ${teamPlanSql(sql`r.user_id`)}) AS has_slack
+    FROM (
+      SELECT d.*, p.name AS project_name, p.default_profile, p.user_id AS owner_id
+      FROM dep_sources ds
+      JOIN deps d ON d.id = ds.dep_id
+      JOIN projects p ON p.id = d.project_id
+      WHERE ds.source_id = ${event.sourceId} AND d.id > ${after} AND ${projectAlertsSql("p")}
+      ORDER BY d.id
+      LIMIT ${FANOUT_CHUNK + 1}) d
+    JOIN (SELECT id AS user_id, id AS owner_id FROM users
+          UNION ALL
+          SELECT tm.user_id, tm.owner_id FROM team_members tm JOIN users o ON o.id = tm.owner_id
+          WHERE tm.joined_at IS NOT NULL AND o.plan = 'team') r ON r.owner_id = d.owner_id
+    JOIN users u ON u.id = r.user_id
+    ORDER BY d.id`);
+  const depIds = [...new Set(rows.map((r) => r.id))];
+  const more = depIds.length > FANOUT_CHUNK;
+  const chunk = more ? rows.filter((r) => r.id !== depIds[FANOUT_CHUNK]) : rows;
 
   const links = event.catalogId ? [] : await ctx.db.select().from(catalogSources).where(eq(catalogSources.sourceId, event.sourceId)).all();
   const shared = links.length > 1;

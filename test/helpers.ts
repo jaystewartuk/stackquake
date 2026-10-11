@@ -39,7 +39,7 @@ export const TEST_CHANNEL_KEY = btoa(String.fromCharCode(...Array.from({ length:
 
 export async function resetDb() {
   const db = d1Db(env.DB);
-  for (const t of ["llm_calls", "events", "jobs", "snapshots", "catalog_sources", "catalog", "robots", "sources", "users", "sessions", "magic_links", "rate_limits", "projects", "deps", "dep_sources", "imports", "catalog_requests", "alerts", "channels", "github_installations"]) await db.run(sql.raw(`DELETE FROM ${t}`));
+  for (const t of ["llm_calls", "events", "jobs", "snapshots", "catalog_sources", "catalog", "robots", "sources", "users", "sessions", "magic_links", "rate_limits", "projects", "deps", "dep_sources", "imports", "catalog_requests", "alerts", "channels", "github_installations", "team_members", "stripe_events"]) await db.run(sql.raw(`DELETE FROM ${t}`));
 }
 
 export function testCtx({ http: fixtures, ...overrides }: Partial<Omit<Ctx, "llm" | "http">> & { http?: FixtureHttp; llm?: FakeLlm } = {}) {

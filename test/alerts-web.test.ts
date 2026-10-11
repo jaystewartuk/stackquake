@@ -115,6 +115,7 @@ describe("settings", () => {
 
   it("connects Slack after a test message, stores the URL encrypted, and disconnects", async () => {
     const t = await setup();
+    await t.ctx.db.update(users).set({ plan: "team" }).where(eq(users.id, t.me.id)); // Slack is a Team feature
     const posts: unknown[] = [];
     t.http.set(HOOK, async (req) => {
       posts.push(await req.json());
@@ -134,6 +135,7 @@ describe("settings", () => {
 
   it("refuses URLs that are not Slack webhooks, without fetching them", async () => {
     const t = await setup();
+    await t.ctx.db.update(users).set({ plan: "team" }).where(eq(users.id, t.me.id)); // Slack is a Team feature
     const before = t.http.requests.length;
     for (const url of ["https://evil.example/hook", "https://hooks.slack.com@evil.example/services/T0123ABCD/B0456EFGH/abcdefghijklmnopqrstuvwx", "http://169.254.169.254/latest/meta-data"]) {
       expect((await t.b.post("/app/settings/slack", { url })).status).toBe(400);
@@ -144,6 +146,7 @@ describe("settings", () => {
 
   it("does not store a webhook Slack refuses", async () => {
     const t = await setup();
+    await t.ctx.db.update(users).set({ plan: "team" }).where(eq(users.id, t.me.id)); // Slack is a Team feature
     t.http.set(HOOK, new Response("no_service", { status: 404 }));
     const res = await t.b.post("/app/settings/slack", { url: HOOK });
     expect(res.status).toBe(400);
