@@ -40,6 +40,8 @@ export interface AppEnv extends Env {
   /** PEM as GitHub issues it (PKCS#1) or PKCS#8. */
   GITHUB_APP_PRIVATE_KEY?: string;
   GITHUB_WEBHOOK_SECRET?: string;
+  /** "1" on staging: /admin/staging runs ticks by hand and adds sample events (no cron there). */
+  STAGING_TOOLS?: string;
 }
 
 const noLlm: Llm = {

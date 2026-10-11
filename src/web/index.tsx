@@ -2,6 +2,7 @@
 // HTTP, a fake clock and an in-memory mailer.
 import { Hono } from "hono";
 import { adminRoutes } from "../admin/routes";
+import { stagingRoutes } from "../admin/staging";
 import type { Ctx } from "../context";
 import { devRoutes } from "../dev";
 import type { AppEnv } from "../env";
@@ -38,6 +39,7 @@ export function createApp(makeCtx: (env: AppEnv) => Ctx) {
   web.route("/", alertLinks);
   web.route("/app/github", github);
   web.route("/app", appRoutes);
+  web.route("/admin/staging", stagingRoutes);
   web.route("/admin", adminRoutes);
   web.notFound((c) => (c.get("csrf") !== undefined ? page(c, "Not found", <><h1>Not found</h1><p><a href="/">Home</a></p></>, { status: 404, noindex: true }) : c.text("Not found", 404)));
   return web;

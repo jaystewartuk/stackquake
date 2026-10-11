@@ -22,11 +22,12 @@ const STATUSES: EventStatus[] = ["pending_review", "published", "rejected", "pen
 
 adminRoutes.get("/", (c) => c.redirect("/admin/events"));
 
-const AdminNav = () => (
+const AdminNav = ({ staging }: { staging?: boolean }) => (
   <nav class="row" style="margin-bottom:1rem">
     <a href="/admin/events">Review queue</a>
     <a href="/admin/sources">Blocked sources</a>
     <a href="/admin/requests">Catalog requests</a>
+    {staging && <a href="/admin/staging">Staging tools</a>}
   </nav>
 );
 
@@ -126,7 +127,7 @@ adminRoutes.get("/events", async (c) => {
     c,
     "Admin: events",
     <>
-      <AdminNav />
+      <AdminNav staging={c.env.STAGING_TOOLS === "1"} />
       <h1>Events: {status.replace("_", " ")}</h1>
       <nav class="row">
         {STATUSES.map((s) => (
@@ -279,7 +280,7 @@ adminRoutes.get("/sources", async (c) => {
     c,
     "Admin: sources",
     <>
-      <AdminNav />
+      <AdminNav staging={c.env.STAGING_TOOLS === "1"} />
       <h1>Blocked and failing sources</h1>
       {list.length === 0 ? (
         <p>None.</p>
@@ -327,7 +328,7 @@ adminRoutes.get("/requests", async (c) => {
     c,
     "Admin: catalog requests",
     <>
-      <AdminNav />
+      <AdminNav staging={c.env.STAGING_TOOLS === "1"} />
       <h1>Catalog requests</h1>
       <p class="muted">Free text from the picker that matched no entry. Add the popular ones to catalog/.</p>
       {list.length === 0 ? (
