@@ -192,6 +192,18 @@ describe("Stripe webhook", () => {
     expect(await get()).toMatchObject({ plan: "free", planStatus: "none", cancelAtPeriodEnd: false, planPeriodEnd: null });
   });
 
+  it("applies customer.subscription.created that arrives after the checkout but was created before it", async () => {
+    const t = await setup();
+    const u = await addUser(t.ctx, "order@example.com", { stripeCustomerId: "cus_1" });
+    await handleEvent(t.ctx, ev("checkout.session.completed", 200, { mode: "subscription", customer: "cus_1", subscription: "sub_1", client_reference_id: String(u.id), payment_status: "paid" }));
+    expect(await handleEvent(t.ctx, ev("customer.subscription.created", 190, sub()))).toBe("applied");
+    expect((await t.ctx.db.select().from(users).where(eq(users.id, u.id)).get())!).toMatchObject({ plan: "team", planInterval: "month", planPeriodEnd: 1_800_000_000_000 });
+    // A checkout that completes after a newer subscription event has ended things changes nothing.
+    await handleEvent(t.ctx, ev("customer.subscription.deleted", 300, sub({ status: "canceled" })));
+    await handleEvent(t.ctx, ev("checkout.session.completed", 250, { mode: "subscription", customer: "cus_1", subscription: "sub_1", client_reference_id: String(u.id), payment_status: "paid" }));
+    expect((await t.ctx.db.select().from(users).where(eq(users.id, u.id)).get())!.plan).toBe("free");
+  });
+
   it("leaves the plan alone while a subscription is incomplete, and ignores unknown customers", async () => {
     const t = await setup();
     const u = await addUser(t.ctx, "inc@example.com", { stripeCustomerId: "cus_1" });

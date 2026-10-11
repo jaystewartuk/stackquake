@@ -193,7 +193,10 @@ async function apply(ctx: Ctx, event: StripeEvent): Promise<WebhookOutcome> {
       .set({
         stripeCustomerId: idOf(o.customer) ?? u.stripeCustomerId,
         stripeSubscriptionId: idOf(o.subscription) ?? u.stripeSubscriptionId,
-        ...(paid && newer(u) ? { plan: "team", planStatus: "active", planEventAt: at } : {}),
+        // Not planEventAt: that orders subscription events only. Stripe creates the subscription
+        // (and its event) before the session completes, so the checkout's own later timestamp would
+        // make customer.subscription.created look stale and drop its interval and period end.
+        ...(paid && newer(u) ? { plan: "team", planStatus: "active" } : {}),
       })
       .where(eq(users.id, u.id));
     return "applied";
