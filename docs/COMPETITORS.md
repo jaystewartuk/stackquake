@@ -152,3 +152,27 @@ Adjacent
 - Snyk plan tier for licence policy (official page contradicts itself) and the state of Snyk Advisor/package health after the stated January 2026 sunset.
 - deps.dev coverage, Mend/FOSSA upstream-licence-change alerts, Snyk Container EOL coverage.
 - Which Socket ecosystems actually get deprecated and licence alerts.
+
+## Re-check before launch (2026-10-11, M6)
+
+The quotes used on the landing page were re-read on the live pages in a browser (full page text,
+not a summarising fetch):
+
+- GitHub dependency-review-action README: "The dependency review action scans your pull requests
+  for dependency changes, and will raise an error if any vulnerabilities or invalid licenses are
+  being introduced." Also confirmed: "The action will fail on pull requests that introduce
+  dependencies with licenses that do not match the list."
+- Socket, Organization Alerts: "Socket currently does not initiate a scan until there is a commit or
+  a pull request (PR) containing manifest files that Socket supports." (The earlier quote stopped
+  at "(PR)".)
+- Snyk, View dependencies (now under scan-fix-and-prevent/prevent/…): "For npm only, a warning icon
+  appears next to the package name if a package is deprecated." Confirmed word for word.
+- Dependabot alerts (page moved to /code-security/concepts/supply-chain-security/dependabot-alerts):
+  now reads "Dependabot alerts help you find and fix vulnerable dependencies before they become
+  security risks." The earlier wording above came from the summarising fetch; it is not used publicly.
+- **New since the first check:** GitHub "Open source license compliance" (public preview, for
+  organisations in an enterprise with GitHub Code Security). It is PR-time policy enforcement:
+  "When a pull request changes package manifests, GitHub compares dependency changes between the
+  base and pull request branches, evaluates detected licenses against policy, and reports
+  violations." It covers transitive dependencies from the dependency graph. Still no alert when an
+  existing dependency's licence changes upstream, so the landing page's claims stand.

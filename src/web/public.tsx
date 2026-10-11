@@ -12,53 +12,6 @@ export const pub = new Hono<WebEnv>();
 
 const PAGE_SIZE = 30;
 
-pub.get("/", async (c) => {
-  const recent = await publishedEvents(c.get("ctx"), { limit: 5 });
-  const hosted = CATALOG.filter((e) => e.common).slice(0, 12);
-  return page(
-    c,
-    "Stackquake",
-    <>
-      <h1 style="font-size:2rem;max-width:40rem">Know when the services you build on change the deal.</h1>
-      <p class="muted" style="max-width:40rem">
-        Pricing and free-tier changes, licence switches, end-of-life notices and acquisitions, for the hosting, databases, APIs and runtimes you use. One short note when it affects you, quoting the source, with your options.
-      </p>
-      <p class="row">
-        <a class="btn primary" href={c.get("user") ? "/app/projects/new" : "/signin?next=/app/projects/new"}>
-          Pick what you run on
-        </a>
-        <a class="btn" href="/catalog">
-          Browse the catalog
-        </a>
-      </p>
-      <p class="meta">Or paste a public GitHub repo and we'll fill the list for you.</p>
-      <h2>Watching, among others</h2>
-      <p>
-        {hosted.map((e, i) => (
-          <>
-            {i > 0 && " · "}
-            <a href={`/catalog/${e.id}`}>{e.name}</a>
-          </>
-        ))}
-      </p>
-      {recent.length > 0 && (
-        <>
-          <h2>Recent changes</h2>
-          <ul class="plain">
-            {recent.map((e) => (
-              <EventRow e={e} />
-            ))}
-          </ul>
-          <p>
-            <a href="/events">All events</a>
-          </p>
-        </>
-      )}
-    </>,
-    { description: "Stackquake alerts you when a service, runtime or package you depend on changes its pricing, free tier, licence or end-of-life date." },
-  );
-});
-
 pub.get("/catalog", (c) => {
   const q = (c.req.query("q") ?? "").slice(0, 100);
   const groups = groupByCategory(searchCatalog(q));

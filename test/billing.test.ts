@@ -282,3 +282,23 @@ describe("CSV export", () => {
     expect(lines.some((l) => l.includes("Redis"))).toBe(true);
   });
 });
+
+describe("public pages", () => {
+  it("serves the landing, pricing, legal and bot pages, robots.txt and the sitemap", async () => {
+    const t = await setup();
+    const b = new Browser(t.ctx);
+    const home = await b.html("/");
+    expect(home).toContain("Pick what you run on");
+    expect(home).toContain("docs.socket.dev/docs/organization-alerts");
+    const pricing = await b.html("/pricing");
+    expect(pricing).toContain("$19");
+    expect(pricing).toContain('href="/signin?next=/app/settings"');
+    for (const p of ["/terms", "/privacy", "/bot"]) expect((await b.get(p)).status).toBe(200);
+    expect(await (await b.get("/robots.txt")).text()).toContain("Disallow: /app");
+    const sitemap = await (await b.get("/sitemap.xml")).text();
+    expect(sitemap).toContain("<loc>https://stackquake.com/catalog/cloudflare-workers</loc>");
+
+    const { b: signed } = await signedIn(t, "pricing@example.com");
+    expect(await signed.html("/pricing")).toContain('action="/app/billing/checkout"');
+  });
+});

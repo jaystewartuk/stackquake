@@ -15,6 +15,7 @@ import { github } from "./github";
 import { page } from "./layout";
 import { pub } from "./public";
 import { sessionMiddleware, type WebEnv } from "./session";
+import { site } from "./site";
 import { team } from "./team";
 
 export function createApp(makeCtx: (env: AppEnv) => Ctx) {
@@ -39,6 +40,7 @@ export function createApp(makeCtx: (env: AppEnv) => Ctx) {
     c.header("x-frame-options", "DENY");
   });
   web.route("/", auth);
+  web.route("/", site);
   web.route("/", pub);
   web.route("/", alertLinks);
   web.route("/app/github", github);

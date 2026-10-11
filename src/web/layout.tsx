@@ -48,7 +48,16 @@ ul.plain{list-style:none;padding:0;margin:0} ul.plain a{text-decoration:none} ul
 details summary{cursor:pointer;color:var(--muted)}
 footer{border-top:1px solid var(--line);padding:1.2rem 0;color:var(--muted);font-size:.85rem}
 .sticky{position:sticky;bottom:0;background:var(--bg);padding:.8rem 0;border-top:1px solid var(--line)}
-@media (max-width:40rem){h1{font-size:1.35rem} nav.main{margin-left:0}}
+.hero{padding:1.5rem 0 .5rem} .hero h1{font-size:2.3rem;max-width:44rem;letter-spacing:-.025em} .lede{font-size:1.15rem;color:var(--muted);max-width:42rem}
+.btn.big{padding:.65rem 1.2rem;font-size:1.05rem}
+.example{max-width:44rem;border-left:4px solid var(--accent)} .example blockquote{font-size:.95rem}
+.tags{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center} .tags .pill{font-size:.85rem;padding:.2rem .65rem;text-decoration:none;color:var(--fg)}
+.plans{grid-template-columns:repeat(auto-fit,minmax(16rem,1fr));align-items:start} .plans .featured{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.price{font-size:2rem;font-weight:700;margin:.2rem 0} .price .meta{font-size:.9rem;font-weight:400}
+.prose{max-width:44rem} .prose h2{margin-top:1.8rem}
+code{font-size:.9em;background:var(--soft);padding:.05rem .3rem;border-radius:4px}
+footer nav{display:flex;gap:1rem;flex-wrap:wrap;margin-top:.4rem} footer a{color:var(--muted)}
+@media (max-width:40rem){h1{font-size:1.35rem} .hero h1{font-size:1.7rem} nav.main{margin-left:0}}
 `;
 
 export const Csrf: FC<{ token: string }> = ({ token }) => <input type="hidden" name="_csrf" value={token} />;
@@ -74,6 +83,7 @@ export const Layout: FC<PropsWithChildren<{ title: string; user?: User | null; c
           <nav class="main">
             <a href="/catalog">Catalog</a>
             <a href="/events">Events</a>
+            {!user && <a href="/pricing">Pricing</a>}
             {user ? (
               <>
                 <a href="/app">Dashboard</a>
@@ -96,7 +106,17 @@ export const Layout: FC<PropsWithChildren<{ title: string; user?: User | null; c
         <div class="wrap">{children}</div>
       </main>
       <footer>
-        <div class="wrap">Stackquake watches vendor announcements, pricing pages, licences and end-of-life dates. Notes are summaries, not legal advice; read the source.</div>
+        <div class="wrap">
+          Stackquake watches vendor announcements, pricing pages, licences and end-of-life dates. Notes are summaries, not legal advice; read the source.
+          <nav>
+            <a href="/pricing">Pricing</a>
+            <a href="/catalog">Catalog</a>
+            <a href="/events.rss">RSS</a>
+            <a href="/terms">Terms</a>
+            <a href="/privacy">Privacy</a>
+            <a href="/bot">Bot</a>
+          </nav>
+        </div>
       </footer>
     </body>
   </html>
