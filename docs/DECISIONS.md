@@ -764,3 +764,107 @@ Read this after SPEC.md; where they disagree, this file wins.
   import end to end with forged-choice refusal, staging tools end to end). `tsc` is clean.
 - `npm run eval` passes with 59 catalog entries: one run, $0.099.
 - Production is deployed on stackquake.com and not announced.
+
+## M6: plans, billing, landing page (2026-10-11)
+
+### Plans and limits (SPEC §10), all enforced server-side (`src/billing/plans.ts`)
+- **Free**: 1 project, public repo import or the picker, email alerts, weekly digest. A second
+  project is refused (402 page with an upgrade link) both when the form is opened and when it is
+  posted. **Team**: unlimited projects, private repos through the GitHub App, Slack, up to 10
+  people, CSV export (`/app/export.csv`).
+- **Downgrade keeps everything and quiets the extra**: nothing is deleted. On Free only the owner's
+  **oldest project alerts** (a fan-out condition, `projectAlertsSql`); the dashboard says which
+  projects are quiet. Private-repo push re-imports stop (the webhook query requires Team), "Import
+  again" on a private project is refused, a kept Slack channel gets nothing (delivery and fan-out
+  require Team) and Settings says so. Without this, subscribe-create-cancel would keep unlimited
+  projects for free.
+- **Existing free users' Slack channels**: production had **no users** when M6 shipped (checked),
+  staging one (the owner) with no Slack, so nobody lost anything. The rule above (kept but silent
+  until Team) is what happens from now on.
+- Plan checks without a request (fan-out, delivery, webhooks) use one SQL fragment,
+  `teamPlanSql(userId)`: own plan is `team`, or an accepted membership of a Team owner's team.
+
+### Teams ("up to 10 members"), as small as the plan needs
+- A team is a Team user (the owner) plus accepted members: `team_members(owner_id, email,
+  user_id, invited_at, joined_at)`. 10 people including the owner, so 9 invites (pending ones count).
+- **Invite by email, accept by signing in**: the owner invites an address; the email links to
+  `/app/team`, where a user signed in **with that address** (magic link or GitHub's verified email)
+  sees Join/Decline. Signing in proves the address, so invites carry no token. 20 invites a day per
+  owner.
+- Members **see and edit the owner's projects**, and projects they create while in the team
+  belong to the owner (that is what "shared projects" needs, and it keeps the Free limit about the
+  payer). Their own earlier projects stay theirs. No roles: only the owner invites, removes and pays.
+- **Alerts**: fan-out expands each dep to the project owner plus the team's members (only while
+  the owner is on Team), one alert per user and event as before; each member's own email settings,
+  rate limit, digest and Slack apply. A fan-out chunk is still 200 deps, picked first, then
+  expanded (so a chunk can never cut a dep's recipients in half).
+- One team per member. A user with their own Team subscription, or with members of their own,
+  cannot join another team. A lapsed owner's membership rows stay, inactive, and come back with
+  the subscription. Account deletion removes the user's team, memberships and invites, and cancels
+  a Team subscription first (if Stripe refuses, nothing is deleted).
+
+### Billing (Stripe, same pattern as Beckon)
+- REST through `ctx.http`, no SDK (four endpoints and a signature check; the SDK would add bundle
+  size and CPU). Checkout (subscription mode) on a customer created at first checkout and stored,
+  so every subscription hangs off one customer; Customer Portal; the webhook at `/stripe/webhook`
+  (no session or CSRF, mounted before the session middleware) is the **only writer of
+  `users.plan`**.
+- Webhook: `Stripe-Signature` checked over the raw body (HMAC-SHA256, constant-time, 5-minute
+  tolerance); `checkout.session.completed` and `customer.subscription.created|updated|deleted`.
+  **Idempotent by event id** (`stripe_events`): D1 has no interactive transactions, so the change
+  is applied first and the id recorded after; every change is idempotent and ordered by the
+  event's `created` (`users.plan_event_at`), so a retry after a crash re-applies the same values
+  and an older event arriving late is ignored. A `deleted` for an old subscription does not undo a
+  newer one. `incomplete` leaves the plan alone.
+- **past_due keeps Team**; Stripe's own retry schedule (Billing settings) ends in cancellation,
+  which the `deleted` event turns into Free. No grace-period job of our own.
+- Prices: $19/month, $190/year, USD. Stripe Tax off (no registration). The account is UK-based,
+  so payouts are in GBP.
+- Secrets per environment: `STRIPE_SECRET_KEY` (restricted key: Customers, Checkout Sessions,
+  Customer Portal and Subscriptions write, nothing else), `STRIPE_WEBHOOK_SECRET`,
+  `STRIPE_PRICE_MONTHLY`, `STRIPE_PRICE_YEARLY`. All four or billing is off and pages say "Team
+  opens soon".
+- **Stripe account**: a new standalone account "Stackquake" (like Beckon's; the owner created it,
+  agents may not create accounts). Test mode set up 2026-10-11 by API with the account's test key
+  (moved by clipboard, deleted after): product "Stackquake Team" (`metadata.app=stackquake`,
+  statement descriptor STACKQUAKE), prices with lookup keys `team_monthly`/`team_yearly`, webhook
+  to staging, default Portal configuration (cancel at period end, switch monthly/yearly, card,
+  invoices, address and tax id, links to /terms and /privacy). The restricted key
+  `stackquake-staging-worker` was made in the dashboard.
+- **Checked on staging against Stripe's test API**: Settings → "Team, $19/month" redirects to
+  Checkout (the browser extension may not drive checkout.stripe.com, so no card was typed); a
+  subscription created by API with `pm_card_visa` on that same customer arrived as a signed
+  webhook and set Team (monthly, active, period end); `cancel_at_period_end` set the flag; the
+  `deleted` event set Free. "Billing, invoices and cancelling" opens the Portal. Not exercised live:
+  `checkout.session.completed` (covered by tests).
+- **Live mode is not set up**: it needs the owner to activate the account (business and bank
+  details) and approve the live product and prices. Then the same script and a live restricted key
+  for production.
+
+### Landing page, pricing, legal (SPEC §2 Positioning)
+- `/` leads with services ("Pick what you run on"; "Or paste a repo" next to it), a static example
+  alert (the real Deno quote), what we watch, the catalog's common entries, "Where it differs" with
+  three competitor quotes **re-read on the live pages** (docs/COMPETITORS.md, "Re-check before
+  launch"; GitHub's new PR-time licence-compliance preview noted there), and the plans.
+- `/pricing`, `/terms`, `/privacy` (operator: Jay Stewart; contact hello@stackquake.com), `/bot` (the
+  User-Agent's URL had no page), `robots.txt`, `sitemap.xml` (catalog and up to 500 events).
+  **The terms are a plain-language draft, not reviewed by a lawyer** (SPEC §14 Q5); have them
+  reviewed before charging real customers.
+- `www.stackquake.com` is a custom domain on the production Worker that answers 301 to the apex
+  (owner approved). `hello@stackquake.com` forwards to the owner's inbox through Cloudflare Email
+  Routing (owner approved; MX ×3, Cloudflare's DKIM and an apex SPF TXT were added; Resend's records
+  are on `send.`/`resend._domainkey` and unaffected).
+- **DMARC stays `p=none`** for now: the domain and its mail are a day old; revisit `quarantine`
+  after a few weeks of clean Resend reports.
+
+### Launch checks
+- `npm run eval` on production's models (Haiku classify and summarise, Opus for licence, EOL and
+  acquisition notes) **passes**: one run, $0.10, no false positive, every deal change found,
+  every quote verbatim. (The Deno note restricted itself to self-hosted use; within the bar.)
+- Review gate unchanged (auto-publish only deterministic kinds, confidence ≥ 0.9, quote found).
+- **Sign-up in production** (2026-10-11, owner's GitHub account, owner's OK): landing → "Pick what
+  you run on" → GitHub → new project → 5 services → usage → dashboard worked end to end. Wall
+  clock 5 min 4 s, but that includes waiting for the owner to click "Authorize" on GitHub (the
+  browser extension may not act on github.com) and the agent's own turn latency; the in-app steps
+  after GitHub took under a minute. The dashboard showed the 5 services as "no sources yet",
+  because production's first catalog sync is the 06:07 UTC daily run. Re-time after that.
