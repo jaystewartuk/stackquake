@@ -81,9 +81,10 @@ export async function pages() {
     { name: "privacy", path: "/privacy", as: null },
     { name: "bot", path: "/bot", as: null },
     { name: "signin", path: "/signin", as: null, public: true },
-    { name: "signin-sent", path: "/signin", as: null, submit: { fill: { "#email": "someone@example.com" }, click: "button[type=submit].primary" } },
+    { name: "signin-sent", path: "/signin", as: null, submit: { fill: { "#email": "someone@example.com" }, click: "main button[type=submit]" } },
     { name: "link-expired", path: "/auth/email/confirm?token=nope", as: null, status: 400 },
     { name: "404", path: "/no-such-page", as: null, status: 404 },
+    { name: "dev-ui", path: "/__dev/ui", as: null },
     // App, as the Team owner (also the admin)
     { name: "app-dashboard", path: "/app", as: "owner", lighthouse: true },
     { name: "app-project-import", path: `/app/projects/${s.projects.import}`, as: "owner" },

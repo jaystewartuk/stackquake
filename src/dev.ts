@@ -13,6 +13,7 @@ import { recordEvent } from "./watch/events";
 import { loadSnapshot, pollSafely, snapshotKey, type PollReport } from "./watch/poll";
 import { gzip, sha256Hex, utf8 } from "./util";
 import { seedDemo } from "./dev-seed";
+import { galleryHtml } from "./web/gallery";
 import { signLink, type LinkAction } from "./alerts/links";
 import { randomToken, SESSION_MS } from "./web/session";
 
@@ -37,6 +38,9 @@ async function resolveTargets(ctx: ReturnType<typeof makeCtx>, target: string): 
   }
   return [];
 }
+
+// The component gallery (docs/design/DIRECTION.md): every shared component, light and dark.
+devRoutes.get("/ui", (c) => c.html(galleryHtml()));
 
 devRoutes.post("/poll", async (c) => {
   const ctx = makeCtx(c.env);
