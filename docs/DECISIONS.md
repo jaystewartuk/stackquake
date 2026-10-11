@@ -924,3 +924,11 @@ Read this after SPEC.md; where they disagree, this file wins.
   `/.well-known/security.txt`, RFC 9116, renew `Expires` by 2027-10-11), privacy@, billing@, dmarc@
   (for DMARC aggregate reports once `_dmarc` gets `rua=mailto:dmarc@stackquake.com`, a DNS change for
   the owner to approve). No catch-all: it mostly attracts spam.
+- **All the owner's apps** (2026-10-11, owner's request and approval): the same 10 addresses
+  (support, hello, postmaster, abuse, hostmaster, webmaster, security, privacy, billing, dmarc)
+  forward to the owner's inbox on every domain whose mail Cloudflare handles: stackquake.com,
+  project-h.example, project-e.example (its soporte@ and jay@ kept), project-a.example, project-b.example, and,
+  newly enabled (MX ×3 and SPF added by Cloudflare), project-c.example and project-f.example. Not
+  touched: project-d.example and project-g.example (and jaystewart.co.uk/.dev) receive mail elsewhere; role
+  addresses there are aliases. Stackquake's Stripe support email is
+  support@stackquake.com.
