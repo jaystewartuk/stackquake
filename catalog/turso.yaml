@@ -1,0 +1,22 @@
+id: turso
+name: Turso
+category: database
+aliases: [turso cloud, libsql, tursodb]
+detect:
+  npm: ["@libsql/client", "@tursodatabase/database"]
+  pypi: [libsql, libsql-client]
+sources:
+  # turso.tech/pricing is 280 KB of HTML and the blog has no feed; the docs answer Markdown.
+  - kind: page
+    url: https://docs.turso.tech/help/usage-and-billing
+    selector: main
+  - kind: page
+    url: https://docs.turso.tech/cloud/limitations
+    selector: main
+  - kind: npm
+    package: "@libsql/client"
+  - kind: github_repo
+    repo: tursodatabase/libsql
+alternatives: [cloudflare-d1, neon, planetscale, supabase]
+usage_questions: [hosted, self_hosted, tier]
+single_vendor: true

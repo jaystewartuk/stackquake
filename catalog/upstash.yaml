@@ -1,0 +1,22 @@
+id: upstash
+name: Upstash
+category: database
+aliases: [upstash redis, upstash kafka, qstash]
+detect:
+  npm: ["@upstash/redis", "@upstash/ratelimit", "@upstash/qstash"]
+  pypi: [upstash-redis]
+sources:
+  # The blog feed (https://upstash.com/blog/feed.xml) is 450 KB and was not added; the docs
+  # pricing page answers Accept: text/markdown with a 15 KB machine-readable table.
+  - kind: page
+    url: https://upstash.com/docs/redis/overall/pricing
+    selector: main
+  - kind: npm
+    package: "@upstash/redis"
+  - kind: pypi
+    package: upstash-redis
+  - kind: github_repo
+    repo: upstash/redis-js
+alternatives: [cloudflare-kv, redis, neon]
+usage_questions: [hosted, tier]
+single_vendor: true

@@ -1,0 +1,19 @@
+id: java
+name: Java (OpenJDK)
+category: runtime
+aliases: [jdk, openjdk, jvm, oracle jdk, temurin]
+detect:
+  files: [pom.xml, build.gradle, build.gradle.kts, .java-version]
+  docker: [eclipse-temurin, openjdk, amazoncorretto, maven, gradle]
+sources:
+  # The Oracle Java blog feed (blogs.oracle.com/java/rss) answers bots with 403.
+  - kind: feed
+    url: https://inside.java/feed.xml
+    filter: [end of life, eol, licen, nftc, support, lts, jdk]
+  - kind: eol
+    product: oracle-jdk
+  - kind: eol
+    product: eclipse-temurin
+  - kind: github_repo
+    repo: openjdk/jdk
+usage_questions: [commercial]

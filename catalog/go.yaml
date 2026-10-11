@@ -1,0 +1,15 @@
+id: go
+name: Go
+category: runtime
+aliases: [golang, go language]
+detect:
+  files: [go.mod, go.work, .go-version]
+  docker: [golang]
+sources:
+  # The Go blog Atom feed (go.dev/blog/feed.atom) is 350 KB and mostly technical posts; not added.
+  # Releases and end of life come from endoflife.date and the repo.
+  - kind: eol
+    product: go
+  - kind: github_repo
+    repo: golang/go
+usage_questions: []

@@ -1,0 +1,16 @@
+id: rust
+name: Rust
+category: runtime
+aliases: [rustc, cargo, rustlang]
+detect:
+  files: [Cargo.toml, Cargo.lock, rust-toolchain, rust-toolchain.toml]
+  docker: [rust]
+sources:
+  - kind: feed
+    url: https://blog.rust-lang.org/feed.xml
+    filter: [end of life, eol, licen, trademark, deprecat, removal, support, tier]
+  - kind: eol
+    product: rust
+  - kind: github_repo
+    repo: rust-lang/rust
+usage_questions: []

@@ -11,7 +11,7 @@ beforeEach(resetDb);
 
 describe("catalog", () => {
   it("ships valid entries", () => {
-    expect(CATALOG.length).toBeGreaterThanOrEqual(25);
+    expect(CATALOG.length).toBeGreaterThanOrEqual(45);
     const hosted = CATALOG.filter((e) => !["runtime", "infrastructure", "self_hosted", "security"].includes(e.category));
     expect(hosted.length / CATALOG.length).toBeGreaterThan(0.5);
     for (const e of CATALOG) expect(validateEntry(e)).toEqual([]);

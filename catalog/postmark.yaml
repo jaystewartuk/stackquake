@@ -1,0 +1,20 @@
+id: postmark
+name: Postmark
+category: email
+aliases: [postmarkapp, postmark email]
+detect:
+  npm: [postmark, nodemailer-postmark-transport]
+  pypi: [postmarker]
+sources:
+  # postmarkapp.com answers Accept: text/markdown with a 17 KB pricing page. No blog feed found
+  # (/blog/feed and /blog.rss are 404).
+  - kind: page
+    url: https://postmarkapp.com/pricing
+    selector: main
+  - kind: npm
+    package: postmark
+  - kind: github_repo
+    repo: ActiveCampaign/postmark.js
+alternatives: [resend, sendgrid, twilio]
+usage_questions: [hosted, commercial, tier]
+single_vendor: true

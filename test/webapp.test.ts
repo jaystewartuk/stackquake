@@ -59,10 +59,10 @@ describe("building a stack from the picker (no repo)", () => {
     const id = await newProject(b);
     await b.post(`/app/projects/${id}/services`, { ids: ["supabase", "vercel"], shown: CATALOG.map((e) => e.id) });
     // A filtered page showed only Vercel; Supabase must survive.
-    await b.post(`/app/projects/${id}/services`, { shown: ["vercel"], request: "Upstash Redis" });
+    await b.post(`/app/projects/${id}/services`, { shown: ["vercel"], request: "CockroachDB" });
     const ids = (await ctx.db.select().from(deps).where(eq(deps.projectId, id)).all()).map((d) => d.catalogId);
     expect(ids).toEqual(["supabase"]);
-    expect((await ctx.db.select().from(catalogRequests).all()).map((r) => r.text)).toEqual(["Upstash Redis"]);
+    expect((await ctx.db.select().from(catalogRequests).all()).map((r) => r.text)).toEqual(["CockroachDB"]);
     // Free text that names an entry (by alias) just adds it.
     await b.post(`/app/projects/${id}/services`, { shown: [], request: "wrangler" });
     expect((await ctx.db.select().from(deps).where(eq(deps.projectId, id)).all()).map((d) => d.catalogId).sort()).toEqual(["cloudflare-workers", "supabase"]);

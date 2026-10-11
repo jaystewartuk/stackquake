@@ -1,0 +1,17 @@
+id: php
+name: PHP
+category: runtime
+aliases: [php-fpm, laravel]
+detect:
+  files: [composer.json, composer.lock, .php-version]
+  docker: [php]
+sources:
+  # The releases feed (6 KB). php.net/feed.atom (all news) is 1.4 MB and was not added.
+  - kind: feed
+    url: https://www.php.net/releases/feed.php
+    filter: [end of life, eol, security, licen, support]
+  - kind: eol
+    product: php
+  - kind: github_repo
+    repo: php/php-src
+usage_questions: []

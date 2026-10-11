@@ -1,0 +1,15 @@
+id: kubernetes
+name: Kubernetes
+category: infrastructure
+aliases: [k8s, kubectl, eks, gke, aks]
+detect:
+  files: [kustomization.yaml, kustomization.yml, skaffold.yaml, Chart.yaml]
+  npm: ["@kubernetes/client-node"]
+sources:
+  # kubernetes.io/feed.xml (blog) is 1.1 MB; not added. Releases and end of life come from
+  # endoflife.date and the repo.
+  - kind: github_repo
+    repo: kubernetes/kubernetes
+  - kind: eol
+    product: kubernetes
+usage_questions: [hosted, self_hosted]

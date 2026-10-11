@@ -1,0 +1,14 @@
+id: opentofu
+name: OpenTofu
+category: infrastructure
+aliases: [tofu]
+detect:
+  files: ["*.tofu"]
+sources:
+  # opentofu.org has no feed (/blog/feed.xml is 404) and github.com *.atom is disallowed.
+  - kind: github_repo
+    repo: opentofu/opentofu
+  - kind: eol
+    product: opentofu
+alternatives: [terraform]
+usage_questions: [self_hosted]
