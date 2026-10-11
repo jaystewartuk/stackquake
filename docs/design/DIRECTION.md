@@ -185,8 +185,20 @@ Built once in stage 2 as JSX components and CSS in `src/web/styles/*.ts`, then u
   Severity, Callout, Flash, PageHeader, DataTable, Tabs, EmptyState, Quote, DataList, NoteCard, StatusLine,
   Trace, StickyBar, Avatar); icons in `src/web/icons.tsx`; shell (SiteHeader, Layout) in `layout.tsx`.
 - See them all at `/__dev/ui` with `npm run dev`.
-- Still to build when a page needs them: UpgradePanel, PlanCard, DiffView, OptionCard (effort meter),
-  AlertRow and DepRow in their final form, EventNote's right rail.
+- Still to build when a page needs them: UpgradePanel, DiffView, AlertRow and DepRow in their final form.
+
+## As built (stage 3)
+
+- Added to `ui.tsx`: OptionCard + EffortMeter (3 bars + the word), PlanCard (name, mono price, period, checked
+  features, action slot; `featured`), ErrorPage (code, h1, cause, actions), DataTable `rowHeader` and a
+  keyboard-scrollable mode (`stack={false}` makes the wrapper a focusable region). `events-view.tsx`: EventRow /
+  EventList (date margin column), NoteView in its final order, `whoIsAffected`, `noteFacts`, `latestByCatalog`.
+  `public.tsx`: `feedTrace` (90-day public trace, used on / and /events). `site.tsx`: DocPage for legal pages.
+- Layout emits `canonical`, Open Graph and `twitter:card=summary` on indexable public pages (`page()` decides:
+  not /app, /admin, /a, /auth, and only for 200s); `ogType: "article"` for notes.
+- Page layouts in `styles/pages.ts`: `.split` + `.rail` (main column and a sticky 20rem rail at ≥64rem), landing
+  `.hero`/`.band`/`.steps`/`.cat-proof`/`.compare`/`.cite-grid`/`.price-strip`/`.cta-band`, catalog cards,
+  `.month-h`, `.note`, `.plans`/`.faq-grid`, `.auth`, `.doc`/`.toc`.
 
 ## The pages that matter most
 

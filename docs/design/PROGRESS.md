@@ -77,3 +77,56 @@ budget 30).
 catalog cards, events list, legal ToC); stage 4 the app (needs-action list, dep rows with severity marks,
 settings/team/billing panels, 402 UpgradePanel, admin Approve/Edit/Reject spacing and edit page h1).
 Not built yet, as no page needs them: UpgradePanel, PlanCard, DiffView, OptionCard with effort meter.
+
+## Stage 3: public pages (2026-10-11)
+
+**Changed**
+- **Landing** `/`: two-column hero at ≥64rem (kicker, h1, lede, one primary "Pick what you run on" with "or paste a
+  repo" as a text link) beside the real Deno example note and the public feed's 90-day trace (each spike links to its
+  note, newest labelled). Then How it works (3 numbered steps), What we watch (2×2) with the catalog as proof
+  (59 entries, 13 categories, names and counts, no logos), Where it differs (a 5-row comparison with Dependabot/GitHub,
+  Snyk and Socket from docs/COMPETITORS.md, each vendor's own quote cited, four differentiators), recent changes,
+  a pricing strip and one closing call to action. No testimonials, no invented numbers.
+- **Pricing**: PlanCard side by side, Team emphasised (accent border, label), prices in mono from plans.ts, the
+  checkout form unchanged (same action, names, values, CSRF), FAQ as a two-column grid.
+- **Catalog**: search plus a category jump bar with counts; each entry card shows what we read (Blog · 2 pages ·
+  End-of-life dates…) and its latest published change (kind, date, "+n earlier"); two columns on phones.
+  **Entry page**: breadcrumb to its category, recent changes as EventRows (or an empty state), a sticky rail with
+  sources (icon, kind, link) and alternatives as chips.
+- **Events**: list grouped by month, date in a mono margin column, the 90-day trace on top, RSS as a button.
+  **Event note**: kind and subject kicker, h1 = the title, the summary as lede, FactStrip (Published, Takes effect,
+  Source domain), the quote as centrepiece, What this means for you (who is affected, in plain words from
+  `applies_when`), Who is not affected, Ways out as OptionCards with an effort meter, What the source doesn't say,
+  the disclaimer word for word; a rail with the CTA and a permalink to share. Every indexable public page now has
+  `canonical`, `og:*` and `twitter:card=summary`; notes are `og:type=article` with `article:published_time`.
+  No og:image (see DECISIONS).
+- **Sign in** and magic-link pages in a narrow centred column; expired link, 429, GitHub problems, 503 and 404 use the
+  new ErrorPage (code, plain-words cause, next step). **Terms / Privacy / Bot**: DocPage with a contents list (sticky
+  rail at ≥64rem), the privacy table stacks on phones. Legal wording checked word for word against the previous
+  version (only the h1 moved into the component).
+- New components: OptionCard + EffortMeter, PlanCard, ErrorPage, EventList/EventRow (redesigned), DataTable row
+  headers and keyboard-scrollable mode, icons rss/link/layers. Fixed: trace spikes had no visible focus style
+  (the stage 2 rule targeted `line`, the spikes are `path`s).
+
+**Numbers** (`.ui/audit/stage3/`, `.ui/shots/stage3/`), before = baseline → stage 3:
+
+| Public page | Lighthouse perf | A11y | Best pr. | axe (light/dark) | Gzipped HTML+CSS | Height at 390 |
+|---|---|---|---|---|---|---|
+| home | 100 → 100 | 100 → 100 | 92 → 100 | 1/1 → 0/0 | 5.6 → 14.8 KB | 5,629 → 6,635 px |
+| pricing | 100 → 100 | 100 → 100 | 96 → 100 | 1/1 → 0/0 | 3.4 → 10.8 KB | 2,106 → 2,462 px |
+| catalog | 100 → 100 | 100 → 100 | 96 → 100 | 1/1 → 0/0 | 3.6 → 11.7 KB | 6,542 → 5,295 px |
+| catalog-entry | 100 → 100 | 100 → 100 | 96 → 100 | 1/1 → 0/0 | 2.9 → 10.8 KB | |
+| events | 100 → 100 | 100 → 100 | 96 → 100 | 1/1 → 0/0 | 3.8 → 12.0 KB | |
+| event-eol | 100 → 100 | 97 → 100 | 96 → 100 | 2/2 → 0/0 | 3.0 → 11.1 KB | |
+| signin | 100 → 100 | 100 → 100 | 96 → 100 | 1/1 → 0/0 | 2.5 → 9.8 KB | |
+
+axe: 0 violations on all 16 public pages (including the empty search, both other notes, terms, privacy, bot,
+signin-sent, link-expired, 404) in light and dark; the only remaining findings are the gallery's duplicated demo
+landmark and admin-event-edit's missing h1 (stage 4). 160 shots, none with a wrong status, overflow or console
+errors. Keyboard: tab order checked on /, a note, /catalog, /pricing, /signin and /terms at 390 px: every stop
+visible. Lighthouse SEO 92 on /catalog is a false positive (`link-text` flags the entry named "Go").
+
+**Left**: the landing page is 6,635 px tall at 390 px, not the 3,500 px DIRECTION.md aimed for. The sections this
+stage's prompt requires (steps, catalog proof, comparison, cited quotes, pricing) cost the height; on phones the
+comparison table scrolls sideways, the vendor quotes are a swipe row and recent changes show 3. Stage 5 can trim
+copy. The one-click alert pages (`/a/…`) and the 402 page are app pages (stage 4). PlanCard is ready for Settings.

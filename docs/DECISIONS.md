@@ -990,3 +990,18 @@ Read this after SPEC.md; where they disagree, this file wins.
   the full event note keeps real h2s.
 - Stage 2: the trace's spikes are links when they have a target, so the SVG is `role="group"` (an `img` may not contain
   links); its aria-label gives the count.
+- Stage 3: notes have Open Graph and Twitter `summary` tags but no `og:image`: no remote images are allowed, and the
+  main link-preview consumers (Slack, X, LinkedIn, iMessage) don't render SVG, so a self-generated SVG would show as
+  nothing; a PNG would need a rasteriser in the Worker. A plain text card is honest and costs nothing.
+- Stage 3: the landing comparison is a table built only from docs/COMPETITORS.md's table (vendor docs, 2026-10-11),
+  where "No" means "their docs don't describe it"; each vendor's own quote stays on the page, cited, as the evidence.
+  The "services" differentiator moved into the table's first rows, leaving four differentiators in a 2×2 grid.
+- Stage 3: the event note's h1 is the title alone (the subject is in the kicker and in `<title>`/og:title), as
+  DIRECTION.md planned; "What this means for you" on public pages is derived from `applies_when` in plain words,
+  since there is no user to match.
+- Stage 3: catalog cards show the latest change from events tagged with the entry's `catalogId` (one query, 500 rows);
+  an entry's own page still also counts events from its sources, as before.
+- Stage 3: the share block is a read-only permalink field plus RSS, not a "copy" button or share-site links: no JS is
+  needed and no third-party URLs are added.
+- Stage 3: the landing page stays above the 3,500 px target at 390 px (6,635 px): the prompt's required sections cost
+  it; phones get a sideways-scrolling comparison table, a swipe row of quotes and three recent changes instead of five.
