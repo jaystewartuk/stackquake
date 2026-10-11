@@ -1,0 +1,19 @@
+id: hashicorp-vault
+name: HashiCorp Vault
+category: security
+aliases: [vault, hcp vault, vault enterprise]
+detect:
+  docker: [hashicorp/vault, vault]
+  terraform: [hashicorp/vault]
+  npm: [node-vault]
+  pypi: [hvac]
+sources:
+  # hashicorp.com (blog, licence FAQ) answers automated clients with a Vercel Security Checkpoint,
+  # and developer.hashicorp.com pages are 120 to 260 KB of HTML with no Markdown answer.
+  - kind: github_repo
+    repo: hashicorp/vault
+  - kind: eol
+    product: hashicorp-vault
+alternatives: [bitwarden]
+usage_questions: [hosted, self_hosted, commercial]
+single_vendor: true

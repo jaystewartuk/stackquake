@@ -1,0 +1,19 @@
+id: cloudflare-durable-objects
+name: Cloudflare Durable Objects
+category: hosting
+aliases: [durable objects, do, durable object storage]
+detect:
+  npm: [partyserver, "@cloudflare/actors"]
+sources:
+  - kind: feed
+    url: https://blog.cloudflare.com/rss/
+    filter: [durable objects, pricing, free tier]
+  - kind: page
+    url: https://developers.cloudflare.com/durable-objects/platform/pricing/
+    selector: main
+  - kind: page
+    url: https://developers.cloudflare.com/durable-objects/platform/limits/
+    selector: main
+alternatives: [cloudflare-workers, fly-io, upstash]
+usage_questions: [hosted, tier]
+single_vendor: true

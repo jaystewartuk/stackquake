@@ -1,0 +1,27 @@
+id: azure-functions
+name: Azure Functions
+category: hosting
+aliases: [azure function app, functions app]
+detect:
+  files: [host.json, local.settings.json]
+  npm: ["@azure/functions", azure-functions-core-tools]
+  pypi: [azure-functions]
+sources:
+  # The Azure updates feed (microsoft.com/releasecommunications) covers all of Azure and is 150 KB;
+  # not added. learn.microsoft.com answers Accept: text/markdown.
+  - kind: page
+    url: https://learn.microsoft.com/en-us/azure/azure-functions/functions-scale
+    selector: main
+  - kind: page
+    url: https://learn.microsoft.com/en-us/azure/azure-functions/functions-versions
+    selector: main
+  - kind: page
+    url: https://learn.microsoft.com/en-us/azure/azure-functions/consumption-plan
+    selector: main
+  - kind: npm
+    package: "@azure/functions"
+  - kind: github_repo
+    repo: Azure/azure-functions-host
+alternatives: [aws-lambda, cloudflare-workers, vercel]
+usage_questions: [hosted, tier]
+single_vendor: true

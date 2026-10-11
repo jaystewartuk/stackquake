@@ -1,0 +1,26 @@
+id: datadog
+name: Datadog
+category: monitoring
+aliases: [datadog apm, dd-trace, datadoghq]
+detect:
+  npm: [dd-trace, datadog-metrics, "@datadog/browser-rum"]
+  pypi: [ddtrace, datadog]
+  docker: [datadog/agent, gcr.io/datadoghq/agent]
+  terraform: [DataDog/datadog]
+sources:
+  - kind: feed
+    url: https://www.datadoghq.com/blog/index.xml
+    filter: [pricing, billing, free, plan, licen, deprecat, end of life, retire]
+  # www.datadoghq.com/pricing/ was not added: 1.6 MB of HTML. docs.datadoghq.com answers Markdown.
+  - kind: page
+    url: https://docs.datadoghq.com/account_management/billing/pricing/
+    selector: main
+  - kind: npm
+    package: dd-trace
+  # The PyPI document for ddtrace is over 4 MB (too_large), so the package is only used for
+  # detection above, not polled.
+  - kind: github_repo
+    repo: DataDog/datadog-agent
+alternatives: [sentry, grafana, posthog]
+usage_questions: [hosted, commercial]
+single_vendor: true

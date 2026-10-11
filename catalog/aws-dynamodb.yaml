@@ -1,0 +1,20 @@
+id: aws-dynamodb
+name: Amazon DynamoDB
+category: database
+aliases: [dynamodb, dynamo]
+detect:
+  npm: ["@aws-sdk/client-dynamodb", "@aws-sdk/lib-dynamodb"]
+  pypi: [pynamodb]
+sources:
+  # Shared with AWS Lambda and S3 (same URL, one poll).
+  - kind: feed
+    url: https://aws.amazon.com/about-aws/whats-new/recent/feed/
+    filter: [dynamodb, free tier]
+  - kind: page
+    url: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/ServiceQuotas.html
+    selector: main
+  - kind: npm
+    package: "@aws-sdk/client-dynamodb"
+alternatives: [mongodb, firebase, cloudflare-d1]
+usage_questions: [hosted, tier]
+single_vendor: true

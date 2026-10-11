@@ -1,0 +1,21 @@
+id: elasticsearch
+name: Elasticsearch
+category: database
+aliases: [elastic, elastic cloud, elk, kibana]
+detect:
+  docker: [elasticsearch, docker.elastic.co/elasticsearch/elasticsearch, kibana, docker.elastic.co/kibana/kibana]
+  npm: ["@elastic/elasticsearch"]
+  pypi: [elasticsearch]
+sources:
+  # elastic.co/pricing is 586 KB of HTML and the FAQ 388 KB; not added.
+  - kind: feed
+    url: https://www.elastic.co/blog/feed
+    filter: [licen, agpl, sspl, open source, pricing, end of life, eol, elastic cloud]
+  - kind: github_repo
+    repo: elastic/elasticsearch
+  - kind: eol
+    product: elasticsearch
+  - kind: npm
+    package: "@elastic/elasticsearch"
+alternatives: [opensearch]
+usage_questions: [hosted, self_hosted, commercial]

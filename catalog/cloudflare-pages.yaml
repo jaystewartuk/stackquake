@@ -1,0 +1,20 @@
+id: cloudflare-pages
+name: Cloudflare Pages
+category: hosting
+aliases: [pages, pages functions]
+detect:
+  files: [_routes.json]
+  npm: ["@cloudflare/next-on-pages"]
+sources:
+  - kind: feed
+    url: https://blog.cloudflare.com/rss/
+    filter: [pages, workers assets, static assets, pricing, free tier, deprecat]
+  - kind: page
+    url: https://developers.cloudflare.com/pages/platform/limits/
+    selector: main
+  - kind: page
+    url: https://developers.cloudflare.com/pages/functions/pricing/
+    selector: main
+alternatives: [vercel, netlify, cloudflare-workers]
+usage_questions: [hosted, tier]
+single_vendor: true

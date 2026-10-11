@@ -1,0 +1,24 @@
+id: aws-s3
+name: Amazon S3
+category: storage
+aliases: [s3, aws s3, simple storage service]
+detect:
+  npm: ["@aws-sdk/client-s3", "@aws-sdk/lib-storage", "@aws-sdk/s3-request-presigner"]
+sources:
+  # Shared with AWS Lambda (same URL, one poll).
+  - kind: feed
+    url: https://aws.amazon.com/about-aws/whats-new/recent/feed/
+    filter: [s3, simple storage service, free tier, egress]
+  # https://aws.amazon.com/s3/pricing/ was not added: 520 KB of HTML with no Markdown answer.
+  # docs.aws.amazon.com answers Accept: text/markdown.
+  - kind: page
+    url: https://docs.aws.amazon.com/AmazonS3/latest/userguide/BucketRestrictions.html
+    selector: main
+  - kind: page
+    url: https://docs.aws.amazon.com/AmazonS3/latest/userguide/storage-class-intro.html
+    selector: main
+  - kind: npm
+    package: "@aws-sdk/client-s3"
+alternatives: [cloudflare-r2, supabase, firebase]
+usage_questions: [hosted, tier]
+single_vendor: true

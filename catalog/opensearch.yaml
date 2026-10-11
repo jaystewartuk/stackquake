@@ -1,0 +1,18 @@
+id: opensearch
+name: OpenSearch
+category: database
+aliases: [amazon opensearch service, aws opensearch]
+detect:
+  docker: [opensearchproject/opensearch, opensearchproject/opensearch-dashboards]
+  npm: ["@opensearch-project/opensearch"]
+  pypi: [opensearch-py]
+sources:
+  # opensearch.org has no feed (/blog/feed.xml is 404).
+  - kind: github_repo
+    repo: opensearch-project/OpenSearch
+  - kind: eol
+    product: opensearch
+  - kind: npm
+    package: "@opensearch-project/opensearch"
+alternatives: [elasticsearch]
+usage_questions: [hosted, self_hosted]

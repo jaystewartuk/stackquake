@@ -1,0 +1,19 @@
+id: cloudflare-kv
+name: Cloudflare Workers KV
+category: storage
+aliases: [kv, workers kv]
+detect:
+  npm: ["@cloudflare/kv-asset-handler"]
+sources:
+  - kind: feed
+    url: https://blog.cloudflare.com/rss/
+    filter: [workers kv, key-value, pricing, free tier]
+  - kind: page
+    url: https://developers.cloudflare.com/kv/platform/pricing/
+    selector: main
+  - kind: page
+    url: https://developers.cloudflare.com/kv/platform/limits/
+    selector: main
+alternatives: [cloudflare-d1, cloudflare-r2, upstash]
+usage_questions: [hosted, tier]
+single_vendor: true

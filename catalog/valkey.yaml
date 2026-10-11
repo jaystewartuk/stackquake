@@ -1,0 +1,20 @@
+id: valkey
+name: Valkey
+category: database
+aliases: [valkey-server, valkey glide, elasticache valkey]
+detect:
+  docker: [valkey/valkey, valkey/valkey-bundle]
+  npm: [iovalkey, "@valkey/valkey-glide"]
+  pypi: [valkey, valkey-glide]
+sources:
+  # valkey.io has no feed (/blog/feed.xml is 404).
+  - kind: github_repo
+    repo: valkey-io/valkey
+  - kind: eol
+    product: valkey
+  - kind: npm
+    package: iovalkey
+  - kind: pypi
+    package: valkey
+alternatives: [redis, upstash]
+usage_questions: [hosted, self_hosted]

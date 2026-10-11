@@ -1,0 +1,21 @@
+id: grafana
+name: Grafana
+category: monitoring
+aliases: [grafana cloud, grafana oss, loki, tempo, alloy]
+detect:
+  docker: [grafana/grafana, grafana/grafana-oss, grafana/grafana-enterprise, grafana/loki, grafana/alloy, grafana/tempo]
+  terraform: [grafana/grafana]
+sources:
+  # The blog feed (grafana.com/blog/index.xml, 134 KB) was dropped for CPU (Workers Free plan):
+  # a steady-state tick with it measured 25 ms. Licence changes come from the repo source.
+  # grafana.com/pricing/ was not added: 100 KB of HTML with no Markdown answer. The docs do answer.
+  - kind: page
+    url: https://grafana.com/docs/grafana-cloud/platform/pricing-and-usage/
+    selector: main
+  - kind: github_repo
+    repo: grafana/grafana
+  - kind: eol
+    product: grafana
+alternatives: [datadog, sentry]
+usage_questions: [hosted, self_hosted, commercial, tier]
+common: true

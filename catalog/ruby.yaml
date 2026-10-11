@@ -1,0 +1,16 @@
+id: ruby
+name: Ruby
+category: runtime
+aliases: [cruby, mri, ruby on rails]
+detect:
+  files: [Gemfile, Gemfile.lock, .ruby-version, "*.gemspec"]
+  docker: [ruby]
+sources:
+  - kind: feed
+    url: https://www.ruby-lang.org/en/feeds/news.rss
+    filter: [end of life, eol, security, licen, maintenance, support]
+  - kind: eol
+    product: ruby
+  - kind: github_repo
+    repo: ruby/ruby
+usage_questions: []
