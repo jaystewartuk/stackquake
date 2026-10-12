@@ -151,7 +151,7 @@ export const PAGES = `
 .auth-alt{width:100%}
 .split>section>h2:first-child,.split>.main-col>h2:first-child{margin-top:0}
 .compare td{overflow-wrap:normal}.compare td:nth-child(2){min-width:9rem}
-#permalink{font-family:var(--font-mono);font-size:var(--text-sm)}
+#permalink{font-family:var(--font-mono);font-size:var(--text-sm);resize:none;overflow-wrap:anywhere;min-height:0}
 .auth-fine{margin-top:var(--s-3)}
 
 /* Legal and reference documents */

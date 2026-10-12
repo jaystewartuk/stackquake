@@ -99,7 +99,6 @@ fieldset label{display:inline-flex;gap:var(--s-2);align-items:center;font-weight
 .choice label:hover{border-color:var(--control)}
 .choice input{position:absolute;opacity:0;width:1px;height:1px}
 .choice label:has(:checked){border-color:var(--fg);box-shadow:inset 0 0 0 1px var(--fg);background:var(--sunken);color:var(--fg);font-weight:500}
-@media (max-width:40rem){.choice{display:grid;grid-template-columns:repeat(auto-fit,minmax(5.5rem,1fr))}.choice label{justify-content:center;text-align:center;padding-block:var(--s-1)}}
 .choice label:has(:focus-visible){outline:2px solid var(--focus);outline-offset:2px}
 
 /* Pick tile (the service picker) */
@@ -109,7 +108,7 @@ fieldset label{display:inline-flex;gap:var(--s-2);align-items:center;font-weight
 .pick .pick-name{font-weight:500}
 .pick .pick-sub{display:block;font-size:var(--text-xs);color:var(--subtle)}
 .pick .pick-note{display:block;font-size:var(--text-xs);color:var(--ok);font-weight:500}
-.pick:has(:checked){border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:color-mix(in srgb,var(--accent) 4%,var(--surface))}
+.pick:has(:checked){border-color:var(--fg);box-shadow:inset 0 0 0 1px var(--fg);background:var(--sunken)}
 .pick:has(:focus-visible){outline:2px solid var(--focus);outline-offset:2px}
 .pick:has(:disabled){opacity:.55;cursor:not-allowed}
 
@@ -167,6 +166,8 @@ td.num,th.num{white-space:nowrap;text-align:right;font-family:var(--font-mono);f
 .tabs a:hover{color:var(--fg)}
 .tabs a[aria-current]{color:var(--fg);border-bottom-color:var(--accent)}
 .segmented{display:inline-flex;padding:2px;background:var(--sunken);border:1px solid var(--line);border-radius:var(--r-2);margin:0 0 var(--s-4);max-width:100%;overflow-x:auto}
+/* On phones the filter scrolls; the fade says there is more to the right. */
+@media (max-width:30rem){.segmented{mask-image:linear-gradient(to right,#000 calc(100% - 1.5rem),transparent)}}
 .segmented a{padding:var(--s-1) var(--s-3);border-radius:calc(var(--r-2) - 2px);color:var(--muted);text-decoration:none;font-size:var(--text-sm);font-weight:500;white-space:nowrap}
 .segmented a[aria-current]{background:var(--surface);color:var(--fg);box-shadow:var(--shadow-1)}
 
@@ -389,6 +390,6 @@ details.more[open]>summary{margin-bottom:var(--s-2)}
 .member-list li:last-child{border-bottom:0}
 .ml-who{overflow-wrap:anywhere}.ml-who .meta,.ml-who>.badge{display:block;width:fit-content;margin-top:2px}.ml-who time,.ml-who .badge{white-space:nowrap}
 .ml-actions{display:flex;gap:var(--s-1);align-items:center}
-@media (max-width:24rem){.member-list li{grid-template-columns:2rem minmax(0,1fr)}.ml-actions{grid-column:2}}
+@media (max-width:21rem){.member-list li{grid-template-columns:2rem minmax(0,1fr)}.ml-actions{grid-column:2}}
 
 `;

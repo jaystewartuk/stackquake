@@ -95,7 +95,14 @@ export function effectLabel(date: string, now = Date.now()): string {
 }
 
 /** The title with the subject in front, unless the title already starts with it ("Deno: Deno runtime…"). */
-const titleHasSubject = (subject: string, title: string) => title.toLowerCase().startsWith(subject.toLowerCase());
+/** A title with its ISO dates kept on one line ("2026-04-30" never splits at a hyphen). */
+const Dated: FC<{ text: string }> = ({ text }) => (
+  <>
+    {text.split(/(\d{4}-\d{2}(?:-\d{2})?)/).map((part, i) => (i % 2 ? <span class="nowrap">{part}</span> : part))}
+  </>
+);
+
+export const titleHasSubject = (subject: string, title: string) => title.toLowerCase().startsWith(subject.toLowerCase()) && !/[\p{L}\p{N}]/u.test(title[subject.length] ?? "");
 
 /** One change in a list: date in the margin, kind, subject and title, the one-paragraph summary. `subject={false}` on a page about that subject. */
 export const EventRow: FC<{ e: PublicEvent; summary?: boolean; subject?: boolean }> = ({ e, summary = true, subject = true }) => {
@@ -110,15 +117,15 @@ export const EventRow: FC<{ e: PublicEvent; summary?: boolean; subject?: boolean
         <a class="er-title" href={`/events/${e.id}`}>
           {/* Every row leads with the subject in bold: prefixed, or the title's own opening words when it already starts with it. */}
           {!subject ? (
-            e.title
+            <Dated text={e.title} />
           ) : titleHasSubject(name, e.title) ? (
             <>
               <strong>{e.title.slice(0, name.length)}</strong>
-              {e.title.slice(name.length)}
+              <Dated text={e.title.slice(name.length)} />
             </>
           ) : (
             <>
-              <strong>{name}</strong>: {e.title}
+              <strong>{name}</strong>: <Dated text={e.title} />
             </>
           )}
         </a>

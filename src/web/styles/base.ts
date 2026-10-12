@@ -59,8 +59,9 @@ ul.plain.panel{padding:var(--s-1) var(--s-5)}
 ul.plain a{text-decoration:none}ul.plain a:hover{text-decoration:underline}
 .overflow-anywhere{overflow-wrap:anywhere}
 .flush{margin:0}
-/* An address wraps at the @ or anywhere, never at a hyphen that would read as part of it. */
-.email{overflow-wrap:anywhere;hyphens:none;display:inline-block;max-width:100%}
+.nowrap{white-space:nowrap}
+/* An email address breaks between any two characters when it must, rather than at a hyphen, where the break would read as part of it. */
+.email{word-break:break-all;hyphens:none}
 /* "a · b · c" that wraps between items, never leaving a dot at the start of a line. */
 .dots>span{white-space:nowrap}.dots>span:not(:last-of-type)::after{content:" ·"}
 .grow{flex:1 1 14rem;width:auto}

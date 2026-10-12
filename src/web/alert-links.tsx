@@ -8,6 +8,7 @@ import { DAY } from "../util";
 import { verifyLink, type LinkAction } from "../alerts/links";
 import { Csrf, fmtDate, page } from "./layout";
 import type { WebContext, WebEnv } from "./session";
+import { titleHasSubject } from "./events-view";
 import { depName } from "./stack-view";
 import type { IconName } from "./icons";
 import { AuthShell, Button, ButtonLink, ErrorPage } from "./ui";
@@ -65,7 +66,7 @@ alertLinks.get("/a/:token", async (c) => {
     if (!t) return page(c, "Link problem", <Problem expired={false} />, { status: 400, noindex: true });
     dep = t.dep ? depName(t.dep) : null;
     const until = fmtDate(c.get("ctx").clock.now() + MUTE_MS);
-    what = v.action === "mute" ? (dep ? `No alerts about ${dep} until ${until}.` : "That dependency is no longer in your stack.") : dep ? `${dep}: ${t.title}` : t.title;
+    what = v.action === "mute" ? (dep ? `No alerts about ${dep} until ${until}.` : "That dependency is no longer in your stack.") : dep && !titleHasSubject(dep, t.title) ? `${dep}: ${t.title}` : t.title;
   }
   return page(
     c,

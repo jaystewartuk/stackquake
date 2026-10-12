@@ -317,7 +317,10 @@ pub.get("/events/:id{[0-9]+}", async (c) => {
           </Panel>
           <Panel title="Share this note" level={2}>
             <label for="permalink">Link to this note</label>
-            <input type="url" id="permalink" value={url} readonly />
+            {/* A two-line read-only field so the note id at the end of the address stays visible. */}
+            <textarea id="permalink" rows={2} readonly>
+              {url}
+            </textarea>
             <p class="meta">
               <a href="/events.rss">
                 <Icon name="rss" /> Every change by RSS
