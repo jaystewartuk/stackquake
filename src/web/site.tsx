@@ -78,14 +78,14 @@ const COMPARE = [
     url: "https://github.com/actions/dependency-review-action",
   },
   {
-    tool: "Socket",
-    quote: "Socket currently does not initiate a scan until there is a commit or a pull request (PR) containing manifest files that Socket supports.",
-    url: "https://docs.socket.dev/docs/organization-alerts",
-  },
-  {
     tool: "Snyk",
     quote: "For npm only, a warning icon appears next to the package name if a package is deprecated.",
     url: "https://docs.snyk.io/scan-fix-and-prevent/prevent/dependencies-and-licenses/view-dependencies",
+  },
+  {
+    tool: "Socket",
+    quote: "Socket currently does not initiate a scan until there is a commit or a pull request (PR) containing manifest files that Socket supports.",
+    url: "https://docs.socket.dev/docs/organization-alerts",
   },
 ];
 
@@ -96,20 +96,20 @@ const Yes: FC<{ children: Child }> = ({ children }) => (
   </span>
 );
 
-/** The comparison, from the table in docs/COMPETITORS.md (vendor docs, 2026-10-11). */
+/** The comparison, from the table in docs/COMPETITORS.md (vendor docs, 2026-10-11). Stackquake comes first, so phones see it without scrolling the table. */
 const COMPARE_ROWS: Child[][] = [
-  ["A hosted service changes its pricing, free tier or terms", <No />, <No />, <No />, <Yes>With the old and new values</Yes>],
-  ["A runtime or service announces the end of development", <No />, <No>Not for services</No>, <No />, <Yes>From the vendor and endoflife.date</Yes>],
-  ["A vendor is acquired", <No />, <No />, <No />, <Yes>When it's announced</Yes>],
-  ["An upstream package changes its licence", "Checked at pull request time, against an allow/deny list", "Checked at scan time, against a licence policy", "Licence alerts per version, not on a change", <Yes>When it changes, with a quote</Yes>],
-  ["A package is deprecated", <No>Not documented</No>, "An icon in the UI, npm only", "An alert, on each pull request", <Yes>When it's marked, npm and PyPI</Yes>],
+  ["A hosted service changes its pricing, free tier or terms", <Yes>With the old and new values</Yes>, <No />, <No />, <No />],
+  ["A runtime or service announces the end of development", <Yes>From the vendor and endoflife.date</Yes>, <No />, <No>Not for services</No>, <No />],
+  ["A vendor is acquired", <Yes>When it's announced</Yes>, <No />, <No />, <No />],
+  ["An upstream package changes its licence", <Yes>When it changes, with a quote</Yes>, "Checked at pull request time, against an allow/deny list", "Checked at scan time, against a licence policy", "Licence alerts per version, not on a change"],
+  ["A package is deprecated", <Yes>When it's marked, npm and PyPI</Yes>, <No>Not documented</No>, "An icon in the UI, npm only", "An alert, on each pull request"],
 ];
 
 const DIFFERS = [
   { title: "When it changes, not at your next pull request.", body: "A project can relicense or announce its end with no new release, so a manifest scanner often has nothing to see until you upgrade." },
   { title: "Every note quotes the source and says what to do.", body: "The exact line, whether it affects your usage, the deadline, and two or three ways out. We never publish a note whose quote we can't find in the source." },
   { title: "Independent.", body: "No platform to protect, so it can be blunt about any vendor, GitHub included. Works for GitLab users and self-hosters with no repo at all." },
-  { title: "Quiet by design.", body: "We aim for about one alert a week at most; anything that isn't urgent waits for a weekly digest." },
+  { title: "Quiet by design.", body: "Most weeks you'll hear nothing. Urgent changes are emailed the same day; the rest waits for the weekly digest." },
 ];
 
 site.get("/", async (c) => {
@@ -213,15 +213,15 @@ site.get("/", async (c) => {
           caption="What each tool tells you about"
           stack={false}
           rowHeader
-          columns={[{ label: "When…" }, { label: "GitHub" }, { label: "Snyk" }, { label: "Socket" }, { label: "Stackquake" }]}
+          columns={[{ label: "When…" }, { label: "Stackquake" }, { label: "GitHub" }, { label: "Snyk" }, { label: "Socket" }]}
           rows={COMPARE_ROWS}
         />
         <p class="meta">From each vendor's documentation, checked 2026-10-11. “No” means their docs don't describe it. In their own words:</p>
         <ul class="cite-grid">
           {COMPARE.map((x) => (
             <li>
-              <Quote text={x.quote} href={x.url} size="sm" />
               <span class="cite-tool">{x.tool}</span>
+              <Quote text={x.quote} href={x.url} size="sm" />
             </li>
           ))}
         </ul>
@@ -310,7 +310,8 @@ site.get("/pricing", (c) => {
       {canceled && <Callout tone="info">Checkout cancelled. Nothing was charged.</Callout>}
       <div class="plans">
         <PlanCard name="Free" price="$0" period="for one project" features={FREE_FEATURES}>
-          <ButtonLink href={startHref(c)} block>
+          {/* The page's one primary action: Free's while Team can't be bought here, else Team's. */}
+          <ButtonLink href={startHref(c)} block variant={billing ? "secondary" : "primary"}>
             {user ? "Go to your stack" : "Start free"}
           </ButtonLink>
         </PlanCard>
@@ -320,7 +321,11 @@ site.get("/pricing", (c) => {
           badge="For teams and agencies"
           price={`$${PRICES.month}`}
           period="a month"
-          note={<>or ${PRICES.year} a year (two months free)</>}
+          note={
+            <>
+              or <span class="num">${PRICES.year}</span> a year (two months free)
+            </>
+          }
           features={["Everything in Free", ...TEAM_FEATURES]}
         >
           {!billing ? (
@@ -535,37 +540,37 @@ site.get("/privacy", (c) =>
         </thead>
         <tbody>
           <tr>
-            <td data-label="Data">Email address; GitHub user id and name if you sign in with GitHub</td>
+            <th scope="row" data-label="Data">Email address; GitHub user id and name if you sign in with GitHub</th>
             <td data-label="Why">Your account, sign-in, alerts and service emails</td>
             <td data-label="Lawful basis">Contract</td>
           </tr>
           <tr>
-            <td data-label="Data">Projects: services you picked, your answers about how you use them, dependencies found by repo import and the manifest paths they came from; for private repos, the repo name and GitHub App installation id</td>
+            <th scope="row" data-label="Data">Projects: services you picked, your answers about how you use them, dependencies found by repo import and the manifest paths they came from; for private repos, the repo name and GitHub App installation id</th>
             <td data-label="Why">Deciding which changes affect you</td>
             <td data-label="Lawful basis">Contract</td>
           </tr>
           <tr>
-            <td data-label="Data">Alerts we sent you and your “useful / not relevant” feedback</td>
+            <th scope="row" data-label="Data">Alerts we sent you and your “useful / not relevant” feedback</th>
             <td data-label="Why">Sending alerts and the digest; measuring and improving accuracy</td>
             <td data-label="Lawful basis">Contract; legitimate interests (keeping alerts accurate)</td>
           </tr>
           <tr>
-            <td data-label="Data">Slack webhook URL, if you add one (encrypted)</td>
+            <th scope="row" data-label="Data">Slack webhook URL, if you add one (encrypted)</th>
             <td data-label="Why">Posting your alerts to Slack</td>
             <td data-label="Lawful basis">Contract</td>
           </tr>
           <tr>
-            <td data-label="Data">Team: invited members' email addresses</td>
+            <th scope="row" data-label="Data">Team: invited members' email addresses</th>
             <td data-label="Why">Sending and matching invites</td>
             <td data-label="Lawful basis">Legitimate interests (letting a subscriber share their team)</td>
           </tr>
           <tr>
-            <td data-label="Data">Billing: Stripe customer and subscription ids, plan, renewal date</td>
+            <th scope="row" data-label="Data">Billing: Stripe customer and subscription ids, plan, renewal date</th>
             <td data-label="Why">Knowing which plan you're on</td>
             <td data-label="Lawful basis">Contract; legal obligation (business records)</td>
           </tr>
           <tr>
-            <td data-label="Data">Security records: hashed session and sign-in tokens, rate-limit counters keyed by email or IP address; request logs at our host</td>
+            <th scope="row" data-label="Data">Security records: hashed session and sign-in tokens, rate-limit counters keyed by email or IP address; request logs at our host</th>
             <td data-label="Why">Keeping accounts and the service secure; stopping abuse</td>
             <td data-label="Lawful basis">Legitimate interests (security)</td>
           </tr>

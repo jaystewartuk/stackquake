@@ -108,7 +108,7 @@ export const PickTile: FC<PropsWithChildren<{ name: string; value: string; label
     <input type="checkbox" name={p.name} value={p.value} checked={p.checked} disabled={p.disabled} />
     <span>
       <span class="pick-name">{p.label}</span>
-      {p.note && <span class="meta"> · {p.note}</span>}
+      {p.note && <span class="pick-note">{p.note}</span>}
       {p.sub && <span class="pick-sub">{p.sub}</span>}
     </span>
     {p.children}
@@ -165,7 +165,7 @@ export const Callout: FC<PropsWithChildren<{ tone?: "info" | "ok" | "warn" | "er
   <div class={cx("callout", tone !== "info" && tone)} role={tone === "error" ? "alert" : "status"} id={id} hidden={hidden}>
     <Icon name={CALLOUT_ICON[tone]} />
     <div>
-      {title && <strong style="display:block">{title}</strong>}
+      {title && <strong class="callout-title">{title}</strong>}
       {children}
     </div>
   </div>
@@ -179,10 +179,10 @@ export const Flash: FC<{ msg?: string; tone?: "info" | "ok" | "error" }> = ({ ms
 export type Crumb = { href: string; label: Child };
 
 /** Breadcrumb, kicker, h1, description and actions, in that order. */
-export const PageHeader: FC<{ title: Child; crumbs?: Crumb[]; kicker?: Child; description?: Child; actions?: Child }> = ({ title, crumbs, kicker, description, actions }) => (
+export const PageHeader: FC<{ title: Child; crumbs?: Crumb[]; kicker?: Child; description?: Child; actions?: Child; crumbsLabel?: string }> = ({ title, crumbs, kicker, description, actions, crumbsLabel = "Breadcrumb" }) => (
   <header class="page-header">
     {crumbs && crumbs.length > 0 && (
-      <nav class="crumbs" aria-label="Breadcrumb">
+      <nav class="crumbs" aria-label={crumbsLabel}>
         <ol>
           {crumbs.map((c) => (
             <li>
@@ -293,7 +293,8 @@ export const Quote: FC<{ text: string; href?: string; url?: string | null; size?
         —{" "}
         {href ? (
           <a href={href} rel="noopener noreferrer nofollow">
-            {hostOf(href)}, read the source <Icon name="external-link" />
+            {hostOf(href)}, read the source
+            <Icon name="external-link" />
           </a>
         ) : (
           url
@@ -364,12 +365,13 @@ export const NoteCard: FC<{
       {p.options && p.options.length > 0 && (
         <>
           <p class="note-h">Ways out</p>
-          <p>
-            {p.options.map((o, i) => (
+          <p class="dots">
+            {p.options.map((o) => (
               <>
-                {i > 0 && " · "}
-                {o.name}
-                {o.effort && <span class="meta"> ({o.effort} effort)</span>}
+                <span>
+                  {o.name}
+                  {o.effort && <span class="meta"> ({o.effort} effort)</span>}
+                </span>{" "}
               </>
             ))}
           </p>
@@ -392,12 +394,12 @@ export const NoteCard: FC<{
 /** "2 need action · 3 to watch · 19 quiet", counts in mono, each with its severity shape. */
 export const StatusLine: FC<{ act: number; watch: number; quiet: number }> = ({ act, watch, quiet }) => (
   <p class="status-line">
-    <span>
+    <span class={act ? undefined : "zero"}>
       <Severity level="act" label="" />
       <span class="n">{act}</span>
       {act === 1 ? "needs" : "need"} action
     </span>
-    <span>
+    <span class={watch ? undefined : "zero"}>
       <Severity level="watch" label="" />
       <span class="n">{watch}</span>to watch
     </span>
@@ -518,9 +520,9 @@ export const PlanCard: FC<PropsWithChildren<{ name: string; price: Child; period
   </section>
 );
 
-/** A whole-page error (404, 400, 429, 503): what happened, in plain words, and the next step. */
-export const ErrorPage: FC<PropsWithChildren<{ code: number; title: Child; icon?: IconName; actions?: Child }>> = ({ code, title, icon = "alert-triangle", actions, children }) => (
-  <div class="error-page">
+/** A whole-page error (404, 400, 429, 503): what happened, in plain words, and the next step. `narrow` keeps a flow that started in AuthShell (sign-in, alert links) in its centred column. */
+export const ErrorPage: FC<PropsWithChildren<{ code: number; title: Child; icon?: IconName; actions?: Child; narrow?: boolean }>> = ({ code, title, icon = "alert-triangle", actions, narrow, children }) => (
+  <div class={cx("error-page", narrow && "narrow")}>
     <p class="error-code">
       <Icon name={icon} /> Error <span class="num">{code}</span>
     </p>
@@ -533,9 +535,9 @@ export const ErrorPage: FC<PropsWithChildren<{ code: number; title: Child; icon?
 // ---------- Narrow pages, steps, upgrades, diffs ----------
 
 /** The narrow, centred column of the sign-in pages and the one-click alert links. */
-export const AuthShell: FC<PropsWithChildren<{ title: string; description?: Child; icon?: IconName }>> = ({ title, description, icon = "logo", children }) => (
+export const AuthShell: FC<PropsWithChildren<{ title: string; description?: Child; icon?: IconName; done?: boolean }>> = ({ title, description, icon = "logo", done, children }) => (
   <div class="auth">
-    <Icon name={icon} size={24} class="auth-mark" />
+    <Icon name={icon} size={24} class={cx("auth-mark", done && "done")} />
     <h1>{title}</h1>
     {description && <p class="auth-desc">{description}</p>}
     {children}

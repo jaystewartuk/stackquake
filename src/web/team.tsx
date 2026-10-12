@@ -131,7 +131,7 @@ team.get("/", async (c) => {
                         joined <time>{fmtDate(m.joinedAt)}</time>
                       </span>
                     ) : (
-                      <Badge tone="watch">invited {fmtDate(m.invitedAt)}</Badge>
+                      <Badge>invited {fmtDate(m.invitedAt)}</Badge>
                     )}
                   </span>
                   <span class="ml-actions">

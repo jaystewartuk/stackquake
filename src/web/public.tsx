@@ -16,7 +16,7 @@ export const pub = new Hono<WebEnv>();
 const PAGE_SIZE = 30;
 
 /** "Blog · 2 pages · End-of-life dates": what we read for an entry, in a few words. */
-function watchedSummary(e: CatalogEntry): string {
+function watchedSummary(e: CatalogEntry): string[] {
   const n = (k: string) => e.sources.filter((s) => s.kind === k).length;
   const parts = [
     n("feed") && "Blog",
@@ -25,8 +25,8 @@ function watchedSummary(e: CatalogEntry): string {
     n("pypi") && "PyPI",
     n("github_repo") && "GitHub repo",
     n("eol") && "End-of-life dates",
-  ].filter(Boolean);
-  return parts.join(" · ");
+  ].filter((x): x is string => !!x);
+  return parts;
 }
 
 pub.get("/catalog", async (c) => {
@@ -45,7 +45,7 @@ pub.get("/catalog", async (c) => {
       <div class="catalog-tools">
         <form method="get" action="/catalog" role="search" aria-label="Catalog">
           <InputGroup>
-            <input type="search" name="q" value={q} placeholder="Search by name, e.g. Supabase or workers" aria-label="Search the catalog" />
+            <input type="search" name="q" value={q} placeholder="Search, e.g. Supabase" aria-label="Search the catalog" />
             <Button icon="search">Search</Button>
           </InputGroup>
         </form>
@@ -77,7 +77,7 @@ pub.get("/catalog", async (c) => {
             </>
           }
         >
-          Sign in and add it from the picker to request it.
+          We don't watch it yet. Signed-in users can ask for it from the service picker.
         </EmptyState>
       )}
       {groups.map((g) => (
@@ -92,8 +92,16 @@ pub.get("/catalog", async (c) => {
                 <li class="entry-card">
                   <a class="entry-name" href={`/catalog/${e.id}`}>
                     {e.name}
+                    {/* A two-letter name ("Go") reads as a generic link out of context; the category disambiguates it. */}
+                    {e.name.length < 4 && <span class="visually-hidden"> ({g.label})</span>}
                   </a>
-                  <span class="entry-watch">{watchedSummary(e)}</span>
+                  <span class="entry-watch dots">
+                    {watchedSummary(e).map((w) => (
+                      <>
+                        <span>{w}</span>{" "}
+                      </>
+                    ))}
+                  </span>
                   {l ? (
                     <span class="entry-latest">
                       <KindPill kind={l.latest.kind} />
@@ -162,7 +170,7 @@ pub.get("/catalog/:id", async (c) => {
         <section aria-labelledby="recent-h">
           <h2 id="recent-h">Recent changes</h2>
           {recent.length ? (
-            <EventList events={recent} />
+            <EventList events={recent} subject={false} />
           ) : (
             <EmptyState icon="check" title="No published changes yet" level={3}>
               We'll note the next one here, and email you if you watch {entry.name}.
@@ -304,7 +312,7 @@ pub.get("/events/:id{[0-9]+}", async (c) => {
           <Panel title="Get this for your stack" level={2}>
             <p class="muted">Pick what you run on and we'll email you, once, when a change like this affects you.</p>
             <ButtonLink variant="primary" iconEnd="arrow-right" href={startHref(c)} block>
-              Get alerts when your stack changes
+              Pick what you run on
             </ButtonLink>
           </Panel>
           <Panel title="Share this note" level={2}>

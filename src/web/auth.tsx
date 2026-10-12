@@ -73,7 +73,7 @@ auth.get("/signin", (c) => {
     c,
     "Sign in",
     <SignInPage c={c} next={next} />,
-    { noindex: true },
+    { noindex: true, description: "Sign in to Stackquake to see what is changing in your stack." },
   );
 });
 
@@ -127,6 +127,7 @@ auth.post("/auth/email", async (c) => {
 
 const LinkProblem = () => (
   <ErrorPage
+    narrow
     code={400}
     icon="clock"
     title="This link has expired or was already used"

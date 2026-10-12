@@ -62,7 +62,7 @@ export async function verifyChoice(secret: string, userId: number, value: string
 }
 
 const notConfigured = (c: WebContext) =>
-  problemPage(c, { title: "Not available", status: 404, heading: "Private repos aren't available here", body: <p>The GitHub App is not configured on this server.</p>, back: { href: "/app/projects/new", label: "Pick services or import a public repo" } });
+  problemPage(c, { title: "Not available", status: 404, heading: "Private repos aren't available here", body: <p>Importing private repos isn't switched on here yet. You can still pick services from the catalog, or import a public repo.</p>, back: { href: "/app/projects/new", label: "Pick services or import a public repo" } });
 
 const problem = (c: WebContext, status: 400 | 503, why: string) =>
   problemPage(c, {

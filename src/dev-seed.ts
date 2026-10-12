@@ -364,7 +364,7 @@ export async function seedDemo(ctx: Ctx): Promise<Record<string, unknown>> {
     ${JSON.stringify({ owner: "free-dev", name: "side-project", paths: [], dirs: [], found: {}, errors: 0, log: ["Reading free-dev/side-project", "Default branch main: 23 entries at the root", "Listed 4 folders"] })}, ${at(0)}, ${at(0)}) RETURNING id`);
   await ctx.db.run(sql`INSERT INTO jobs (kind, run_after, attempts, locked_until, payload, dedupe_key) VALUES ('import', ${at(365)}, 0, ${at(365)}, ${JSON.stringify({ importId: running.id })}, ${`import:${running.id}`})`);
   await ctx.db.run(sql`INSERT INTO imports (project_id, repo, status, step, state, error, created_at, updated_at) VALUES (${p2.id}, 'acme-labs/homelab', 'failed', 'repo',
-    ${JSON.stringify({ owner: "acme-labs", name: "homelab", paths: [], dirs: [], found: {}, errors: 1, log: ["Reading acme-labs/homelab"] })}, 'Repository not found. Public repos can be pasted; private repos need the GitHub App (Team plan).', ${at(-50)}, ${at(-50)})`);
+    ${JSON.stringify({ owner: "acme-labs", name: "homelab", paths: [], dirs: [], found: {}, errors: 1, log: ["Reading acme-labs/homelab"] })}, 'Repository not found. Check the owner and name; public repos can be pasted, and private repos need the GitHub App.', ${at(-50)}, ${at(-50)})`);
 
   // Admin views: catalog requests and a week of LLM spend.
   for (const [text, days] of [["Hetzner Cloud", -4], ["hetzner cloud", -2], ["CockroachDB", -3], ["Mailgun", -1]] as const) {

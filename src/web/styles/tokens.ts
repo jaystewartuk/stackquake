@@ -51,7 +51,7 @@ const DARK: typeof LIGHT = {
   ok: "#6fd391",
   "ok-bg": "#14291c",
   focus: "#7ab0ff",
-  "shadow-1": "none",
+  "shadow-1": "0 0 #0000", // not `none`: it sits in shadow lists (.upgrade, .plan.featured), where `none` voids the whole declaration
   "shadow-2": "0 4px 16px rgb(0 0 0 / .5)",
 };
 

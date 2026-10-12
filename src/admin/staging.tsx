@@ -9,7 +9,7 @@ import { catalogSources, events } from "../db/schema";
 import { runCron } from "../jobs/cron";
 import type { Note } from "../llm/schemas";
 import { Csrf, page } from "../web/layout";
-import { PageHeader } from "../web/ui";
+import { Button, Callout, PageHeader } from "../web/ui";
 import { requireAdmin, type WebEnv } from "../web/session";
 
 export const stagingRoutes = new Hono<WebEnv>();
@@ -23,28 +23,32 @@ stagingRoutes.get("/", (c) => {
     "Staging tools",
     <>
       <PageHeader crumbs={[{ href: "/admin/events", label: "Admin" }]} title="Staging tools" description="This environment has no cron trigger. Run the scheduler by hand." />
-      {result && <pre>{result}</pre>}
-      <form method="post" action="/admin/staging/run" class="row panel">
+      {result && (
+        <Callout title="Result">
+          <pre>{result}</pre>
+        </Callout>
+      )}
+      <form method="post" action="/admin/staging/run" class="cluster panel">
         <Csrf token={c.get("csrf")} />
-        <button type="submit" name="task" value="tick">
+        <Button name="task" value="tick">
           Run a tick
-        </button>
-        <button type="submit" name="task" value="daily">
+        </Button>
+        <Button name="task" value="daily">
           Run the daily job
-        </button>
+        </Button>
       </form>
       <h2>Sample event</h2>
       <p>Adds a pending-review free-tier change on the entry's first source, marked as a test. Approve it on the review queue to send alerts to everyone whose stack has that entry.</p>
-      <form method="post" action="/admin/staging/sample-event" class="row panel">
+      <form method="post" action="/admin/staging/sample-event" class="cluster panel">
         <Csrf token={c.get("csrf")} />
-        <select name="catalog" aria-label="Catalog entry" style="flex:1 1 14rem;width:auto">
+        <select name="catalog" aria-label="Catalog entry" class="grow">
           {CATALOG.map((e) => (
             <option value={e.id} selected={e.id === "cloudflare-workers"}>
               {e.name}
             </option>
           ))}
         </select>
-        <button type="submit">Add sample event</button>
+        <Button variant="primary">Add sample event</Button>
       </form>
     </>,
     { noindex: true },

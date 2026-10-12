@@ -16,11 +16,11 @@ export const alertLinks = new Hono<WebEnv>();
 
 export const MUTE_MS = 90 * DAY;
 
-const QUESTION: Record<LinkAction, string> = {
-  useful: "Mark this alert as useful?",
-  not_relevant: "Mark this alert as not relevant?",
-  mute: "Mute this dependency for 90 days?",
-  digest_only: "Only send you the weekly digest?",
+const QUESTION: Record<LinkAction, (dep: string | null) => string> = {
+  useful: () => "Mark this alert as useful?",
+  not_relevant: () => "Mark this alert as not relevant?",
+  mute: (dep) => `Mute ${dep ?? "this dependency"} for 90 days?`,
+  digest_only: () => "Only send you the weekly digest?",
 };
 
 const BUTTON: Record<LinkAction, string> = { useful: "Yes, it was useful", not_relevant: "Yes, not relevant", mute: "Mute for 90 days", digest_only: "Digest only" };
@@ -41,10 +41,11 @@ async function target(c: WebContext, id: number) {
   return { ...row, dep };
 }
 
-const ICON: Record<LinkAction, IconName> = { useful: "check", not_relevant: "x", mute: "bell-off", digest_only: "mail" };
+// Neutral marks while asking: a check or an x before anything has happened would read as a result.
+const ICON: Record<LinkAction, IconName> = { useful: "mail", not_relevant: "mail", mute: "bell-off", digest_only: "mail" };
 
 const Problem = ({ expired }: { expired: boolean }) => (
-  <ErrorPage code={400} icon="link" title={expired ? "This link has expired" : "This link doesn't work"} actions={<ButtonLink href="/app">Go to the dashboard</ButtonLink>}>
+  <ErrorPage narrow code={400} icon="link" title={expired ? "This link has expired" : "This link doesn't work"} actions={<ButtonLink href="/app">Go to the dashboard</ButtonLink>}>
     <p>{expired ? "Links in alerts work for 30 days." : "It may have been copied incompletely."} You can give feedback and mute dependencies from your dashboard.</p>
   </ErrorPage>
 );
@@ -54,6 +55,7 @@ alertLinks.get("/a/:token", async (c) => {
   if (!v) return c.notFound();
   if (!v.ok) return page(c, "Link problem", <Problem expired={v.reason === "expired"} />, { status: 400, noindex: true });
   let what = "";
+  let dep: string | null = null;
   if (v.action === "digest_only") {
     const user = await c.get("ctx").db.select().from(users).where(eq(users.id, v.id)).get();
     if (!user) return page(c, "Link problem", <Problem expired={false} />, { status: 400, noindex: true });
@@ -61,12 +63,14 @@ alertLinks.get("/a/:token", async (c) => {
   } else {
     const t = await target(c, v.id);
     if (!t) return page(c, "Link problem", <Problem expired={false} />, { status: 400, noindex: true });
-    what = v.action === "mute" ? (t.dep ? `${depName(t.dep)}: no alerts about it for 90 days.` : "That dependency is no longer in your stack.") : t.title;
+    dep = t.dep ? depName(t.dep) : null;
+    const until = fmtDate(c.get("ctx").clock.now() + MUTE_MS);
+    what = v.action === "mute" ? (dep ? `No alerts about ${dep} until ${until}.` : "That dependency is no longer in your stack.") : dep ? `${dep}: ${t.title}` : t.title;
   }
   return page(
     c,
     "Confirm",
-    <AuthShell icon={ICON[v.action]} title={QUESTION[v.action]} description={what}>
+    <AuthShell icon={ICON[v.action]} title={QUESTION[v.action](dep)} description={what}>
       <form method="post" action={`/a/${c.req.param("token")}`} class="auth-form">
         <Csrf token={c.get("csrf")} />
         <Button variant="primary" size="lg">
@@ -86,25 +90,29 @@ alertLinks.post("/a/:token", async (c) => {
   const ctx = c.get("ctx");
   const now = ctx.clock.now();
   let done: string;
+  let detail: string;
   if (v.action === "digest_only") {
     await ctx.db.update(users).set({ emailImmediate: false }).where(eq(users.id, v.id));
-    done = "Done. You'll get the weekly digest only.";
+    done = "Digest only";
+    detail = "You'll get the weekly digest only. You can turn immediate emails back on in settings.";
   } else {
     const t = await target(c, v.id);
     if (!t) return page(c, "Link problem", <Problem expired={false} />, { status: 400, noindex: true });
     if (v.action === "mute") {
       if (!t.dep) return page(c, "Nothing to mute", <AuthShell icon="info" title="Nothing to mute" description="That dependency is no longer in your stack." />, { noindex: true });
       await ctx.db.update(deps).set({ mutedUntil: now + MUTE_MS }).where(eq(deps.id, t.dep.id));
-      done = `Muted ${depName(t.dep)} until ${fmtDate(now + MUTE_MS)}.`;
+      done = `Muted ${depName(t.dep)}`;
+      detail = `No alerts about it until ${fmtDate(now + MUTE_MS)}.`;
     } else {
       await ctx.db.update(alerts).set({ feedback: v.action, feedbackAt: now }).where(eq(alerts.id, t.alert.id));
-      done = v.action === "useful" ? "Thanks, noted as useful." : "Thanks. We'll use this to send fewer alerts like it.";
+      done = v.action === "useful" ? "Noted as useful" : "Noted as not relevant";
+      detail = v.action === "useful" ? "Thanks. It helps us decide what is worth an email." : "Thanks. We'll use this to send fewer alerts like it.";
     }
   }
   return page(
     c,
     "Done",
-    <AuthShell icon="check" title={done}>
+    <AuthShell icon="check" done title={done} description={detail}>
       <p class="auth-fine">
         <ButtonLink href="/app" iconEnd="arrow-right" class="auth-alt">
           Go to the dashboard

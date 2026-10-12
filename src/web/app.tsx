@@ -123,12 +123,20 @@ app.get("/", async (c) => {
       )}
       <Panel label="Status" class="pulse">
         <StatusLine act={levels.act} watch={levels.watch} quiet={levels.quiet} />
-        <Trace points={trace} from={now - RECENT_MS} to={now} label={`${trace.length} change${trace.length === 1 ? "" : "s"} to your dependencies in the last 90 days`} axis={["90 days ago", "today"]} />
+        {trace.length ? (
+          <Trace points={trace} from={now - RECENT_MS} to={now} label={`${trace.length} change${trace.length === 1 ? "" : "s"} to your dependencies in the last 90 days`} axis={["90 days ago", "today"]} />
+        ) : (
+          <p class="meta flush">No changes to your dependencies in the last 90 days.</p>
+        )}
       </Panel>
       <section class="attention" aria-labelledby="attention-h">
         <div class="section-head">
           <h2 id="attention-h">Needs your attention</h2>
-          {open.length > 0 && <span class="meta">Alerts that affect you, most urgent first</span>}
+          {open.length > 0 && (
+            <span class="meta">
+              Alerts that affect you, most urgent first{levels.act + levels.watch > open.length ? ". The counts above also include changes with no alert for you; they're under each project" : ""}
+            </span>
+          )}
         </div>
         {open.length === 0 && (
           <div class="all-clear" role="status">
@@ -150,14 +158,16 @@ app.get("/", async (c) => {
             class="project"
             title={<a href={`/app/projects/${p.id}`}>{p.name}</a>}
             meta={
-              <>
-                {p.repoFullName && (
-                  <span class="cluster" style="display:inline-flex;gap:var(--s-1)">
-                    <Icon name="github" /> {p.repoFullName}
-                  </span>
-                )}
-                {p.userId !== uid(c) ? " · team" : ""}
-              </>
+              p.repoFullName || p.userId !== uid(c) ? (
+                <>
+                  {p.repoFullName && (
+                    <span class="repo-name">
+                      <Icon name="github" /> {p.repoFullName}
+                    </span>
+                  )}
+                  {p.userId !== uid(c) && (p.repoFullName ? " · shared with your team" : "Shared with your team")}
+                </>
+              ) : undefined
             }
             actions={
               <ButtonLink size="sm" variant="quiet" href={`/app/projects/${p.id}/services`} icon="plus">
@@ -167,10 +177,13 @@ app.get("/", async (c) => {
           >
             {ds.length ? (
               <>
-                <div class="project-pulse">
-                  <StatusLine act={lv.act} watch={lv.watch} quiet={lv.quiet} />
-                  <Trace points={pt} from={now - RECENT_MS} to={now} height={28} label={`${p.name}: ${pt.length} change${pt.length === 1 ? "" : "s"} in the last 90 days`} />
-                </div>
+                {/* With one project the pulse above already is the project's. */}
+                {list.length > 1 && (
+                  <div class="project-pulse">
+                    <StatusLine act={lv.act} watch={lv.watch} quiet={lv.quiet} />
+                    {pt.length > 0 && <Trace points={pt} from={now - RECENT_MS} to={now} height={28} label={`${p.name}: ${pt.length} change${pt.length === 1 ? "" : "s"} in the last 90 days`} />}
+                  </div>
+                )}
                 <StackView list={ds} now={now} />
               </>
             ) : (
@@ -365,21 +378,13 @@ app.get("/projects/:id", async (c) => {
               Pick services from the catalog, or import the project's repo.
             </EmptyState>
           )}
-          <h2 id="settings">Project settings</h2>
-          <form method="post" action={`/app/projects/${project.id}`} class="panel">
-            <Csrf token={csrf} />
-            <Field id="name" label="Name" value={project.name} required maxlength={80} />
-            <p class="meta">Defaults for every dependency you haven't answered for:</p>
-            <ProfileFields profile={project.defaultProfile} />
-            <Button variant="primary">Save</Button>
-          </form>
-          <Panel title="Danger zone" danger>
-            <form method="post" action={`/app/projects/${project.id}/delete`} class="spread">
+          <Panel title="Project settings" id="settings">
+            <form method="post" action={`/app/projects/${project.id}`}>
               <Csrf token={csrf} />
-              <p class="muted" style="margin:0">Stops watching everything in this project. This can't be undone.</p>
-              <Button variant="danger" icon="trash">
-                Delete this project
-              </Button>
+              <Field id="name" label="Name" value={project.name} required maxlength={80} />
+              <p class="meta">Defaults for every dependency you haven't answered for:</p>
+              <ProfileFields profile={project.defaultProfile} />
+              <Button variant="primary">Save</Button>
             </form>
           </Panel>
         </div>
@@ -408,7 +413,7 @@ app.get("/projects/:id", async (c) => {
             ) : (
               <form method="post" action={`/app/projects/${project.id}/import`} class="stack-sm">
                 <Csrf token={csrf} />
-                <p class="meta">Import a public repo to add the services, runtimes and packages its manifests name.</p>
+                <p class="meta">Import a public repo to add the services, runtimes and packages that its manifest files list.</p>
                 <label for="repo">Repository URL</label>
                 <input type="url" id="repo" name="repo" placeholder="https://github.com/owner/repo" required autocomplete="off" />
                 <Button icon="github">Import a public repo</Button>
@@ -418,6 +423,16 @@ app.get("/projects/:id", async (c) => {
           </Panel>
         </aside>
       </div>
+      {/* After the rail, so on phones the destructive action comes last, not between the stack and the repository. */}
+      <Panel title="Danger zone" danger>
+        <form method="post" action={`/app/projects/${project.id}/delete`} class="spread">
+          <Csrf token={csrf} />
+          <p class="muted flush">Stops watching everything in this project. This can't be undone.</p>
+          <Button variant="danger" icon="trash">
+            Delete this project
+          </Button>
+        </form>
+      </Panel>
     </>,
     { noindex: true },
   );
@@ -484,7 +499,7 @@ app.get("/projects/:id/services", async (c) => {
       {onboarding && <Onboarding at={1} />}
       <PageHeader
         crumbs={[{ href: "/app", label: "Dashboard" }, { href: `/app/projects/${project.id}`, label: project.name }]}
-        title="What do you run on?"
+        title="Find what you use"
         description="Tick the hosting, databases, APIs and runtimes this project uses. We watch their pricing, free tiers, terms, licences and end-of-life dates."
       />
       {imp && counts && (
@@ -658,14 +673,25 @@ app.get("/projects/:id/import", async (c) => {
   }
   if (imp.status === "done") return c.redirect(`/app/projects/${project.id}/services?imported=1`);
   const st = imp.state as unknown as ImportState;
+  // The onboarding stepper only while the project is still empty, as on the picker.
+  const fresh = !(await ctx.db.select({ id: deps.id }).from(deps).where(eq(deps.projectId, project.id)).get());
   if (imp.status === "failed")
     return page(
       c,
       "Import failed",
       <>
-        <Onboarding at={1} />
-        <PageHeader crumbs={[{ href: "/app", label: "Dashboard" }, { href: `/app/projects/${project.id}`, label: project.name }]} title="Import failed" />
-        <Callout tone="error">{imp.error}</Callout>
+        {fresh && <Onboarding at={1} />}
+        <PageHeader
+          crumbs={[{ href: "/app", label: "Dashboard" }, { href: `/app/projects/${project.id}`, label: project.name }]}
+          title={
+            <>
+              Couldn't import <span class="repo">{imp.repo}</span>
+            </>
+          }
+        />
+        <Callout tone="error" title="Import failed">
+          {imp.error}
+        </Callout>
         <p class="muted">Nothing is lost: the project is there, and you can tick its services by hand in a minute.</p>
         <div class="cluster">
           <ButtonLink variant="primary" href={`/app/projects/${project.id}/services`} iconEnd="arrow-right">
@@ -681,10 +707,11 @@ app.get("/projects/:id/import", async (c) => {
     c,
     "Importing",
     <>
-      <Onboarding at={1} />
-      <PageHeader crumbs={[{ href: "/app", label: "Dashboard" }, { href: `/app/projects/${project.id}`, label: project.name }]} title={`Importing ${imp.repo}…`} description="Reading its manifests to find the services, runtimes and packages it uses. This usually takes under 30 seconds; the page refreshes itself." />
+      {fresh && <Onboarding at={1} />}
+      <PageHeader crumbs={[{ href: "/app", label: "Dashboard" }, { href: `/app/projects/${project.id}`, label: project.name }]} title={<>Importing <span class="repo">{imp.repo}</span>…</>} description="Reading its manifests to find the services, runtimes and packages it uses. This usually takes under 30 seconds; the page refreshes itself." />
       <div class="import-progress panel" id="import-live">
-        <p class="ps-status" role="status">
+        {/* Read out on each step change; the checklist below shows the same thing, so it is for screen readers only. */}
+        <p class="ps-status visually-hidden" role="status">
           Step <span class="num">{at + 1}</span> of <span class="num">{IMPORT_STEPS.length}</span>: {IMPORT_STEPS[at].label}
         </p>
         <div class="ps-body">
@@ -773,25 +800,33 @@ app.get("/deps/:id", async (c) => {
       />
       <Flash msg={flash(c)} />
       {muted && (
-        <Callout tone="warn" title={`Muted until ${fmtDate(dep.mutedUntil)}`}>
-          No alerts for this dependency until then. Unmute it under "Alerts for it".
+        <Callout tone="info" title={`Muted until ${fmtDate(dep.mutedUntil)}`}>
+          No alerts for this dependency until then. Unmute it under <a href="#alerts-for-it">Alerts for it</a>.
         </Callout>
       )}
-      <p class="dep-status">
-        <Severity level={level} /> <span>{muted ? "Muted." : risk === "other" ? "No known risk." : risk === "recent" ? `Changed recently: ${view!.latest!.title}` : `${RISK_LABELS[risk]}.`}</span>
-      </p>
+      {!muted && (
+        <p class="dep-status">
+          <Severity level={level} />{" "}
+          <span>
+            {risk === "other" ? "No known risk." : risk === "recent" ? <>Changed recently, on <time>{fmtDate(view!.latest!.publishedAt)}</time>. The change is below.</> : `${RISK_LABELS[risk]}.`}
+          </span>
+        </p>
+      )}
       <div class="split">
         <div class="main-col">
           <h2>Changes</h2>
           {evs.length ? (
-            <EventList events={evs} />
+            <EventList events={evs} subject={false} />
           ) : (
             <EmptyState title="No published changes yet" level={3} icon="eye">
               We check its sources several times a day and publish a note when something changes the deal.
             </EmptyState>
           )}
           <h2>Your alerts</h2>
-          {depAlerts.length ? <AlertList list={depAlerts} csrf={csrf} back={`/app/deps/${dep.id}`} showDep={false} /> : <p class="muted">No alerts about it yet. When a change affects how you use it, it appears here and in your email.</p>}
+          {!depAlerts.some((a) => a.status !== "suppressed") && (
+            <p class="muted">{muted ? "No alerts while it is muted." : "No alerts about it yet. When a change affects how you use it, it appears here and in your email."}</p>
+          )}
+          <AlertList list={depAlerts} csrf={csrf} back={`/app/deps/${dep.id}`} showDep={false} empty={false} />
           {dims.length > 0 && (
             <>
               <h2>How you use it</h2>
@@ -810,14 +845,14 @@ app.get("/deps/:id", async (c) => {
               label="About this dependency"
               items={[
                 { term: "What", value: entry ? <a href={`/catalog/${entry.id}`}>In the catalog</a> : dep.ecosystem === "eol" ? "Runtime" : `${dep.ecosystem} package${dep.versionSpec ? ` ${dep.versionSpec}` : ""}` },
-                { term: "Added", value: `${dep.origin === "import" ? "found by repo import" : "added by you"}${dep.foundIn?.length ? ` in ${dep.foundIn.slice(0, 4).join(", ")}` : ""}` },
+                { term: "Added", value: <>{dep.origin === "import" ? "By repo import" : "By you"}{dep.foundIn?.length ? <>, from {dep.foundIn.slice(0, 4).map((f, i) => <>{i ? ", " : ""}<code>{f}</code></>)}</> : ""}</> },
                 ...(dep.rank ? [{ term: "Importance", value: <span class="num">#{dep.rank}</span> }] : []),
               ]}
             />
           </Panel>
           <Panel title="What we watch">
             {linked.length ? (
-              <ul class="source-list">
+              <ul class="source-list dep-sources">
                 {linked.map((s) => {
                   const href = safeHref(s.kind === "npm" ? `https://www.npmjs.com/package/${s.key}` : s.kind === "pypi" ? `https://pypi.org/project/${s.key}/` : s.kind === "github_repo" ? `https://github.com/${s.key}` : s.kind === "eol" ? `https://endoflife.date/${s.key.split("@")[0]}` : s.url);
                   return (
@@ -841,7 +876,7 @@ app.get("/deps/:id", async (c) => {
               <p class="muted">{dep.ecosystem && !WATCHED_ECOSYSTEMS.has(dep.ecosystem) && dep.ecosystem !== "eol" ? `We don't watch ${dep.ecosystem} packages yet.` : "No sources yet."}</p>
             )}
           </Panel>
-          <Panel title="Alerts for it">
+          <Panel title="Alerts for it" id="alerts-for-it">
             {muted ? (
               <form method="post" action={`/app/deps/${dep.id}/unmute`} class="stack-sm">
                 <Csrf token={csrf} />
@@ -974,7 +1009,7 @@ const PlanSection: FC<{ c: WebContext; user: typeof users.$inferSelect; account:
         <DataList
           items={[
             { term: "Plan", value: <Badge tone="info">Team</Badge> },
-            ...(user.planInterval ? [{ term: "Billed", value: user.planInterval === "year" ? `yearly, $${PRICES.year}` : `monthly, $${PRICES.month}` }] : []),
+            ...(user.planInterval ? [{ term: "Billed", value: <>{user.planInterval === "year" ? "yearly" : "monthly"}, <span class="num">${user.planInterval === "year" ? PRICES.year : PRICES.month}</span></> }] : []),
             ...(user.planPeriodEnd ? [{ term: user.cancelAtPeriodEnd ? "Ends on" : "Renews on", value: <time>{fmtDate(user.planPeriodEnd)}</time> }] : []),
           ]}
         />
@@ -1044,7 +1079,8 @@ const PlanSection: FC<{ c: WebContext; user: typeof users.$inferSelect; account:
           <p class="meta">Paid plans aren't open on this server yet.</p>
         )}
         <p class="meta">
-          Payment by Stripe; cancel any time from the billing portal. <a href="/pricing">Compare plans</a>
+          {billing && "Payment by Stripe; cancel any time from the billing portal. "}
+          <a href="/pricing">Compare plans</a>
         </p>
       </div>
     </Panel>
@@ -1129,7 +1165,11 @@ app.get("/settings", async (c) => {
           <form method="post" action="/app/settings/delete">
             <Csrf token={csrf} />
             <p>
-              This removes your account, projects, dependencies, alerts, Slack connection, team and sessions{user.stripeSubscriptionId && user.plan === "team" ? ", and cancels your Team subscription now" : ""}. Public events stay, since they are not yours. It can't be undone.
+              {account.role === "member" ? (
+                <>This removes your account, your own projects, your alerts, Slack connection and sessions, and takes you off {account.ownerEmail}'s team. The team's projects stay. It can't be undone.</>
+              ) : (
+                <>This removes your account, projects, dependencies, alerts, Slack connection, team and sessions{user.stripeSubscriptionId && user.plan === "team" ? ", and cancels your Team subscription now" : ""}. Public events stay, since they are not yours. It can't be undone.</>
+              )}
             </p>
             <Field id="confirm" label="Type DELETE to confirm" autocomplete="off" required />
             <Button variant="danger" icon="trash">
@@ -1146,7 +1186,6 @@ app.get("/settings", async (c) => {
           <li><a href="#slack">Slack</a></li>
           <li><a href="#plan">Plan</a></li>
           <li><a href="#delete">Delete account</a></li>
-          <li><a href="/app/team">Team</a></li>
         </ul>
       </nav>
       </div>

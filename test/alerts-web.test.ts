@@ -45,7 +45,9 @@ describe("one-click links", () => {
     const t = await setup();
     const anon = new Browser(t.ctx);
     const tok = await token("mute", t.alert.id, t.clock.now());
-    expect(await anon.html(`/a/${tok}`)).toContain("Redis: no alerts about it for 90 days.");
+    const confirm = await anon.html(`/a/${tok}`);
+    expect(confirm).toContain("Mute Redis for 90 days?");
+    expect(confirm).toContain(`No alerts about Redis until ${new Date(t.clock.now() + 90 * DAY).toISOString().slice(0, 10)}.`);
     await anon.post(`/a/${tok}`);
     expect((await t.ctx.db.select().from(deps).where(eq(deps.id, t.dep.id)).get())!.mutedUntil).toBe(t.clock.now() + 90 * DAY);
   });

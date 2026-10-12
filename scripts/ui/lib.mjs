@@ -9,6 +9,8 @@ export const OUT = join(process.cwd(), ".ui");
 export const VIEWPORTS = [
   { name: "mobile", width: 390, height: 844 },
   { name: "desktop", width: 1280, height: 800 },
+  // The narrowest phone the brief targets; light only, as it checks fit (overflow, wrapping), not colour.
+  { name: "narrow", width: 360, height: 780, schemes: ["light"] },
 ];
 export const SCHEMES = ["light", "dark"];
 

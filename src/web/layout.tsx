@@ -139,7 +139,7 @@ export const Layout: FC<PropsWithChildren<{ title: string; user?: User | null; c
           <span class="brand">
             <Icon name="logo" /> Stackquake
           </span>
-          <p style="margin:0;max-width:var(--measure)">Stackquake watches vendor announcements, pricing pages, licences and end-of-life dates. Notes are summaries, not legal advice; read the source.</p>
+          <p class="footer-note">Stackquake watches vendor announcements, pricing pages, licences and end-of-life dates. Notes are summaries, not legal advice; read the source.</p>
           <nav aria-label="Footer">
             <a href="/pricing">Pricing</a>
             <a href="/catalog">Catalog</a>

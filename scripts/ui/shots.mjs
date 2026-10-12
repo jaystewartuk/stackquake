@@ -1,5 +1,5 @@
 // npm run ui:shots -- <name> [page ...]: re-seeds, then screenshots every page (scripts/ui/lib.mjs)
-// at 390×844 and 1280×800 in light and dark, full page, to .ui/shots/<name>/<page>.<viewport>.<scheme>.png.
+// at 390×844 and 1280×800 in light and dark (and 360×780 in light), full page, to .ui/shots/<name>/<page>.<viewport>.<scheme>.png.
 // Also writes index.json (status, final URL, console errors, horizontal overflow) so a broken
 // page or a layout that scrolls sideways shows up without opening every image.
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -19,7 +19,7 @@ const index = [];
 let problems = 0;
 
 for (const vp of VIEWPORTS) {
-  for (const scheme of SCHEMES) {
+  for (const scheme of vp.schemes ?? SCHEMES) {
     // One context per role, so sessions and CSRF cookies don't mix.
     const contexts = new Map();
     const ctxFor = async (role) => {

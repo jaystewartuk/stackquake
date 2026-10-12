@@ -25,16 +25,18 @@ export interface AlertRow {
   title: string;
   kind: string;
   name: string;
+  /** How the alert matched the user's usage; optional so callers that only render a row needn't pass it. */
+  match?: "affected" | "unknown" | "not_affected";
 }
 
 /** Newest first; only alerts whose event is still published. */
 export async function userAlerts(ctx: Ctx, userId: number, opts: { depId?: number; limit: number }): Promise<AlertRow[]> {
   const rows = await ctx.db.all<{
     id: number; event_id: number; dep_id: number; channel: AlertChannel; status: AlertStatus; held: HeldReason | null; because: string; feedback: Feedback | null;
-    created_at: number; sent_at: number | null; emailed_at: number | null; slack_at: number | null; title: string; kind: string;
+    created_at: number; sent_at: number | null; emailed_at: number | null; slack_at: number | null; title: string; kind: string; match: AlertRow["match"];
     catalog_id: string | null; ecosystem: string | null; package: string | null; eol_product: string | null;
   }>(sql`
-    SELECT a.id, a.event_id, a.dep_id, a.channel, a.status, a.held, a.because, a.feedback, a.created_at, a.sent_at, a.emailed_at, a.slack_at,
+    SELECT a.id, a.event_id, a.dep_id, a.channel, a.status, a.held, a.because, a.feedback, a.match, a.created_at, a.sent_at, a.emailed_at, a.slack_at,
            e.title, e.kind, d.catalog_id, d.ecosystem, d.package, d.eol_product
     FROM alerts a
     JOIN events e ON e.id = a.event_id AND e.status = 'published'
@@ -48,6 +50,7 @@ export async function userAlerts(ctx: Ctx, userId: number, opts: { depId?: numbe
     depId: r.dep_id,
     channel: r.channel,
     status: r.status,
+    match: r.match,
     held: r.held,
     because: r.because,
     feedback: r.feedback,
@@ -91,8 +94,8 @@ export const FeedbackButtons: FC<{ a: AlertRow; csrf: string; back: string }> = 
   </form>
 );
 
-/** Act for an urgent kind that affects the user, watch for the rest, quiet when it didn't affect them. */
-export const alertLevel = (a: Pick<AlertRow, "status" | "kind">): Level => (a.status === "suppressed" ? "quiet" : URGENT.has(a.kind) ? "act" : "watch");
+/** Act for an urgent kind that affects the user, watch for the rest (and when the note can't tell), quiet when it didn't affect them (DIRECTION.md). */
+export const alertLevel = (a: Pick<AlertRow, "status" | "kind" | "match">): Level => (a.status === "suppressed" || a.match === "not_affected" ? "quiet" : a.match !== "unknown" && URGENT.has(a.kind) ? "act" : "watch");
 
 /** One alert: severity, dependency and kind, the change (links to its note), why it affects you, delivery and feedback. */
 export const AlertItem: FC<{ a: AlertRow; csrf: string; back: string; showDep: boolean }> = ({ a, csrf, back, showDep }) => {

@@ -1,10 +1,11 @@
-// Reset, typography, focus, motion and layout primitives. Element defaults live here so pages
-// that still use plain markup (and the legacy helper classes at the end) look right.
+// Reset, typography, focus, motion and layout primitives. Element defaults live here so plain
+// markup (admin lists, legal pages) looks right without a component.
 export const BASE = `
 *,*::before,*::after{box-sizing:border-box}
 [hidden]{display:none!important}
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
-body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font-sans);font-size:var(--text-base);line-height:var(--lh-base);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+body{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;margin:0;background:var(--bg);color:var(--fg);font-family:var(--font-sans);font-size:var(--text-base);line-height:var(--lh-base);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+body>main{flex:1 0 auto}
 ::selection{background:var(--accent);color:var(--on-accent)}
 :focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 :focus:not(:focus-visible){outline:none}
@@ -32,19 +33,14 @@ th,td{border-bottom:1px solid var(--line);padding:var(--s-2) var(--s-3);text-ali
 th{font-weight:500;color:var(--muted);background:var(--sunken)}
 details>summary{cursor:pointer;color:var(--muted)}
 details>summary:hover{color:var(--fg)}
-time,.mono,.num{font-family:var(--font-mono);font-size:.92em;font-variant-numeric:tabular-nums}
+time,.num{font-family:var(--font-mono);font-size:.92em;font-variant-numeric:tabular-nums}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
 
 /* Layout primitives */
 .wrap{max-width:var(--max-app);margin:0 auto;padding:0 var(--gutter)}
-.wrap.narrow{max-width:var(--max-public)}
-.stack>*{margin-top:0;margin-bottom:0}.stack>*+*{margin-top:var(--s-4)}
 .stack-sm>*{margin-top:0;margin-bottom:0}.stack-sm>*+*{margin-top:var(--s-2)}
-.cluster,.row{display:flex;flex-wrap:wrap;gap:var(--s-2) var(--s-3);align-items:center}
+.cluster{display:flex;flex-wrap:wrap;gap:var(--s-2) var(--s-3);align-items:center}
 .spread{display:flex;flex-wrap:wrap;justify-content:space-between;gap:var(--s-2) var(--s-4);align-items:baseline}
-.grid{display:grid;gap:var(--s-3);grid-template-columns:repeat(auto-fill,minmax(min(15rem,100%),1fr))}
-.cols{display:grid;gap:var(--s-4)}
-@media (min-width:48rem){.cols{grid-template-columns:1fr 1fr}}
 .prose{max-width:var(--measure)}
 .prose h2{margin-top:var(--s-7)}
 .prose table{display:block;overflow-x:auto}
@@ -58,6 +54,15 @@ time,.mono,.num{font-family:var(--font-mono);font-size:.92em;font-variant-numeri
 ul.plain{list-style:none;padding:0;margin:0 0 var(--s-4)}
 ul.plain>li{padding:var(--s-3) 0;border-bottom:1px solid var(--line);margin:0}
 ul.plain>li:last-child{border-bottom:0}
+ul.plain.panel{padding:var(--s-1) var(--s-5)}
+@media (max-width:40rem){ul.plain.panel{padding:var(--s-1) var(--s-4)}}
 ul.plain a{text-decoration:none}ul.plain a:hover{text-decoration:underline}
 .overflow-anywhere{overflow-wrap:anywhere}
+.flush{margin:0}
+/* "a · b · c" that wraps between items, never leaving a dot at the start of a line. */
+.dots>span{white-space:nowrap}.dots>span:not(:last-of-type)::after{content:" ·"}
+.grow{flex:1 1 14rem;width:auto}
+/* A repo name moves to the next line whole rather than breaking at its hyphen, unless it is wider than the line. */
+.repo{display:inline-block;max-width:100%;font-family:var(--font-mono);font-size:.92em;overflow-wrap:anywhere}
+.repo-name{display:inline-flex;align-items:center;gap:var(--s-1)}
 `;

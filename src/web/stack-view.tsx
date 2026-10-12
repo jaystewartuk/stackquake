@@ -183,8 +183,9 @@ export const DepRow: FC<{ v: DepView; now: number; risk?: RiskGroup }> = ({ v, n
           </span>
         )}
         {v.sources === 0 && <Badge>{v.dep.ecosystem && !WATCHED_ECOSYSTEMS.has(v.dep.ecosystem) && v.dep.ecosystem !== "eol" ? `${v.dep.ecosystem} not watched yet` : "no sources yet"}</Badge>}
-        {v.deprecated ? <Badge tone="act">deprecated</Badge> : v.archived && <Badge tone="act">archived</Badge>}
-        {v.unlicensed && <Badge tone="watch">no licence</Badge>}
+        {/* Flags only where the group heading or the change beside it doesn't already say so. */}
+        {risk !== "archived" && !(v.latest && (v.latest.kind === "deprecated" || v.latest.kind === "archived")) && (v.deprecated ? <Badge tone="act">deprecated</Badge> : v.archived && <Badge tone="act">archived</Badge>)}
+        {v.unlicensed && risk !== "unlicensed" && <Badge tone="watch">no licence</Badge>}
       </div>
       {v.latest ? (
         <div class="dr-change">

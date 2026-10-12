@@ -108,7 +108,7 @@ async function ghJson<T>(ctx: Ctx, st: ImportState, path: string): Promise<T> {
     throw new ImportError(
       st.installationId
         ? "Repository not found. Check that the Stackquake GitHub App can access it (GitHub → Settings → Applications)."
-        : "Repository not found. Public repos can be pasted; private repos need the GitHub App (Import a private repo).",
+        : "Repository not found. Check the owner and name; public repos can be pasted, and private repos need the GitHub App.",
     );
   }
   if (res.status === 403 || res.status === 429) {

@@ -4,13 +4,14 @@ import { raw } from "hono/html";
 import type { FC } from "hono/jsx";
 import { TEAM_FEATURES } from "../billing/plans";
 import type { Dep, User } from "../db/schema";
-import { AlertItem, type AlertRow } from "./alerts-view";
-import { DepRow, type DepView } from "./stack-view";
+import { AlertItem, AlertList, type AlertRow } from "./alerts-view";
+import { DepRow, StackView, type DepView } from "./stack-view";
 import { KIND_LABELS, KindPill } from "./events-view";
 import { Icon, ICON_NAMES } from "./icons";
 import { Layout, SiteHeader } from "./layout";
 import { schemeVars } from "./styles/tokens";
 import {
+  AuthShell,
   Avatar,
   Badge,
   Button,
@@ -97,6 +98,7 @@ const Demo: FC<{ p: string }> = ({ p }) => (
     <h2>Page header</h2>
     <div class="panel">
       <PageHeader
+        crumbsLabel={`Breadcrumb (${p === "l" ? "light" : "dark"} demo)`}
         crumbs={[
           { href: "#x", label: "Dashboard" },
           { href: "#x", label: "platform" },
@@ -201,7 +203,7 @@ const Demo: FC<{ p: string }> = ({ p }) => (
         { value: "c", label: "Digest only" },
       ]}
     />
-    <div class="grid">
+    <div class="pick-grid">
       <PickTile name={`${p}-ids`} value="a" label="Cloudflare Workers" sub="workers, wrangler" />
       <PickTile name={`${p}-ids`} value="b" label="Supabase" checked note="found in repo" sub="postgres, auth" />
       <PickTile name={`${p}-ids`} value="c" label="Disabled tile" disabled />
@@ -255,13 +257,15 @@ const Demo: FC<{ p: string }> = ({ p }) => (
     <Callout tone="error">We couldn't cancel your subscription with Stripe, so nothing was deleted.</Callout>
 
     <h2>Table</h2>
+    <p class="meta">As on the landing page's comparison: row headers, and a keyboard-scrollable region on phones.</p>
     <DataTable
-      caption="Sources"
-      columns={[{ label: "Kind" }, { label: "Source" }, { label: "Checked", num: true }]}
+      caption="What each tool tells you about"
+      stack={false}
+      rowHeader
+      columns={[{ label: "When…" }, { label: "Stackquake" }, { label: "GitHub" }]}
       rows={[
-        ["page", <a href="#x">https://www.cloudflare.com/plans/developer-platform/</a>, "2026-10-11"],
-        ["github_repo", <a href="#x">denoland/deno</a>, "2026-10-10"],
-        ["npm", "left-pad", <Badge tone="act">blocked</Badge>],
+        ["A hosted service changes its pricing", "With the old and new values", "No"],
+        ["A package is deprecated", "When it's marked, npm and PyPI", "Not documented"],
       ]}
     />
 
@@ -388,6 +392,39 @@ const Demo: FC<{ p: string }> = ({ p }) => (
       <AlertItem a={alert(3, "free_tier", "failed", { title: "Hobby plan retired", name: "PlanetScale" })} csrf="" back="/app" showDep />
       <AlertItem a={alert(4, "pricing", "suppressed", { because: "Only Docker Business changes; you use Docker Desktop personally.", name: "Docker Desktop", title: "Docker Business price rises" })} csrf="" back="/app" showDep />
     </ul>
+
+    <h2>Stack view</h2>
+    <p class="meta">Dependency rows grouped by risk, as on the dashboard and project pages; "No known risk" folds.</p>
+    <StackView list={DEPS} now={NOW} />
+
+    <h2>Alert list</h2>
+    <p class="meta">As on the dashboard: act first, the first two shown and the rest folded, then the changes that didn't affect you.</p>
+    <AlertList
+      list={[alert(11, "license", "sent"), alert(12, "pricing", "queued", { channel: "digest", held: "not_urgent", name: "Vercel", title: "Pro plan bandwidth now billed per GB above 1 TB" }), alert(13, "free_tier", "sent", { match: "unknown", name: "Supabase", title: "Free projects pause after 7 days without activity" }), alert(14, "pricing", "suppressed", { name: "Docker Desktop", title: "Docker Business price rises", because: "Only Docker Business changes; you use Docker Desktop personally." })]}
+      csrf=""
+      back="/app"
+      top={2}
+    />
+
+    <h2>Narrow column</h2>
+    <div class="panel">
+      <AuthShell icon="bell-off" title="Mute Deno for 90 days?" description="No alerts about Deno until 2027-01-09.">
+        <Button variant="primary" size="lg">
+          Mute for 90 days
+        </Button>
+        <p class="meta auth-fine">Nothing changes until you press the button.</p>
+      </AuthShell>
+    </div>
+
+    <h2>Long content</h2>
+    <p class="meta">The longest names and quotes the data allows, to check wrapping at 360 px.</p>
+    <ul class="dep-list">
+      <DepRow v={{ dep: dep(6, { ecosystem: "npm", package: "@aws-sdk/client-cognito-identity-provider" }), name: "@aws-sdk/client-cognito-identity-provider", detail: "npm ^3.658.1 · services/authentication-gateway/package.json", sources: 1, archived: true, deprecated: true, unlicensed: false, latest: { id: 12, title: "AWS SDK for JavaScript v3 drops support for Node.js 18 and older runtimes on 2026-01-06 across every client package", kind: "deprecated", publishedAt: NOW - 3 * DAY } }} now={NOW} />
+    </ul>
+    <ul class="alert-list">
+      <AlertItem a={alert(5, "free_tier", "sent", { name: "Cloudflare Workers AI (serverless GPU inference)", title: "Workers AI free allocation drops from 10,000 to 2,500 neurons a day for every account on the Workers Free plan", because: "you run Cloudflare Workers AI on the free tier in a-very-long-project-name-from-a-monorepo." })} csrf="" back="/app" showDep />
+    </ul>
+    <Quote text={`${QUOTE} ${QUOTE} See https://docs.deno.com/runtime/fundamentals/stability_and_releases/#long-term-support-releases-and-end-of-life-schedule for the schedule.`} href="https://docs.deno.com/runtime/fundamentals/stability_and_releases/#long-term-support-releases-and-end-of-life-schedule" />
 
     <h2>Stepper and progress</h2>
     <Stepper label={`Onboarding demo ${p}`} steps={[{ label: "Start a project", state: "done" }, { label: "Find what you use", state: "current" }, { label: "How you use it", state: "todo" }, { label: "Your dashboard", state: "todo" }]} />

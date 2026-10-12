@@ -1,6 +1,6 @@
 // npm run ui:peek -- <page> [mobile|desktop] [light|dark] [scrollY]: one viewport-sized screenshot of a
 // page from scripts/ui/lib.mjs at a scroll position, to .ui/peek.png. For looking closely while
-// working; `ui:shots` is the record. Uses the last seed (run `npm run ui:seed` first).
+// working; `ui:shots` is the record. Uses the last seed (run `npm run ui:seed` first). PEEK_OUT=<file> writes elsewhere.
 import { join } from "node:path";
 import { chromium } from "playwright";
 import { BASE, OUT, VIEWPORTS, cookiesFor, pages, seedData } from "./lib.mjs";
@@ -19,7 +19,7 @@ await ctx.addCookies(cookies[String(p.as)] ?? []);
 const page = await ctx.newPage();
 await page.goto(BASE + (typeof p.path === "function" ? await p.path() : p.path), { waitUntil: "load" });
 await page.evaluate((top) => window.scrollTo(0, top), Number(y));
-const file = join(OUT, "peek.png");
+const file = process.env.PEEK_OUT ?? join(OUT, "peek.png");
 await page.screenshot({ path: file });
 console.log(`${file} (page height ${await page.evaluate(() => document.documentElement.scrollHeight)})`);
 await browser.close();

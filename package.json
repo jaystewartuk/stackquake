@@ -20,7 +20,8 @@
     "ui:seed": "node scripts/ui/seed.mjs",
     "ui:shots": "node scripts/ui/shots.mjs",
     "ui:audit": "node scripts/ui/audit.mjs",
-    "ui:peek": "node scripts/ui/peek.mjs"
+    "ui:peek": "node scripts/ui/peek.mjs",
+    "ui:keys": "node scripts/ui/keys.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",

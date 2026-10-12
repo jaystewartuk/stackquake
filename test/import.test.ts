@@ -144,7 +144,7 @@ describe("E1: public repo import (GitHub API mocked)", () => {
     await b.signIn("dev@example.com");
     const { final } = await importVia(b, "https://github.com/acme/nope");
     const html = await final.text();
-    expect(html).toContain("Repository not found. Public repos can be pasted; private repos need the GitHub App");
+    expect(html).toContain("Repository not found. Check the owner and name; public repos can be pasted, and private repos need the GitHub App.");
     expect(html).toContain("Pick services instead");
   });
 

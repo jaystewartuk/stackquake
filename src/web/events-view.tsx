@@ -89,9 +89,18 @@ const KIND_ICONS: Record<string, IconName> = { license: "shield", eol: "clock", 
 /** An event's kind: neutral, with an icon. Severity is about the user, so it is shown separately. */
 export const KindPill: FC<{ kind: string }> = ({ kind }) => <Badge icon={KIND_ICONS[kind] ?? "info"}>{KIND_LABELS[kind] ?? kind}</Badge>;
 
-/** One change in a list: date in the margin, kind, subject and title, the one-paragraph summary. */
-export const EventRow: FC<{ e: PublicEvent; summary?: boolean }> = ({ e, summary = true }) => {
+/** "Took effect" once an effective date ("2026-04-30" or "2027-10") is behind us, else "Takes effect". */
+export function effectLabel(date: string, now = Date.now()): string {
+  return `${date}-99`.slice(0, 10) < fmtDate(now) ? "Took effect" : "Takes effect";
+}
+
+/** The title with the subject in front, unless the title already starts with it ("Deno: Deno runtime…"). */
+const titleHasSubject = (subject: string, title: string) => title.toLowerCase().startsWith(subject.toLowerCase());
+
+/** One change in a list: date in the margin, kind, subject and title, the one-paragraph summary. `subject={false}` on a page about that subject. */
+export const EventRow: FC<{ e: PublicEvent; summary?: boolean; subject?: boolean }> = ({ e, summary = true, subject = true }) => {
   const n = e.note as Note | null;
+  const name = subjectName(e);
   return (
     <li class="event-row">
       <time class="er-date" datetime={fmtDate(e.publishedAt)}>
@@ -99,13 +108,14 @@ export const EventRow: FC<{ e: PublicEvent; summary?: boolean }> = ({ e, summary
       </time>
       <div class="er-body">
         <a class="er-title" href={`/events/${e.id}`}>
-          <strong>{subjectName(e)}</strong>: {e.title}
+          {subject && !titleHasSubject(name, e.title) && <><strong>{name}</strong>: </>}
+          {e.title}
         </a>
         <div class="er-meta">
           <KindPill kind={e.kind} />
           {e.effectiveDate && (
             <span>
-              Takes effect <span class="num">{e.effectiveDate}</span>
+              {effectLabel(e.effectiveDate)} <span class="num">{e.effectiveDate}</span>
             </span>
           )}
         </div>
@@ -115,10 +125,10 @@ export const EventRow: FC<{ e: PublicEvent; summary?: boolean }> = ({ e, summary
   );
 };
 
-export const EventList: FC<{ events: PublicEvent[]; summary?: boolean }> = ({ events: list, summary }) => (
+export const EventList: FC<{ events: PublicEvent[]; summary?: boolean; subject?: boolean }> = ({ events: list, summary, subject }) => (
   <ul class="event-list">
     {list.map((e) => (
-      <EventRow e={e} summary={summary} />
+      <EventRow e={e} summary={summary} subject={subject} />
     ))}
   </ul>
 );
@@ -154,7 +164,7 @@ export function whoIsAffected(n: Note, subject: string): string {
     a.use.length ? `for ${orList(a.use.map((u) => USE_WORDS[u] ?? u))}` : null,
     a.tier.length ? `on ${orList(a.tier.map((t) => TIER_WORDS[t] ?? t))}` : null,
   ].filter(Boolean);
-  return parts.length ? `You're affected if you use ${subject} ${parts.join(", ")}.` : `Everyone who uses ${subject}, however they use it.`;
+  return parts.length ? `You're affected if you use ${subject} ${parts.join(", ")}.` : `This affects everyone who uses ${subject}, however you use it.`;
 }
 
 const hostOf = (url: string | null | undefined) => {
@@ -170,7 +180,7 @@ export function noteFacts(e: PublicEvent) {
   const href = safeHref(e.quoteUrl);
   return [
     { term: "Published", value: <time datetime={fmtDate(e.publishedAt)}>{fmtDate(e.publishedAt)}</time> },
-    ...(e.effectiveDate ? [{ term: "Takes effect", value: e.effectiveDate, highlight: true }] : []),
+    ...(e.effectiveDate ? [{ term: effectLabel(e.effectiveDate), value: e.effectiveDate, highlight: true }] : []),
     ...(href ? [{ term: "Source", value: <a href={href} rel="noopener noreferrer nofollow">{hostOf(href)}</a> }] : []),
   ];
 }

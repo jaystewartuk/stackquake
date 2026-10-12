@@ -27,26 +27,31 @@ const AdminNav = ({ staging, current }: { staging?: boolean; current: string }) 
   <Tabs
     label="Admin"
     items={[
-      { href: "/admin/events", label: "Review queue" },
-      { href: "/admin/sources", label: "Blocked sources" },
-      { href: "/admin/requests", label: "Catalog requests" },
-      ...(staging ? [{ href: "/admin/staging", label: "Staging tools" }] : []),
+      { href: "/admin/events", label: "Events" },
+      { href: "/admin/sources", label: "Sources" },
+      { href: "/admin/requests", label: "Requests" },
+      ...(staging ? [{ href: "/admin/staging", label: "Staging" }] : []),
     ].map((t) => ({ ...t, current: t.href === current }))}
   />
 );
 
 const STATUS_TONE: Record<string, "neutral" | "ok" | "watch" | "act" | "info"> = { published: "ok", pending_review: "watch", rejected: "act", pending_llm: "info" };
+const STATUS_LABELS: Record<string, string> = { pending_review: "Pending review", published: "Published", rejected: "Rejected", pending_llm: "Waiting for the LLM" };
+const statusLabel = (s: string) => STATUS_LABELS[s] ?? s.replace("_", " ");
 
-const EventCard: FC<{ e: Event; csrf: string; actions?: boolean }> = ({ e, csrf, actions = true }) => {
+/** One event for review. Outside the queue, the note and the diff fold away so a list of published events stays scannable; `editing` is the card on its own edit page. */
+const EventCard: FC<{ e: Event; csrf: string; actions?: boolean; editing?: boolean }> = ({ e, csrf, actions = true, editing }) => {
   const n = e.note as Note | null;
   const href = safeHref(e.quoteUrl);
+  const fold = e.status !== "pending_review" && !editing;
   return (
     <article id={`e${e.id}`} class="panel review" aria-labelledby={`e${e.id}-h`}>
       <h2 id={`e${e.id}-h`}>
-        <span class="num">#{e.id}</span> {e.title}
+        {!editing && <span class="num">#{e.id} </span>}
+        {e.title}
       </h2>
       <div class="review-meta">
-        <Badge tone={STATUS_TONE[e.status] ?? "neutral"}>{e.status.replace("_", " ")}</Badge>
+        <Badge tone={STATUS_TONE[e.status] ?? "neutral"}>{statusLabel(e.status)}</Badge>
         <Badge>{e.kind}</Badge>
         <span>{e.catalogId ?? `source ${e.sourceId}`}</span>
         <span>
@@ -63,21 +68,26 @@ const EventCard: FC<{ e: Event; csrf: string; actions?: boolean }> = ({ e, csrf,
         {e.duplicateOf && <span>duplicate of #{e.duplicateOf}</span>}
       </div>
       {e.reviewReason && <p class="meta">Why: {e.reviewReason}</p>}
-      <p class="overflow-anywhere">
-        {href ? (
-          <a href={href} rel="noopener noreferrer nofollow" target="_blank">
-            {e.quoteUrl}
-          </a>
-        ) : (
-          e.quoteUrl
-        )}
-      </p>
+      {!e.quote && (
+        <p class="overflow-anywhere">
+          {href ? (
+            <a href={href} rel="noopener noreferrer nofollow" target="_blank">
+              {e.quoteUrl}
+            </a>
+          ) : (
+            e.quoteUrl
+          )}
+        </p>
+      )}
       {e.quote && (
         <>
-          <Quote text={e.quote} size="sm" />
+          <Quote text={e.quote} size="sm" href={href ?? undefined} url={href ? undefined : e.quoteUrl} />
           <p>{e.quoteFound ? <Badge tone="ok" icon="check">Quote found in the source</Badge> : <Badge tone="act" icon="alert-triangle">Quote NOT found in the source</Badge>}</p>
         </>
       )}
+      {fold ? (
+        <details class="more">
+          <summary>Note and source text</summary>
       {n && (
         <div class="review-note">
           <p>{n.what_changed}</p>
@@ -98,19 +108,46 @@ const EventCard: FC<{ e: Event; csrf: string; actions?: boolean }> = ({ e, csrf,
         </div>
       )}
       {(e.beforeText || e.afterText) && <DiffView before={e.beforeText} after={e.afterText} label={`Source text before and after, event #${e.id}`} />}
+        </details>
+      ) : (
+        <>
+      {n && (
+        <div class="review-note">
+          <p>{n.what_changed}</p>
+          {n.who_is_not_affected && <p class="meta">Not affected: {n.who_is_not_affected}</p>}
+          <p class="meta">
+            Applies when: hosting {n.applies_when.hosting.join("/") || "any"}, use {n.applies_when.use.join("/") || "any"}, tier {n.applies_when.tier.join("/") || "any"}
+          </p>
+          {n.options.length > 0 && (
+            <ul>
+              {n.options.map((o) => (
+                <li>
+                  {o.name} ({o.effort}): {o.why}
+                </li>
+              ))}
+            </ul>
+          )}
+          {n.uncertain.length > 0 && <p class="meta">Uncertain: {n.uncertain.join(" · ")}</p>}
+        </div>
+      )}
+      {(e.beforeText || e.afterText) && <DiffView before={e.beforeText} after={e.afterText} label={`Source text before and after, event #${e.id}`} />}
+        </>
+      )}
       {actions && (
         <div class="review-actions">
           {e.status !== "published" && (
             <form class="inline" method="post" action={`/admin/events/${e.id}/approve`}>
               <Csrf token={csrf} />
-              <Button variant="primary" size="sm" icon="check" disabled={!n || !e.quote}>
-                Approve
+              <Button variant={editing ? "secondary" : "primary"} size="sm" icon="check" disabled={!n || !e.quote}>
+                {editing ? "Approve as it is" : "Approve"}
               </Button>
             </form>
           )}
-          <ButtonLink size="sm" href={`/admin/events/${e.id}`}>
-            Edit
-          </ButtonLink>
+          {!editing && (
+            <ButtonLink size="sm" href={`/admin/events/${e.id}`}>
+              Edit
+            </ButtonLink>
+          )}
           {e.status !== "rejected" && (
             <form class="inline" method="post" action={`/admin/events/${e.id}/reject`}>
               <Csrf token={csrf} />
@@ -151,8 +188,8 @@ adminRoutes.get("/events", async (c) => {
     "Admin: events",
     <>
       <AdminNav staging={c.env.STAGING_TOOLS === "1"} current="/admin/events" />
-      <h1>Events: {status.replace("_", " ")}</h1>
-      <Tabs variant="segmented" label="Status" items={STATUSES.map((s) => ({ href: `/admin/events?status=${s}`, label: s.replace("_", " "), count: n(s), current: s === status }))} />
+      <h1>{status === "pending_review" ? "Review queue" : `Events: ${statusLabel(status).toLowerCase()}`}</h1>
+      <Tabs variant="segmented" label="Status" items={STATUSES.map((s) => ({ href: `/admin/events?status=${s}`, label: statusLabel(s), count: n(s), current: s === status }))} />
       <p class="meta">
         LLM, last 7 days: ${(week?.usd ?? 0).toFixed(4)} over {week?.calls ?? 0} calls; weekly budget ${budget.budget.toFixed(2)}.{" "}
         {budget.paused ? (
@@ -213,8 +250,8 @@ adminRoutes.get("/events/:id", async (c) => {
     c,
     `Edit #${e.id}`,
     <>
-      <PageHeader crumbs={[{ href: "/admin/events", label: "Admin" }, { href: `/admin/events?status=${e.status}`, label: e.status.replace("_", " ") }]} title={`Edit event #${e.id}`} />
-      <EventCard e={e} csrf={c.get("csrf")} />
+      <PageHeader crumbs={[{ href: "/admin/events", label: "Admin" }, { href: `/admin/events?status=${e.status}`, label: statusLabel(e.status) }]} title={`Edit event #${e.id}`} />
+      <EventCard e={e} csrf={c.get("csrf")} editing />
       <Panel title="Edit and publish">
         <form method="post" action={`/admin/events/${e.id}`}>
           <Csrf token={c.get("csrf")} />
@@ -307,13 +344,16 @@ adminRoutes.get("/sources", async (c) => {
       <AdminNav staging={c.env.STAGING_TOOLS === "1"} current="/admin/sources" />
       <h1>Blocked and failing sources</h1>
       {list.length === 0 ? (
-        <p class="muted">None.</p>
+        <EmptyState title="No blocked or failing sources" icon="check" level={2} />
       ) : (
         <ul class="plain panel">
           {list.map((s) => (
             <li>
-              <Badge tone={s.state === "blocked" ? "act" : "neutral"}>{s.state}</Badge> <span class="num">#{s.id}</span> {s.kind}{" "}
-              {safeHref(s.url) ? <a href={safeHref(s.url)} rel="noopener noreferrer nofollow">{s.key}</a> : s.key}
+              {s.state === "blocked" ? <Badge tone="act">blocked</Badge> : <Badge tone="watch">failing</Badge>}{" "}
+              {safeHref(s.url) ? <a href={safeHref(s.url)} rel="noopener noreferrer nofollow" class="overflow-anywhere">{s.url}</a> : <code>{s.key}</code>}{" "}
+              <span class="meta">
+                <span class="num">#{s.id}</span> {s.kind}
+              </span>
               {s.lastError && <div class="meta">{s.lastError}</div>}
             </li>
           ))}
@@ -321,7 +361,7 @@ adminRoutes.get("/sources", async (c) => {
       )}
       <h2>Parked jobs</h2>
       {parked.length === 0 ? (
-        <p class="muted">None.</p>
+        <EmptyState title="No parked jobs" icon="check" level={3} />
       ) : (
         <ul class="plain panel">
           {parked.map((j) => (
@@ -356,14 +396,15 @@ adminRoutes.get("/requests", async (c) => {
       <h1>Catalog requests</h1>
       <p class="muted">Free text from the picker that matched no entry. Add the popular ones to catalog/.</p>
       {list.length === 0 ? (
-        <p class="muted">None yet.</p>
+        <EmptyState title="No requests yet" icon="inbox" />
       ) : (
         <ul class="plain panel">
           {[...counts.entries()]
             .sort((a, b) => b[1] - a[1])
             .map(([text, n]) => (
               <li>
-                <strong>{text}</strong> <span class="meta">× {n}, latest {fmtDate(list.find((r) => r.text.toLowerCase() === text)!.createdAt)}</span>
+                {/* Grouped case-insensitively; shown as the newest request spelled it. */}
+                <strong>{list.find((r) => r.text.toLowerCase() === text)!.text}</strong> <span class="meta">× {n}, latest <time>{fmtDate(list.find((r) => r.text.toLowerCase() === text)!.createdAt)}</time></span>
               </li>
             ))}
         </ul>
