@@ -13,7 +13,7 @@ import { getText } from "../pipeline/post";
 import { quoteFound } from "../pipeline/quote";
 import { DAY } from "../util";
 import { Csrf, fmtDate, page, safeHref } from "../web/layout";
-import { Callout, Tabs } from "../web/ui";
+import { Badge, Button, ButtonLink, Callout, DiffView, EmptyState, Field, PageHeader, Panel, Quote, Tabs } from "../web/ui";
 import { requireAdmin, type WebContext, type WebEnv } from "../web/session";
 
 export const adminRoutes = new Hono<WebEnv>();
@@ -35,29 +35,51 @@ const AdminNav = ({ staging, current }: { staging?: boolean; current: string }) 
   />
 );
 
-const EventCard: FC<{ e: Event; csrf: string }> = ({ e, csrf }) => {
+const STATUS_TONE: Record<string, "neutral" | "ok" | "watch" | "act" | "info"> = { published: "ok", pending_review: "watch", rejected: "act", pending_llm: "info" };
+
+const EventCard: FC<{ e: Event; csrf: string; actions?: boolean }> = ({ e, csrf, actions = true }) => {
   const n = e.note as Note | null;
   const href = safeHref(e.quoteUrl);
   return (
-    <article id={`e${e.id}`}>
-      <h2>
-        #{e.id} {e.title}
+    <article id={`e${e.id}`} class="panel review" aria-labelledby={`e${e.id}-h`}>
+      <h2 id={`e${e.id}-h`}>
+        <span class="num">#{e.id}</span> {e.title}
       </h2>
-      <div class="meta">
-        {e.kind} · {e.catalogId ?? `source ${e.sourceId}`} · confidence {e.confidence?.toFixed(2) ?? "–"} · detected {new Date(e.detectedAt).toISOString().slice(0, 16).replace("T", " ")}
-        {e.effectiveDate ? ` · effective ${e.effectiveDate}` : ""} · {e.status}
-        {e.duplicateOf ? ` · duplicate of #${e.duplicateOf}` : ""}
+      <div class="review-meta">
+        <Badge tone={STATUS_TONE[e.status] ?? "neutral"}>{e.status.replace("_", " ")}</Badge>
+        <Badge>{e.kind}</Badge>
+        <span>{e.catalogId ?? `source ${e.sourceId}`}</span>
+        <span>
+          confidence <span class="num">{e.confidence?.toFixed(2) ?? "–"}</span>
+        </span>
+        <span>
+          detected <span class="num">{new Date(e.detectedAt).toISOString().slice(0, 16).replace("T", " ")}</span>
+        </span>
+        {e.effectiveDate && (
+          <span>
+            effective <span class="num">{e.effectiveDate}</span>
+          </span>
+        )}
+        {e.duplicateOf && <span>duplicate of #{e.duplicateOf}</span>}
       </div>
       {e.reviewReason && <p class="meta">Why: {e.reviewReason}</p>}
-      <p>{href ? <a href={href} rel="noopener noreferrer nofollow" target="_blank">{e.quoteUrl}</a> : e.quoteUrl}</p>
+      <p class="overflow-anywhere">
+        {href ? (
+          <a href={href} rel="noopener noreferrer nofollow" target="_blank">
+            {e.quoteUrl}
+          </a>
+        ) : (
+          e.quoteUrl
+        )}
+      </p>
       {e.quote && (
         <>
-          <blockquote>{e.quote}</blockquote>
-          <div class={e.quoteFound ? "meta ok" : "meta bad"}>{e.quoteFound ? "Quote found in the source" : "Quote NOT found in the source"}</div>
+          <Quote text={e.quote} size="sm" />
+          <p>{e.quoteFound ? <Badge tone="ok" icon="check">Quote found in the source</Badge> : <Badge tone="act" icon="alert-triangle">Quote NOT found in the source</Badge>}</p>
         </>
       )}
       {n && (
-        <>
+        <div class="review-note">
           <p>{n.what_changed}</p>
           {n.who_is_not_affected && <p class="meta">Not affected: {n.who_is_not_affected}</p>}
           <p class="meta">
@@ -73,34 +95,31 @@ const EventCard: FC<{ e: Event; csrf: string }> = ({ e, csrf }) => {
             </ul>
           )}
           {n.uncertain.length > 0 && <p class="meta">Uncertain: {n.uncertain.join(" · ")}</p>}
-        </>
-      )}
-      {(e.beforeText || e.afterText) && (
-        <div class="cols">
-          <div>
-            <div class="meta">Before</div>
-            <pre>{e.beforeText ?? ""}</pre>
-          </div>
-          <div>
-            <div class="meta">After</div>
-            <pre>{e.afterText ?? ""}</pre>
-          </div>
         </div>
       )}
-      {e.status !== "published" && (
-        <form class="inline" method="post" action={`/admin/events/${e.id}/approve`}>
-          <Csrf token={csrf} />
-          <button type="submit" disabled={!n || !e.quote}>
-            Approve
-          </button>
-        </form>
-      )}
-      <a href={`/admin/events/${e.id}`}>Edit</a>{" "}
-      {e.status !== "rejected" && (
-        <form class="inline" method="post" action={`/admin/events/${e.id}/reject`}>
-          <Csrf token={csrf} />
-          <button type="submit">Reject</button>
-        </form>
+      {(e.beforeText || e.afterText) && <DiffView before={e.beforeText} after={e.afterText} label={`Source text before and after, event #${e.id}`} />}
+      {actions && (
+        <div class="review-actions">
+          {e.status !== "published" && (
+            <form class="inline" method="post" action={`/admin/events/${e.id}/approve`}>
+              <Csrf token={csrf} />
+              <Button variant="primary" size="sm" icon="check" disabled={!n || !e.quote}>
+                Approve
+              </Button>
+            </form>
+          )}
+          <ButtonLink size="sm" href={`/admin/events/${e.id}`}>
+            Edit
+          </ButtonLink>
+          {e.status !== "rejected" && (
+            <form class="inline" method="post" action={`/admin/events/${e.id}/reject`}>
+              <Csrf token={csrf} />
+              <Button variant="danger" size="sm" icon="x">
+                Reject
+              </Button>
+            </form>
+          )}
+        </div>
       )}
     </article>
   );
@@ -137,16 +156,22 @@ adminRoutes.get("/events", async (c) => {
       <p class="meta">
         LLM, last 7 days: ${(week?.usd ?? 0).toFixed(4)} over {week?.calls ?? 0} calls; weekly budget ${budget.budget.toFixed(2)}.{" "}
         {budget.paused ? (
-          <strong class="pill bad">over twice the budget: classify paused, admins emailed daily</strong>
+          <Badge tone="act">over twice the budget: classify paused, admins emailed daily</Badge>
         ) : budget.over ? (
-          <strong class="pill warn">over budget: admins emailed daily; classify pauses at ${(2 * budget.budget).toFixed(2)}</strong>
+          <Badge tone="watch">over budget: admins emailed daily; classify pauses at ${(2 * budget.budget).toFixed(2)}</Badge>
         ) : null}
       </p>
       <p class="meta">
         Alerts, last 7 days: {al.sent} sent, {al.held} held for digests, {al.suppressed} suppressed; feedback {al.useful} useful, {al.not_relevant} not relevant.
       </p>
       {flash && <Callout tone="error">{flash}</Callout>}
-      {list.length === 0 ? <p>Nothing here.</p> : list.map((e) => <EventCard e={e} csrf={c.get("csrf")} />)}
+      {list.length === 0 ? (
+        <EmptyState title="Nothing here" icon="check">
+          No events with this status.
+        </EmptyState>
+      ) : (
+        list.map((e) => <EventCard e={e} csrf={c.get("csrf")} />)
+      )}
     </>,
     { noindex: true },
   );
@@ -188,37 +213,38 @@ adminRoutes.get("/events/:id", async (c) => {
     c,
     `Edit #${e.id}`,
     <>
-      <p>
-        <a href="/admin/events">← Events</a>
-      </p>
+      <PageHeader crumbs={[{ href: "/admin/events", label: "Admin" }, { href: `/admin/events?status=${e.status}`, label: e.status.replace("_", " ") }]} title={`Edit event #${e.id}`} />
       <EventCard e={e} csrf={c.get("csrf")} />
-      <h2>Edit and publish</h2>
-      <form method="post" action={`/admin/events/${e.id}`}>
-        <Csrf token={c.get("csrf")} />
-        <label for="kind">Kind</label>
-        <select id="kind" name="kind">
-          {EVENT_KINDS.map((k) => (
-            <option value={k} selected={k === e.kind}>
-              {k}
-            </option>
-          ))}
-        </select>
-        <label for="title">Title</label>
-        <input type="text" id="title" name="title" value={e.title} required maxlength={300} />
-        <label for="what_changed">What changed</label>
-        <textarea id="what_changed" name="what_changed" required>
-          {n?.what_changed ?? ""}
-        </textarea>
-        <label for="quote">Quote (verbatim from the source)</label>
-        <textarea id="quote" name="quote" required>
-          {e.quote ?? ""}
-        </textarea>
-        <label for="effective_date">Effective date (YYYY-MM-DD or YYYY-MM)</label>
-        <input type="text" id="effective_date" name="effective_date" value={e.effectiveDate ?? ""} pattern="\d{4}-\d{2}(-\d{2})?" />
-        <p>
-          <button type="submit">Save and publish</button>
-        </p>
-      </form>
+      <Panel title="Edit and publish">
+        <form method="post" action={`/admin/events/${e.id}`}>
+          <Csrf token={c.get("csrf")} />
+          <div class="field">
+            <label for="kind">Kind</label>
+            <select id="kind" name="kind">
+              {EVENT_KINDS.map((k) => (
+                <option value={k} selected={k === e.kind}>
+                  {k}
+                </option>
+              ))}
+            </select>
+          </div>
+          <Field id="title" label="Title" value={e.title} required maxlength={300} wide />
+          <div class="field wide">
+            <label for="what_changed">What changed</label>
+            <textarea id="what_changed" name="what_changed" rows={4} required>
+              {n?.what_changed ?? ""}
+            </textarea>
+          </div>
+          <div class="field wide">
+            <label for="quote">Quote (verbatim from the source)</label>
+            <textarea id="quote" name="quote" rows={4} required>
+              {e.quote ?? ""}
+            </textarea>
+          </div>
+          <Field id="effective_date" label="Effective date" hint="YYYY-MM-DD or YYYY-MM" value={e.effectiveDate ?? ""} pattern="\d{4}-\d{2}(-\d{2})?" />
+          <Button variant="primary">Save and publish</Button>
+        </form>
+      </Panel>
     </>,
     { noindex: true },
   );
@@ -281,12 +307,12 @@ adminRoutes.get("/sources", async (c) => {
       <AdminNav staging={c.env.STAGING_TOOLS === "1"} current="/admin/sources" />
       <h1>Blocked and failing sources</h1>
       {list.length === 0 ? (
-        <p>None.</p>
+        <p class="muted">None.</p>
       ) : (
-        <ul class="plain">
+        <ul class="plain panel">
           {list.map((s) => (
             <li>
-              <span class={`pill ${s.state === "blocked" ? "bad" : ""}`}>{s.state}</span> #{s.id} {s.kind}{" "}
+              <Badge tone={s.state === "blocked" ? "act" : "neutral"}>{s.state}</Badge> <span class="num">#{s.id}</span> {s.kind}{" "}
               {safeHref(s.url) ? <a href={safeHref(s.url)} rel="noopener noreferrer nofollow">{s.key}</a> : s.key}
               {s.lastError && <div class="meta">{s.lastError}</div>}
             </li>
@@ -295,9 +321,9 @@ adminRoutes.get("/sources", async (c) => {
       )}
       <h2>Parked jobs</h2>
       {parked.length === 0 ? (
-        <p>None.</p>
+        <p class="muted">None.</p>
       ) : (
-        <ul class="plain">
+        <ul class="plain panel">
           {parked.map((j) => (
             <li>
               #{j.id} {j.kind} {j.sourceId ? `source ${j.sourceId}` : j.eventId ? `event ${j.eventId}` : ""} · parked {fmtDate(j.parkedAt)}
@@ -330,9 +356,9 @@ adminRoutes.get("/requests", async (c) => {
       <h1>Catalog requests</h1>
       <p class="muted">Free text from the picker that matched no entry. Add the popular ones to catalog/.</p>
       {list.length === 0 ? (
-        <p>None yet.</p>
+        <p class="muted">None yet.</p>
       ) : (
-        <ul class="plain">
+        <ul class="plain panel">
           {[...counts.entries()]
             .sort((a, b) => b[1] - a[1])
             .map(([text, n]) => (
