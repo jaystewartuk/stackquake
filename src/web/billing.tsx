@@ -6,29 +6,21 @@ import type { AppEnv } from "../env";
 import { accountOf } from "../billing/plans";
 import { BillingError, createCheckout, createPortal, handleEvent, verifyWebhook, type Interval } from "../billing/stripe";
 import { errorMessage } from "../util";
-import { page } from "./layout";
-import { appOrigin, requireUser, type WebEnv } from "./session";
+import { problemPage } from "./app-ui";
+import { appOrigin, requireUser, type WebContext, type WebEnv } from "./session";
 
 export const billing = new Hono<WebEnv>();
 billing.use("*", requireUser);
 
-const Problem = ({ msg }: { msg: string }) => (
-  <>
-    <h1>Billing</h1>
-    <p class="flash error">{msg}</p>
-    <p>
-      <a href="/app/settings">Back to settings</a>
-    </p>
-  </>
-);
+const problem = (c: WebContext, status: 400 | 404 | 503, heading: string, msg: string) => problemPage(c, { title: "Billing", status, heading, body: <p>{msg}</p>, back: { href: "/app/settings#plan", label: "Back to settings" } });
 
 billing.post("/checkout", async (c) => {
   const ctx = c.get("ctx");
   const cfg = ctx.config.stripe;
-  if (!cfg) return page(c, "Billing", <Problem msg="Billing isn't enabled on this server yet." />, { status: 503, noindex: true });
+  if (!cfg) return problem(c, 503, "Billing isn't open yet", "Billing isn't enabled on this server yet.");
   const user = c.get("user")!;
   const account = await accountOf(ctx, user);
-  if (account.role === "member") return page(c, "Billing", <Problem msg={`You're on ${account.ownerEmail}'s team, which already has Team. Leave the team first to subscribe on your own.`} />, { status: 400, noindex: true });
+  if (account.role === "member") return problem(c, 400, "You already have Team", `You're on ${account.ownerEmail}'s team, which already has Team. Leave the team first to subscribe on your own.`);
   const form = await c.req.parseBody();
   const interval: Interval = form.interval === "year" ? "year" : "month";
   try {
@@ -36,20 +28,20 @@ billing.post("/checkout", async (c) => {
   } catch (err) {
     if (err instanceof BillingError && err.code === "already_subscribed") return c.redirect("/app/settings?msg=subscribed");
     console.error(JSON.stringify({ billing: "checkout", error: errorMessage(err) }));
-    return page(c, "Billing", <Problem msg="Stripe didn't start the checkout. Try again in a minute." />, { status: 503, noindex: true });
+    return problem(c, 503, "Checkout didn't start", "Stripe didn't start the checkout. Nothing was charged. Try again in a minute.");
   }
 });
 
 billing.post("/portal", async (c) => {
   const ctx = c.get("ctx");
   const cfg = ctx.config.stripe;
-  if (!cfg) return page(c, "Billing", <Problem msg="Billing isn't enabled on this server yet." />, { status: 503, noindex: true });
+  if (!cfg) return problem(c, 503, "Billing isn't open yet", "Billing isn't enabled on this server yet.");
   try {
     return c.redirect(await createPortal(ctx, cfg, c.get("user")!, appOrigin(c)), 303);
   } catch (err) {
-    if (err instanceof BillingError && err.code === "no_customer") return page(c, "Billing", <Problem msg="There's no billing account to manage yet." />, { status: 404, noindex: true });
+    if (err instanceof BillingError && err.code === "no_customer") return problem(c, 404, "No billing account yet", "There's no billing account to manage yet.");
     console.error(JSON.stringify({ billing: "portal", error: errorMessage(err) }));
-    return page(c, "Billing", <Problem msg="Stripe didn't open the billing portal. Try again in a minute." />, { status: 503, noindex: true });
+    return problem(c, 503, "The billing portal didn't open", "Stripe didn't open the billing portal. Try again in a minute.");
   }
 });
 

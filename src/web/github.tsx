@@ -11,7 +11,10 @@ import { projects } from "../db/schema";
 import { ghApiHeaders, rememberInstallation } from "../github/app";
 import { startImport } from "../stack/import";
 import { HOUR, safeEqual, utf8 } from "../util";
+import { problemPage, upgradePage } from "./app-ui";
+import { Icon } from "./icons";
 import { Csrf, page } from "./layout";
+import { AuthShell, Button, ButtonLink, EmptyState, Field, PageHeader } from "./ui";
 import { appOrigin, getAccount, randomToken, requireUser, type WebContext, type WebEnv } from "./session";
 
 export const github = new Hono<WebEnv>();
@@ -19,7 +22,12 @@ github.use("*", requireUser);
 // Private repos are a Team feature (SPEC §10).
 github.use("*", async (c, next) => {
   if (c.get("ctx").config.githubApp && (await getAccount(c)).plan !== "team")
-    return page(c, "Team plan", <><h1>Private repos are on the Team plan</h1><p>Importing private repos through our GitHub App, with re-import on every push that changes a manifest, is part of <a href="/pricing">Team</a>. Public repos and the service picker work on Free.</p><p><a href="/app">Back to the dashboard</a></p></>, { status: 402, noindex: true });
+    return upgradePage(c, {
+      title: "Team plan",
+      heading: "Private repos are on the Team plan",
+      body: <p>Importing private repos through our GitHub App, with re-import on every push that changes a manifest, is part of Team. Public repos and the service picker work on Free.</p>,
+      back: { href: "/app/projects/new", label: "Import a public repo instead" },
+    });
   await next();
 });
 
@@ -54,17 +62,21 @@ export async function verifyChoice(secret: string, userId: number, value: string
 }
 
 const notConfigured = (c: WebContext) =>
-  page(c, "Not available", <><h1>Private repos aren't available here</h1><p>The GitHub App is not configured. <a href="/app/projects/new">Pick services or import a public repo</a>.</p></>, { status: 404, noindex: true });
+  problemPage(c, { title: "Not available", status: 404, heading: "Private repos aren't available here", body: <p>The GitHub App is not configured on this server.</p>, back: { href: "/app/projects/new", label: "Pick services or import a public repo" } });
 
-const Problem = ({ why }: { why: string }) => (
-  <>
-    <h1>Couldn't list your GitHub repos</h1>
-    <p>{why}</p>
-    <p>
-      <a href="/app/github/connect">Try again</a> · <a href="/app/projects/new">Back</a>
-    </p>
-  </>
-);
+const problem = (c: WebContext, status: 400 | 503, why: string) =>
+  problemPage(c, {
+    title: "GitHub",
+    status,
+    heading: "Couldn't list your GitHub repos",
+    body: <p>{why}</p>,
+    extra: (
+      <ButtonLink variant="primary" href="/app/github/connect" icon="github">
+        Try again
+      </ButtonLink>
+    ),
+    back: { href: "/app/projects/new", label: "Back" },
+  });
 
 github.get("/connect", (c) => {
   const app = c.get("ctx").config.githubApp;
@@ -98,7 +110,7 @@ github.get("/callback", async (c) => {
   if (!state || !code || !safeEqual(state, c.req.query("state") ?? "")) {
     // Straight back from installing the app (no state of ours): start the flow properly.
     if (c.req.query("installation_id") || c.req.query("setup_action")) return c.redirect("/app/github/connect");
-    return page(c, "GitHub", <Problem why="The request expired or did not come from this site." />, { status: 400, noindex: true });
+    return problem(c, 400, "The request expired or did not come from this site.");
   }
   deleteCookie(c, STATE_COOKIE, { path: "/app/github", secure: true });
   const tokenRes = await ctx.http(
@@ -109,26 +121,35 @@ github.get("/callback", async (c) => {
     }),
   );
   const userToken = tokenRes.ok ? (await tokenRes.json<{ access_token?: string }>()).access_token : undefined;
-  if (!userToken) return page(c, "GitHub", <Problem why="GitHub did not accept the authorisation code." />, { status: 400, noindex: true });
+  if (!userToken) return problem(c, 400, "GitHub did not accept the authorisation code.");
   const api = (path: string) => ctx.http(new Request(`${ctx.config.githubApi}${path}`, { headers: ghApiHeaders(ctx, userToken) }));
 
   const instRes = await api("/user/installations?per_page=100");
-  if (!instRes.ok) return page(c, "GitHub", <Problem why="Could not read your GitHub App installations." />, { status: 503, noindex: true });
+  if (!instRes.ok) return problem(c, 503, "Could not read your GitHub App installations.");
   const installations = (await instRes.json<{ installations: Installation[] }>()).installations.slice(0, MAX_INSTALLATIONS);
   const installUrl = `https://github.com/apps/${encodeURIComponent(app.slug)}/installations/new`;
   if (!installations.length) {
     return page(
       c,
       "Install the GitHub App",
-      <>
-        <h1>Install the Stackquake GitHub App</h1>
-        <p>To import a private repo, install the app on your account or organisation and choose which repositories it may read. It asks for read-only access to contents and metadata, and is told about pushes so we can re-import when a manifest changes.</p>
-        <p>
-          <a class="btn primary" href={installUrl}>
-            Install on GitHub
-          </a>
+      <AuthShell icon="github" title="Install the Stackquake GitHub App" description="To import a private repo, install the app on your account or organisation and choose which repositories it may read.">
+        <ul class="plan-features">
+          <li>
+            <Icon name="check" />
+            <span>Read-only access to contents and metadata</span>
+          </li>
+          <li>
+            <Icon name="check" />
+            <span>Told about pushes, so we re-import when a manifest changes</span>
+          </li>
+        </ul>
+        <ButtonLink variant="primary" href={installUrl} icon="github" class="auth-alt">
+          Install on GitHub
+        </ButtonLink>
+        <p class="meta auth-fine">
+          <a href="/app/projects/new">Import a public repo instead</a>
         </p>
-      </>,
+      </AuthShell>,
       { noindex: true },
     );
   }
@@ -149,32 +170,34 @@ github.get("/callback", async (c) => {
     c,
     "Pick a repo",
     <>
-      <h1>Import a repo through the GitHub App</h1>
+      <PageHeader crumbs={[{ href: "/app", label: "Dashboard" }]} title="Import a repo through the GitHub App" description="Pick the repository this project runs from. We read its manifests with the app's read-only access." />
       {options.length ? (
-        <form method="post" action="/app/github/import" class="card">
+        <form method="post" action="/app/github/import" class="panel narrow-form">
           <Csrf token={c.get("csrf")} />
           {project && <input type="hidden" name="project" value={project} />}
-          {!project && (
-            <>
-              <label for="name">Project name</label>
-              <input type="text" id="name" name="name" value="My stack" required maxlength={80} />
-            </>
-          )}
+          {!project && <Field id="name" label="Project name" value="My stack" required maxlength={80} />}
           <fieldset>
             <legend>Repository</legend>
-            {options.map((o, i) => (
-              <label>
-                <input type="radio" name="choice" value={o.value} required checked={i === 0} /> {o.repo.full_name}
-                {o.repo.private && <span class="meta"> · private</span>}
-              </label>
-            ))}
+            <div class="repo-choices">
+              {options.map((o, i) => (
+                <label class="pick">
+                  <input type="radio" name="choice" value={o.value} required checked={i === 0} />
+                  <span>
+                    <span class="pick-name">{o.repo.full_name}</span>
+                    {o.repo.private && <span class="meta"> · private</span>}
+                  </span>
+                </label>
+              ))}
+            </div>
           </fieldset>
-          <button class="primary" type="submit">
+          <Button variant="primary" icon="github">
             Import
-          </button>
+          </Button>
         </form>
       ) : (
-        <p>The app is installed, but it can't see any repositories you have access to.</p>
+        <EmptyState title="No repositories to show" icon="github">
+          The app is installed, but it can't see any repositories you have access to.
+        </EmptyState>
       )}
       <p class="meta">
         Missing a repo? <a href={installUrl}>Change which repositories the app can read</a>.
@@ -191,7 +214,7 @@ github.post("/import", async (c) => {
   const form = await c.req.parseBody();
   const userId = c.get("user")!.id;
   const choice = typeof form.choice === "string" ? await verifyChoice(app.clientSecret, userId, form.choice, ctx.clock.now()) : null;
-  if (!choice) return page(c, "GitHub", <Problem why="That choice expired. List your repos again." />, { status: 400, noindex: true });
+  if (!choice) return problem(c, 400, "That choice expired. List your repos again.");
   let projectId: number;
   const existing = typeof form.project === "string" && /^\d{1,15}$/.test(form.project) ? Number(form.project) : null;
   if (existing) {

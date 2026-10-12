@@ -9,6 +9,8 @@ import { verifyLink, type LinkAction } from "../alerts/links";
 import { Csrf, fmtDate, page } from "./layout";
 import type { WebContext, WebEnv } from "./session";
 import { depName } from "./stack-view";
+import type { IconName } from "./icons";
+import { AuthShell, Button, ButtonLink, ErrorPage } from "./ui";
 
 export const alertLinks = new Hono<WebEnv>();
 
@@ -39,16 +41,12 @@ async function target(c: WebContext, id: number) {
   return { ...row, dep };
 }
 
+const ICON: Record<LinkAction, IconName> = { useful: "check", not_relevant: "x", mute: "bell-off", digest_only: "mail" };
+
 const Problem = ({ expired }: { expired: boolean }) => (
-  <>
-    <h1>{expired ? "This link has expired" : "This link doesn't work"}</h1>
+  <ErrorPage code={400} icon="link" title={expired ? "This link has expired" : "This link doesn't work"} actions={<ButtonLink href="/app">Go to the dashboard</ButtonLink>}>
     <p>{expired ? "Links in alerts work for 30 days." : "It may have been copied incompletely."} You can give feedback and mute dependencies from your dashboard.</p>
-    <p>
-      <a class="btn" href="/app">
-        Go to the dashboard
-      </a>
-    </p>
-  </>
+  </ErrorPage>
 );
 
 alertLinks.get("/a/:token", async (c) => {
@@ -68,16 +66,15 @@ alertLinks.get("/a/:token", async (c) => {
   return page(
     c,
     "Confirm",
-    <>
-      <h1>{QUESTION[v.action]}</h1>
-      <p>{what}</p>
-      <form method="post" action={`/a/${c.req.param("token")}`} class="card">
+    <AuthShell icon={ICON[v.action]} title={QUESTION[v.action]} description={what}>
+      <form method="post" action={`/a/${c.req.param("token")}`} class="auth-form">
         <Csrf token={c.get("csrf")} />
-        <button class="primary" type="submit">
+        <Button variant="primary" size="lg">
           {BUTTON[v.action]}
-        </button>
+        </Button>
       </form>
-    </>,
+      <p class="meta auth-fine">Nothing changes until you press the button. Changed your mind? Close this page.</p>
+    </AuthShell>,
     { noindex: true },
   );
 });
@@ -96,7 +93,7 @@ alertLinks.post("/a/:token", async (c) => {
     const t = await target(c, v.id);
     if (!t) return page(c, "Link problem", <Problem expired={false} />, { status: 400, noindex: true });
     if (v.action === "mute") {
-      if (!t.dep) return page(c, "Nothing to mute", <><h1>Nothing to mute</h1><p>That dependency is no longer in your stack.</p></>, { noindex: true });
+      if (!t.dep) return page(c, "Nothing to mute", <AuthShell icon="info" title="Nothing to mute" description="That dependency is no longer in your stack." />, { noindex: true });
       await ctx.db.update(deps).set({ mutedUntil: now + MUTE_MS }).where(eq(deps.id, t.dep.id));
       done = `Muted ${depName(t.dep)} until ${fmtDate(now + MUTE_MS)}.`;
     } else {
@@ -107,12 +104,13 @@ alertLinks.post("/a/:token", async (c) => {
   return page(
     c,
     "Done",
-    <>
-      <h1>{done}</h1>
-      <p>
-        <a href="/app">Go to the dashboard</a>
+    <AuthShell icon="check" title={done}>
+      <p class="auth-fine">
+        <ButtonLink href="/app" iconEnd="arrow-right" class="auth-alt">
+          Go to the dashboard
+        </ButtonLink>
       </p>
-    </>,
+    </AuthShell>,
     { noindex: true },
   );
 });

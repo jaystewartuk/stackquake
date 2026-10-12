@@ -4,10 +4,12 @@
 // them. One team per member. Removing a member or leaving takes effect at once.
 import { and, asc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { Hono } from "hono";
-import { accountOf, TEAM_SIZE } from "../billing/plans";
+import { accountOf, TEAM_FEATURES, TEAM_SIZE } from "../billing/plans";
 import { teamMembers, users } from "../db/schema";
 import { normaliseEmail, validEmail } from "./auth";
+import { problemPage, TeamPrice } from "./app-ui";
 import { Csrf, fmtDate, page } from "./layout";
+import { Avatar, Badge, Button, Callout, Flash, InputGroup, PageHeader, Panel, UpgradePanel } from "./ui";
 import { appOrigin, hitRateLimit, requireUser, type WebContext, type WebEnv } from "./session";
 import { DAY } from "../util";
 
@@ -30,7 +32,7 @@ const idParam = (c: WebContext) => {
 };
 
 function problem(c: WebContext, msg: string, status: 400 | 403 | 429 = 400) {
-  return page(c, "Team", <><h1>Team</h1><p class="flash error">{msg}</p><p><a href="/app/team">Back</a></p></>, { status, noindex: true });
+  return problemPage(c, { title: "Team", status, heading: msg, back: { href: "/app/team", label: "Back to the team" } });
 }
 
 team.get("/", async (c) => {
@@ -46,95 +48,131 @@ team.get("/", async (c) => {
     .where(and(eq(teamMembers.email, user.email.toLowerCase()), isNull(teamMembers.userId), eq(users.plan, "team")))
     .all();
   const csrf = c.get("csrf");
+  const seats = members.length + 1;
   return page(
     c,
     "Team",
     <>
-      <h1>Team</h1>
-      {msg && <p class="flash">{msg}</p>}
+      <PageHeader
+        title="Team"
+        description={account.role === "member" ? undefined : account.plan === "team" ? `Up to ${TEAM_SIZE} people, you included. Members see and edit your projects, add new ones to the team, and get alerts by email (and their own Slack, if they connect one).` : undefined}
+      />
+      <Flash msg={msg} />
+      <div class="settings">
       {invites.length > 0 && account.role !== "member" && (
-        <section class="card">
-          <h2 style="margin-top:0">Invites</h2>
-          {invites.map((i) => (
-            <div class="row" style="margin:.4rem 0">
-              <span>
-                <strong>{i.owner}</strong> invited you on {fmtDate(i.invitedAt)}.
-              </span>
-              <form method="post" action={`/app/team/${i.id}/accept`} class="inline">
-                <Csrf token={csrf} />
-                <button class="primary" type="submit">
-                  Join
-                </button>
-              </form>
-              <form method="post" action={`/app/team/${i.id}/decline`} class="inline">
-                <Csrf token={csrf} />
-                <button type="submit">Decline</button>
-              </form>
-            </div>
-          ))}
+        <Panel title="Invites">
+          <ul class="member-list">
+            {invites.map((i) => (
+              <li>
+                <Avatar email={i.owner} hidden />
+                <span class="ml-who">
+                  <strong>{i.owner}</strong> invited you on <time>{fmtDate(i.invitedAt)}</time>.
+                </span>
+                <span class="ml-actions">
+                  <form method="post" action={`/app/team/${i.id}/accept`} class="inline">
+                    <Csrf token={csrf} />
+                    <Button variant="primary" size="sm">
+                      Join
+                    </Button>
+                  </form>
+                  <form method="post" action={`/app/team/${i.id}/decline`} class="inline">
+                    <Csrf token={csrf} />
+                    <Button size="sm" variant="quiet">
+                      Decline
+                    </Button>
+                  </form>
+                </span>
+              </li>
+            ))}
+          </ul>
           <p class="meta">Members see and edit the team's projects and get its alerts. Your own projects stay yours.</p>
-        </section>
+        </Panel>
       )}
       {account.role === "member" ? (
-        <section class="card">
+        <Panel title="Your team">
           <p>
             You're on <strong>{account.ownerEmail}</strong>'s team. Its projects are on your <a href="/app">dashboard</a>, and you get alerts for them.
           </p>
           <form method="post" action="/app/team/leave">
             <Csrf token={csrf} />
-            <button class="danger" type="submit">
+            <Button variant="danger" icon="log-out">
               Leave the team
-            </button>
+            </Button>
           </form>
-        </section>
+        </Panel>
       ) : account.plan === "team" ? (
         <>
-          <p class="muted">
-            Up to {TEAM_SIZE} people, you included. Members see and edit your projects, add new ones to the team, and get alerts by email (and their own Slack, if they connect one).
-          </p>
-          <ul class="plain card">
-            <li>
-              {user.email} <span class="pill">owner</span>
-            </li>
-            {members.map((m) => (
-              <li class="spread">
-                <span>
-                  {m.email} {m.joinedAt ? <span class="meta">joined {fmtDate(m.joinedAt)}</span> : <span class="pill warn">invited {fmtDate(m.invitedAt)}</span>}
+          <Panel
+            title="Members"
+            meta={
+              <>
+                <span class="num">
+                  {seats} of {TEAM_SIZE}
+                </span>{" "}
+                people
+              </>
+            }
+          >
+            <ul class="member-list">
+              <li>
+                <Avatar email={user.email} hidden />
+                <span class="ml-who">{user.email}</span>
+                <span class="ml-actions">
+                  <Badge tone="info">Owner</Badge>
                 </span>
-                <form method="post" action={`/app/team/${m.id}/remove`} class="inline">
-                  <Csrf token={csrf} />
-                  <button class="link" type="submit">
-                    {m.joinedAt ? "Remove" : "Cancel invite"}
-                  </button>
-                </form>
               </li>
-            ))}
-          </ul>
-          {members.length + 1 < TEAM_SIZE ? (
-            <form method="post" action="/app/team/invite" class="card">
-              <Csrf token={csrf} />
-              <label for="email">Invite by email</label>
-              <div class="row">
-                <input type="email" id="email" name="email" required autocomplete="off" style="flex:1;min-width:14rem" />
-                <button type="submit">Send invite</button>
-              </div>
-              <p class="meta">They sign in to Stackquake with this address (email link or GitHub) and accept on this page.</p>
-            </form>
+              {members.map((m) => (
+                <li>
+                  <Avatar email={m.email} hidden />
+                  <span class="ml-who">
+                    {m.email}{" "}
+                    {m.joinedAt ? (
+                      <span class="meta">
+                        joined <time>{fmtDate(m.joinedAt)}</time>
+                      </span>
+                    ) : (
+                      <Badge tone="watch">invited {fmtDate(m.invitedAt)}</Badge>
+                    )}
+                  </span>
+                  <span class="ml-actions">
+                    <form method="post" action={`/app/team/${m.id}/remove`} class="inline">
+                      <Csrf token={csrf} />
+                      <Button size="sm" variant="quiet" label={`${m.joinedAt ? "Remove" : "Cancel invite for"} ${m.email}`}>
+                        {m.joinedAt ? "Remove" : "Cancel invite"}
+                      </Button>
+                    </form>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </Panel>
+          {seats < TEAM_SIZE ? (
+            <Panel title="Invite someone">
+              <form method="post" action="/app/team/invite">
+                <Csrf token={csrf} />
+                <label for="email">Email address</label>
+                <InputGroup>
+                  <input type="email" id="email" name="email" required autocomplete="off" aria-describedby="email-hint" />
+                  <Button variant="primary" icon="mail">
+                    Send invite
+                  </Button>
+                </InputGroup>
+                <p class="hint" id="email-hint">
+                  They sign in to Stackquake with this address (email link or GitHub) and accept on this page.
+                </p>
+              </form>
+            </Panel>
           ) : (
-            <p class="meta">The team is full ({TEAM_SIZE} people).</p>
+            <Callout>The team is full ({TEAM_SIZE} people). Remove someone to invite another person.</Callout>
           )}
         </>
       ) : (
-        <section class="card">
-          <p>Teams are part of the Team plan: up to {TEAM_SIZE} people sharing projects and alerts, plus private repos, Slack and a CSV export of vendor risk.</p>
-          <p>
-            <a class="btn primary" href="/pricing">
-              See plans
-            </a>
-          </p>
+        <UpgradePanel title="Share projects with your team" features={TEAM_FEATURES} price={<TeamPrice />}>
+          <p>Teams are part of the Team plan: up to {TEAM_SIZE} people sharing projects and alerts.</p>
           {members.length > 0 && <p class="meta">Your team's {members.length} member rows are kept, inactive, until you're on Team again.</p>}
-        </section>
+        </UpgradePanel>
       )}
+      </div>
     </>,
     { noindex: true },
   );
