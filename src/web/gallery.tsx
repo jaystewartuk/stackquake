@@ -2,7 +2,10 @@
 // every state, once in the light scheme and once in the dark, side by side.
 import { raw } from "hono/html";
 import type { FC } from "hono/jsx";
-import type { User } from "../db/schema";
+import { TEAM_FEATURES } from "../billing/plans";
+import type { Dep, User } from "../db/schema";
+import { AlertItem, type AlertRow } from "./alerts-view";
+import { DepRow, type DepView } from "./stack-view";
 import { KIND_LABELS, KindPill } from "./events-view";
 import { Icon, ICON_NAMES } from "./icons";
 import { Layout, SiteHeader } from "./layout";
@@ -30,11 +33,25 @@ import {
   StickyBar,
   Tabs,
   Trace,
+  DiffView,
+  ProgressSteps,
+  Stepper,
+  UpgradePanel,
 } from "./ui";
 
 const DAY = 86_400_000;
 const NOW = Date.UTC(2026, 9, 11);
 const USER = { id: 1, email: "dev@example.com" } as User;
+const dep = (id: number, extra: Partial<Dep> = {}) => ({ id, projectId: 1, catalogId: null, ecosystem: null, package: null, eolProduct: null, eolCycle: null, versionSpec: null, profile: {}, mutedUntil: null, rank: null, origin: "manual", foundIn: null, ...extra }) as unknown as Dep;
+const DEPS: DepView[] = [
+  { dep: dep(1), name: "Deno", detail: "", sources: 4, archived: false, deprecated: false, unlicensed: false, latest: { id: 1, title: "Deno runtime development ends in about a year", kind: "eol", publishedAt: NOW - 2 * DAY } },
+  { dep: dep(2), name: "Vercel", detail: "hosted (their cloud), paid plan", sources: 3, archived: false, deprecated: false, unlicensed: false, latest: { id: 4, title: "Pro plan bandwidth now billed per GB above 1 TB", kind: "pricing", publishedAt: NOW - 20 * DAY } },
+  { dep: dep(3, { ecosystem: "npm", package: "left-justify" }), name: "left-justify", detail: "npm 1.0.3", sources: 1, archived: false, deprecated: false, unlicensed: true },
+  { dep: dep(4, { mutedUntil: NOW + 80 * DAY }), name: "Docker Desktop", detail: "", sources: 2, archived: false, deprecated: false, unlicensed: false, latest: { id: 9, title: "Docker Business price rises to $24 per user", kind: "pricing", publishedAt: NOW - 120 * DAY } },
+  { dep: dep(5), name: "Supabase", detail: "hosted (their cloud), free tier", sources: 3, archived: false, deprecated: false, unlicensed: false },
+];
+const alert = (id: number, kind: string, status: AlertRow["status"], extra: Partial<AlertRow> = {}): AlertRow => ({ id, eventId: id, depId: id, channel: "email", status, held: null, because: "you self-host Redis in homelab.", feedback: null, createdAt: NOW, sentAt: NOW, emailedAt: NOW, slackAt: null, title: "Redis moves from BSD to a dual RSALv2 and SSPLv1 licence", kind, name: "Redis", ...extra });
+
 const COLOURS = ["bg", "surface", "sunken", "line", "line-strong", "control", "fg", "muted", "subtle", "accent", "accent-text", "act", "watch", "info", "ok", "focus"];
 const QUOTE = "We will support the Deno runtime for another year with monthly releases containing bug fixes and security updates. After that year we will end our development of the Deno runtime.";
 
@@ -356,6 +373,33 @@ const Demo: FC<{ p: string }> = ({ p }) => (
     </Panel>
     <p class="meta">Public variant (event kinds, no severity):</p>
     <Trace from={NOW - 90 * DAY} to={NOW} label="Public feed" height={32} points={[20, 45, 46, 70, 88].map((d) => ({ at: NOW - (90 - d) * DAY, level: "kind" as const, label: "event" }))} />
+
+    <h2>Dependency rows</h2>
+    <ul class="dep-list">
+      {DEPS.map((v) => (
+        <DepRow v={v} now={NOW} />
+      ))}
+    </ul>
+
+    <h2>Alert rows</h2>
+    <ul class="alert-list">
+      <AlertItem a={alert(1, "license", "sent", { feedback: "useful" })} csrf="" back="/app" showDep />
+      <AlertItem a={alert(2, "pricing", "queued", { channel: "digest", held: "not_urgent", title: "Pro plan bandwidth now billed per GB above 1 TB", name: "Vercel" })} csrf="" back="/app" showDep />
+      <AlertItem a={alert(3, "free_tier", "failed", { title: "Hobby plan retired", name: "PlanetScale" })} csrf="" back="/app" showDep />
+      <AlertItem a={alert(4, "pricing", "suppressed", { because: "Only Docker Business changes; you use Docker Desktop personally.", name: "Docker Desktop", title: "Docker Business price rises" })} csrf="" back="/app" showDep />
+    </ul>
+
+    <h2>Stepper and progress</h2>
+    <Stepper label={`Onboarding demo ${p}`} steps={[{ label: "Start a project", state: "done" }, { label: "Find what you use", state: "current" }, { label: "How you use it", state: "todo" }, { label: "Your dashboard", state: "todo" }]} />
+    <ProgressSteps label={`Import progress demo ${p}`} current={2} steps={[{ label: "Read the repository" }, { label: "List its folders" }, { label: "Read the manifest files" }, { label: "Rank packages by downloads" }, { label: "Match them to the catalog" }]} />
+
+    <h2>Upgrade panel</h2>
+    <UpgradePanel id={`upgrade-${p}`} title={<>CSV export is on the Team plan<span class="visually-hidden"> ({p === "l" ? "light" : "dark"} demo)</span></>} features={TEAM_FEATURES} price="$19 a month, or $190 a year." back={{ href: "#x", label: "Back to the dashboard" }}>
+      <p>Every dependency with its risk and latest change, for audits and reviews.</p>
+    </UpgradePanel>
+
+    <h2>Before and after</h2>
+    <DiffView label={`Diff demo ${p}`} before={"Hobby: free, 1 database, 5 GB storage."} after={"Hobby: retired on 2026-11-30. Scaler Pro from $39 a month."} />
 
     <h2>Sticky bar</h2>
     <div class="panel" style="max-height:9rem;overflow:auto;padding-bottom:0">

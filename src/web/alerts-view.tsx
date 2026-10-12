@@ -74,16 +74,19 @@ export function alertState(a: Pick<AlertRow, "status" | "channel" | "held" | "se
   return { label: "Sending", tone: "" };
 }
 
-/** Compact "Useful / Not relevant" feedback; the pressed state shows the answer already given. */
+/** Compact "Useful? Yes / No"; the pressed state shows the answer already given. */
 export const FeedbackButtons: FC<{ a: AlertRow; csrf: string; back: string }> = ({ a, csrf, back }) => (
-  <form class="inline cluster" method="post" action={`/app/alerts/${a.id}/feedback`} style="gap:var(--s-1)">
+  <form class="feedback" method="post" action={`/app/alerts/${a.id}/feedback`}>
     <Csrf token={csrf} />
     <input type="hidden" name="back" value={back} />
-    <Button size="sm" variant="quiet" name="value" value="useful" pressed={a.feedback === "useful"} icon="check">
-      Useful
+    <span class="fb-q" aria-hidden="true">
+      Useful?
+    </span>
+    <Button size="sm" variant="quiet" name="value" value="useful" pressed={a.feedback === "useful"} label="Yes, useful">
+      Yes
     </Button>
-    <Button size="sm" variant="quiet" name="value" value="not_relevant" pressed={a.feedback === "not_relevant"} icon="x">
-      Not relevant
+    <Button size="sm" variant="quiet" name="value" value="not_relevant" pressed={a.feedback === "not_relevant"} label="No, not relevant">
+      No
     </Button>
   </form>
 );
@@ -91,64 +94,78 @@ export const FeedbackButtons: FC<{ a: AlertRow; csrf: string; back: string }> = 
 /** Act for an urgent kind that affects the user, watch for the rest, quiet when it didn't affect them. */
 export const alertLevel = (a: Pick<AlertRow, "status" | "kind">): Level => (a.status === "suppressed" ? "quiet" : URGENT.has(a.kind) ? "act" : "watch");
 
-const AlertItem: FC<{ a: AlertRow; csrf: string; back: string; showDep: boolean }> = ({ a, csrf, back, showDep }) => {
+/** One alert: severity, dependency and kind, the change (links to its note), why it affects you, delivery and feedback. */
+export const AlertItem: FC<{ a: AlertRow; csrf: string; back: string; showDep: boolean }> = ({ a, csrf, back, showDep }) => {
   const s = alertState(a);
+  const level = alertLevel(a);
   return (
-    <li>
-      <div class="spread">
-        <span class="cluster" style="gap:var(--s-2)">
-          <Severity level={alertLevel(a)} /> <KindPill kind={a.kind} />
-          <span>
-            {showDep && <a href={`/app/deps/${a.depId}`}>{a.name}</a>}
-            {showDep ? ": " : ""}
-            <a href={`/events/${a.eventId}`}>{a.title}</a>
-          </span>
-        </span>
-        {s.tone === "bad" ? (
-          <Badge tone="act" icon="alert-triangle">
-            {s.label}
-          </Badge>
-        ) : (
-          <span class="meta">{s.label}</span>
-        )}
-      </div>
-      <div class="meta">{a.status === "suppressed" ? a.because : `Affects you because: ${a.because}`}</div>
-      {a.status !== "suppressed" && (
-        <div style="margin-top:var(--s-1)">
-          <FeedbackButtons a={a} csrf={csrf} back={back} />
+    <li class={`alert-row ${level}`}>
+      <Severity level={level} />
+      <div class="ar-body">
+        <div class="ar-kick">
+          {showDep && (
+            <a class="ar-dep" href={`/app/deps/${a.depId}`}>
+              {a.name}
+            </a>
+          )}
+          <KindPill kind={a.kind} />
         </div>
-      )}
+        <a class="ar-title" href={`/events/${a.eventId}`}>
+          {a.title}
+        </a>
+        <p class="ar-why">{a.status === "suppressed" ? a.because : `Affects you because: ${a.because}`}</p>
+        <div class="ar-foot">
+          {s.tone === "bad" ? (
+            <Badge tone="act" icon="alert-triangle">
+              {s.label}
+            </Badge>
+          ) : (
+            <span class="meta">{s.label}</span>
+          )}
+          {a.status !== "suppressed" && <FeedbackButtons a={a} csrf={csrf} back={back} />}
+        </div>
+      </div>
     </li>
   );
 };
 
-/** Alerts that matter first; the ones that didn't affect the user are collapsed. */
-export const AlertList: FC<{ list: AlertRow[]; csrf: string; back: string; showDep?: boolean }> = ({ list, csrf, back, showDep = true }) => {
-  const main = list.filter((a) => a.status !== "suppressed");
+const RANK: Record<Level, number> = { act: 0, watch: 1, quiet: 2 };
+
+/**
+ * Alerts that matter first: act before watch, newest first within each. `top` shows only that many
+ * and folds the rest under "All alerts"; the ones that didn't affect the user are always folded.
+ */
+export const AlertList: FC<{ list: AlertRow[]; csrf: string; back: string; showDep?: boolean; top?: number; empty?: boolean }> = ({ list, csrf, back, showDep = true, top, empty = true }) => {
+  const main = list.filter((a) => a.status !== "suppressed").sort((x, y) => RANK[alertLevel(x)] - RANK[alertLevel(y)] || y.createdAt - x.createdAt || y.id - x.id);
   const quiet = list.filter((a) => a.status === "suppressed");
+  const shown = top ? main.slice(0, top) : main;
+  const rest = top ? main.slice(top) : [];
+  const item = (a: AlertRow) => <AlertItem a={a} csrf={csrf} back={back} showDep={showDep} />;
   return (
     <>
       {main.length ? (
-        <ul class="plain">
-          {main.map((a) => (
-            <AlertItem a={a} csrf={csrf} back={back} showDep={showDep} />
-          ))}
-        </ul>
+        <ul class="alert-list">{shown.map(item)}</ul>
       ) : (
-        <EmptyState title="No alerts yet" icon="mail" level={3}>
-          We'll email you when a change affects you.
-        </EmptyState>
+        empty && (
+          <EmptyState title="No alerts yet" icon="mail" level={3}>
+            We'll email you when a change affects you.
+          </EmptyState>
+        )
+      )}
+      {rest.length > 0 && (
+        <details class="more">
+          <summary>
+            <span class="num">{rest.length}</span> more alert{rest.length === 1 ? "" : "s"}
+          </summary>
+          <ul class="alert-list">{rest.map(item)}</ul>
+        </details>
       )}
       {quiet.length > 0 && (
-        <details>
+        <details class="more">
           <summary>
             {quiet.length} change{quiet.length === 1 ? "" : "s"} we watched that didn't affect you
           </summary>
-          <ul class="plain">
-            {quiet.map((a) => (
-              <AlertItem a={a} csrf={csrf} back={back} showDep={showDep} />
-            ))}
-          </ul>
+          <ul class="alert-list">{quiet.map(item)}</ul>
         </details>
       )}
     </>

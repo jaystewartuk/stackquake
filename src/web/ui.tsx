@@ -146,8 +146,15 @@ export const Badge: FC<PropsWithChildren<{ tone?: Tone; icon?: IconName; count?:
 export type Level = "act" | "watch" | "quiet";
 export const LEVEL_LABELS: Record<Level, string> = { act: "Act", watch: "Watch", quiet: "Quiet" };
 
-/** A severity mark: shape and word, so colour is never the only signal. */
-export const Severity: FC<{ level: Level; label?: string }> = ({ level, label }) => <span class={`sev ${level}`}>{label ?? LEVEL_LABELS[level]}</span>;
+/** A severity mark: shape and word, so colour is never the only signal. `mark` shows only the shape, with the word for screen readers (rows that say why in words beside it). */
+export const Severity: FC<{ level: Level; label?: string; mark?: boolean }> = ({ level, label, mark }) =>
+  mark ? (
+    <span class={`sev ${level} mark`}>
+      <span class="visually-hidden">{label ?? LEVEL_LABELS[level]}</span>
+    </span>
+  ) : (
+    <span class={`sev ${level}`}>{label ?? LEVEL_LABELS[level]}</span>
+  );
 
 // ---------- Callouts ----------
 
@@ -520,5 +527,108 @@ export const ErrorPage: FC<PropsWithChildren<{ code: number; title: Child; icon?
     <h1>{title}</h1>
     {children && <div class="error-body">{children}</div>}
     {actions && <div class="actions">{actions}</div>}
+  </div>
+);
+
+// ---------- Narrow pages, steps, upgrades, diffs ----------
+
+/** The narrow, centred column of the sign-in pages and the one-click alert links. */
+export const AuthShell: FC<PropsWithChildren<{ title: string; description?: Child; icon?: IconName }>> = ({ title, description, icon = "logo", children }) => (
+  <div class="auth">
+    <Icon name={icon} size={24} class="auth-mark" />
+    <h1>{title}</h1>
+    {description && <p class="auth-desc">{description}</p>}
+    {children}
+  </div>
+);
+
+export type Step = { label: Child; state: "done" | "current" | "todo" };
+
+/** Where the user is in a short flow (onboarding: start, find, usage, dashboard). */
+export const Stepper: FC<{ steps: Step[]; label?: string }> = ({ steps, label = "Progress" }) => (
+  <ol class="stepper" aria-label={label}>
+    {steps.map((s, i) => (
+      <li class={s.state} aria-current={s.state === "current" ? "step" : undefined}>
+        <span class="step-dot" aria-hidden="true">
+          {s.state === "done" ? <Icon name="check" /> : i + 1}
+        </span>
+        <span>
+          {s.label}
+          {s.state === "done" && <span class="visually-hidden"> (done)</span>}
+        </span>
+      </li>
+    ))}
+  </ol>
+);
+
+/** A live checklist: the steps of a job that runs while the page refreshes (repo import). */
+export const ProgressSteps: FC<{ steps: { label: Child; detail?: Child }[]; current: number; label: string }> = ({ steps, current, label }) => (
+  <div class="progress-steps">
+    <progress max={steps.length} value={current} aria-label={label}>
+      {current} of {steps.length}
+    </progress>
+    <ol>
+      {steps.map((s, i) => (
+        <li class={i < current ? "done" : i === current ? "current" : "todo"}>
+          <span class="ps-mark" aria-hidden="true">
+            {i < current ? <Icon name="check" /> : null}
+          </span>
+          <span>
+            {s.label}
+            {i < current ? <span class="visually-hidden"> (done)</span> : i === current ? <span class="visually-hidden"> (working)</span> : null}
+            {s.detail && <span class="ps-detail">{s.detail}</span>}
+          </span>
+        </li>
+      ))}
+    </ol>
+  </div>
+);
+
+/**
+ * What the Team plan adds, its price and one way to get it: every 402 and plan-limit page.
+ * `page` makes it the page's h1 (a whole 402 page); otherwise it sits in a page under an h2.
+ */
+export const UpgradePanel: FC<PropsWithChildren<{ title: Child; features: Child[]; price: Child; page?: boolean; back?: { href: string; label: Child }; action?: Child; id?: string }>> = ({ title, features, price, page, back, action, id = "upgrade-title", children }) => (
+  <section class={cx("upgrade", page && "page")} aria-labelledby={id}>
+    <p class="kicker">
+      <Icon name="layers" /> Team plan
+    </p>
+    {page ? <h1 id={id}>{title}</h1> : <h2 id={id}>{title}</h2>}
+    {children && <div class="upgrade-why">{children}</div>}
+    <ul class="plan-features">
+      {features.map((f) => (
+        <li>
+          <Icon name="check" />
+          <span>{f}</span>
+        </li>
+      ))}
+    </ul>
+    <p class="upgrade-price">{price}</p>
+    <div class="actions">
+      {action ?? (
+        <ButtonLink variant="primary" href="/pricing" iconEnd="arrow-right">
+          See the Team plan
+        </ButtonLink>
+      )}
+      {back && (
+        <ButtonLink variant="quiet" href={back.href}>
+          {back.label}
+        </ButtonLink>
+      )}
+    </div>
+  </section>
+);
+
+/** Before and after, side by side on wide screens (admin review; source text is escaped). */
+export const DiffView: FC<{ before: string | null; after: string | null; label?: string }> = ({ before, after, label = "Source text" }) => (
+  <div class="diff" role="group" aria-label={label}>
+    <div>
+      <p class="kicker">Before</p>
+      <pre>{before ?? ""}</pre>
+    </div>
+    <div>
+      <p class="kicker">After</p>
+      <pre>{after ?? ""}</pre>
+    </div>
   </div>
 );

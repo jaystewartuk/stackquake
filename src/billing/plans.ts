@@ -13,6 +13,9 @@ export const FREE_PROJECTS = 1;
 /** Owner included. */
 export const TEAM_SIZE = 10;
 export const PRICES = { month: 19, year: 190 } as const;
+/** What each plan includes, as shown on /pricing, in Settings and on every upgrade page. */
+export const FREE_FEATURES = [`${FREE_PROJECTS} project: pick services or import a public repo`, "Every service and runtime in the catalog, plus your packages", "Email alerts, at most 3 a day", "Weekly digest"];
+export const TEAM_FEATURES = ["Unlimited projects", "Private repos through our GitHub App, re-imported on push", "Slack alerts", `Up to ${TEAM_SIZE} people sharing projects`, "CSV export of vendor risk"];
 
 export interface Account {
   /** Whose projects new projects go to and whose plan applies: the user, or their team's owner. */

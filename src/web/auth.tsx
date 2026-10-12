@@ -7,9 +7,7 @@ import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { magicLinks, users, type User } from "../db/schema";
 import { HOUR, MINUTE, safeEqual, sha256Hex } from "../util";
 import { Csrf, page } from "./layout";
-import type { Child } from "hono/jsx";
-import { Icon, type IconName } from "./icons";
-import { Button, ButtonLink, ErrorPage, Field } from "./ui";
+import { AuthShell, Button, ButtonLink, ErrorPage, Field } from "./ui";
 import { appOrigin, clientIp, createSession, endSession, hitRateLimit, randomToken, safeNext, type WebContext, type WebEnv } from "./session";
 
 export const auth = new Hono<WebEnv>();
@@ -35,15 +33,6 @@ async function findOrCreateUser(c: WebContext, email: string, extra: { githubId?
   return (await ctx.db.select().from(users).where(eq(users.email, email)).get())!;
 }
 
-/** The narrow, centred column the sign-in pages share. */
-const AuthShell = ({ title, description, icon = "logo", children }: { title: string; description?: Child; icon?: IconName; children?: Child }) => (
-  <div class="auth">
-    <Icon name={icon} size={24} class="auth-mark" />
-    <h1>{title}</h1>
-    {description && <p class="auth-desc">{description}</p>}
-    {children}
-  </div>
-);
 
 const SignInPage = ({ c, email, next, error }: { c: WebContext; email?: string; next: string; error?: string }) => (
   <AuthShell title="Sign in to Stackquake" description="New here? The same link creates your account.">

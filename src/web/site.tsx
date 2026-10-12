@@ -3,7 +3,7 @@
 // linked from its User-Agent), robots.txt and sitemap.xml.
 import { Hono } from "hono";
 import type { FC, PropsWithChildren } from "hono/jsx";
-import { FREE_PROJECTS, PRICES, TEAM_SIZE } from "../billing/plans";
+import { FREE_FEATURES, FREE_PROJECTS, PRICES, TEAM_FEATURES, TEAM_SIZE } from "../billing/plans";
 import { CATALOG } from "../catalog/entries";
 import type { Child } from "hono/jsx";
 import { groupByCategory } from "./catalog-view";
@@ -282,8 +282,6 @@ site.get("/", async (c) => {
   );
 });
 
-const FREE_FEATURES = [`${FREE_PROJECTS} project: pick services or import a public repo`, "Every service and runtime in the catalog, plus your packages", "Email alerts, at most 3 a day", "Weekly digest"];
-const TEAM_FEATURES = ["Unlimited projects", "Private repos through our GitHub App, re-imported on push", "Slack alerts", `Up to ${TEAM_SIZE} people sharing projects`, "CSV export of vendor risk"];
 
 const FAQ: { q: string; a: Child }[] = [
   { q: "What counts as a project?", a: "A list of things one app or service depends on: the services you pick, plus what we find in its repo if you import one. Free watches one; with Team, every project alerts." },

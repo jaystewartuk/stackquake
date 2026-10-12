@@ -11,7 +11,8 @@ import { DAY } from "../util";
 import { catalogEntry } from "./catalog-view";
 import { KindPill, URGENT } from "./events-view";
 import { fmtDate } from "./layout";
-import { Badge, type Level, type TracePoint } from "./ui";
+import { Icon } from "./icons";
+import { Badge, Severity, type Level, type TracePoint } from "./ui";
 
 export interface DepView {
   dep: Dep;
@@ -159,66 +160,106 @@ export function groupDeps(list: DepView[], now: number): { groups: { risk: RiskG
   return { groups: (Object.keys(RISK_LABELS) as RiskGroup[]).filter((r) => groups.has(r)).map((risk) => ({ risk, deps: groups.get(risk)! })), also };
 }
 
-const DepRow: FC<{ v: DepView; now: number }> = ({ v, now }) => (
-  <li>
-    <div class="spread">
-      <span>
+/** Why a dep with no recent change is in its group, in words (the row's right-hand column). */
+const REASON: Partial<Record<RiskGroup, string>> = {
+  archived: "Archived or deprecated upstream",
+  unlicensed: "No licence in the package metadata",
+};
+
+/** One dependency: severity mark, name and how it is used, then its latest change (or why it is in its group) and the date. */
+export const DepRow: FC<{ v: DepView; now: number; risk?: RiskGroup }> = ({ v, now, risk = riskOf(v, now) }) => {
+  const muted = !!v.dep.mutedUntil && v.dep.mutedUntil > now;
+  return (
+    <li class={muted ? "dep-row is-muted" : "dep-row"}>
+      <Severity level={depLevel(v, now)} mark />
+      <div class="dr-name">
         <a href={`/app/deps/${v.dep.id}`}>
           <strong>{v.name}</strong>
         </a>{" "}
         {v.detail && <span class="meta">{v.detail}</span>}{" "}
-        {v.dep.mutedUntil && v.dep.mutedUntil > now && <span class="pill">muted until {fmtDate(v.dep.mutedUntil)}</span>}
-        {v.sources === 0 && <span class="pill">{v.dep.ecosystem && !WATCHED_ECOSYSTEMS.has(v.dep.ecosystem) && v.dep.ecosystem !== "eol" ? `${v.dep.ecosystem} not watched yet` : "no sources yet"}</span>}
-        {v.deprecated ? <span class="pill bad">deprecated</span> : v.archived && <span class="pill bad">archived</span>}
-        {v.unlicensed && <span class="pill warn">no licence</span>}
-      </span>
+        {muted && (
+          <span class="dr-flag">
+            <Icon name="bell-off" /> muted until <time>{fmtDate(v.dep.mutedUntil)}</time>
+          </span>
+        )}
+        {v.sources === 0 && <Badge>{v.dep.ecosystem && !WATCHED_ECOSYSTEMS.has(v.dep.ecosystem) && v.dep.ecosystem !== "eol" ? `${v.dep.ecosystem} not watched yet` : "no sources yet"}</Badge>}
+        {v.deprecated ? <Badge tone="act">deprecated</Badge> : v.archived && <Badge tone="act">archived</Badge>}
+        {v.unlicensed && <Badge tone="watch">no licence</Badge>}
+      </div>
       {v.latest ? (
-        <span class="meta">
-          <KindPill kind={v.latest.kind} /> <a href={`/events/${v.latest.id}`}>{v.latest.title}</a> · {fmtDate(v.latest.publishedAt)}
-        </span>
+        <div class="dr-change">
+          <KindPill kind={v.latest.kind} /> <a href={`/events/${v.latest.id}`}>{v.latest.title}</a>
+        </div>
       ) : (
-        <span class="meta">No changes seen</span>
+        <div class={REASON[risk] ? "dr-change meta" : "dr-change meta none"}>{REASON[risk] ?? "No changes seen"}</div>
       )}
-    </div>
-  </li>
-);
+      <span class="dr-date meta">{v.latest ? <time datetime={fmtDate(v.latest.publishedAt)}>{fmtDate(v.latest.publishedAt)}</time> : null}</span>
+    </li>
+  );
+};
 
-/** `level` is the risk groups' heading level: 3 under a project's h2 on the dashboard, 2 on the project page. */
+const RiskHead: FC<{ level: 2 | 3; risk: RiskGroup; n: number }> = ({ level, risk, n }) =>
+  level === 2 ? (
+    <h2 class="risk-head">
+      {RISK_LABELS[risk]} <Badge count>{n}</Badge>
+    </h2>
+  ) : (
+    <h3 class="risk-head">
+      {RISK_LABELS[risk]} <Badge count>{n}</Badge>
+    </h3>
+  );
+
+/**
+ * Deps grouped by risk. `level` is the groups' heading level: 3 under a project's h2 on the
+ * dashboard, 2 on the project page. "No known risk" collapses to its heading and count.
+ */
 export const StackView: FC<{ list: DepView[]; now: number; level?: 2 | 3 }> = ({ list, now, level = 3 }) => {
   const { groups, also } = groupDeps(list, now);
   return (
-    <>
-      {groups.map((g) => (
-        <>
-          {level === 2 ? (
-            <h2 class="risk-head">
-              {RISK_LABELS[g.risk]} <Badge count>{g.deps.length}</Badge>
-            </h2>
-          ) : (
-            <h3 class="risk-head">
-              {RISK_LABELS[g.risk]} <Badge count>{g.deps.length}</Badge>
-            </h3>
-          )}
-          <ul class="plain">
-            {g.deps.map((v) => (
-              <DepRow v={v} now={now} />
-            ))}
-          </ul>
-        </>
-      ))}
+    <div class="stack-view">
+      {groups.map((g) =>
+        g.risk === "other" ? (
+          <details class="risk-group quiet">
+            <summary>
+              <RiskHead level={level} risk={g.risk} n={g.deps.length} />
+            </summary>
+            <ul class="dep-list">
+              {g.deps.map((v) => (
+                <DepRow v={v} now={now} risk={g.risk} />
+              ))}
+            </ul>
+          </details>
+        ) : (
+          <section class="risk-group">
+            <RiskHead level={level} risk={g.risk} n={g.deps.length} />
+            <ul class="dep-list">
+              {g.deps.map((v) => (
+                <DepRow v={v} now={now} risk={g.risk} />
+              ))}
+            </ul>
+          </section>
+        ),
+      )}
       {also.length > 0 && (
-        <details>
+        <details class="risk-group quiet">
           <summary>Also watching {also.length} more packages</summary>
-          <ul class="plain">
+          <ul class="dep-list">
             {also.map((v) => (
-              <DepRow v={v} now={now} />
+              <DepRow v={v} now={now} risk="other" />
             ))}
           </ul>
         </details>
       )}
-    </>
+    </div>
   );
 };
+
+/** Act, watch and quiet counts over a list of deps (the status line). */
+export function levelCounts(list: DepView[], now: number): Record<Level, number> {
+  const out: Record<Level, number> = { act: 0, watch: 0, quiet: 0 };
+  for (const v of list) out[depLevel(v, now)]++;
+  return out;
+}
 
 export async function projectDeps(ctx: Ctx, project: Project): Promise<DepView[]> {
   return (await loadDeps(ctx, [project])).get(project.id)!;
