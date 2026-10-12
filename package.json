@@ -19,7 +19,8 @@
     "eval": "npm run build:catalog --silent && vitest run --config vitest.eval.config.ts",
     "ui:seed": "node scripts/ui/seed.mjs",
     "ui:shots": "node scripts/ui/shots.mjs",
-    "ui:audit": "node scripts/ui/audit.mjs"
+    "ui:audit": "node scripts/ui/audit.mjs",
+    "ui:peek": "node scripts/ui/peek.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",

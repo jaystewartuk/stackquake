@@ -358,6 +358,14 @@ export async function seedDemo(ctx: Ctx): Promise<Record<string, unknown>> {
   const [p3] = await ctx.db.all<{ id: number }>(sql`INSERT INTO projects (user_id, name, default_profile, created_at) VALUES (${free}, 'side-project', '{}', ${at(-5)}) RETURNING id`);
   await addCatalogDeps(ctx, p3.id, ["cloudflare-workers", "neon", "resend"]);
 
+  // Import progress pages: one held part-way (its job is locked far ahead, so loading the page
+  // doesn't run a step or call GitHub) and one that failed.
+  const [running] = await ctx.db.all<{ id: number }>(sql`INSERT INTO imports (project_id, repo, status, step, state, created_at, updated_at) VALUES (${p3.id}, 'free-dev/side-project', 'running', 'fetch',
+    ${JSON.stringify({ owner: "free-dev", name: "side-project", paths: [], dirs: [], found: {}, errors: 0, log: ["Reading free-dev/side-project", "Default branch main: 23 entries at the root", "Listed 4 folders"] })}, ${at(0)}, ${at(0)}) RETURNING id`);
+  await ctx.db.run(sql`INSERT INTO jobs (kind, run_after, attempts, locked_until, payload, dedupe_key) VALUES ('import', ${at(365)}, 0, ${at(365)}, ${JSON.stringify({ importId: running.id })}, ${`import:${running.id}`})`);
+  await ctx.db.run(sql`INSERT INTO imports (project_id, repo, status, step, state, error, created_at, updated_at) VALUES (${p2.id}, 'acme-labs/homelab', 'failed', 'repo',
+    ${JSON.stringify({ owner: "acme-labs", name: "homelab", paths: [], dirs: [], found: {}, errors: 1, log: ["Reading acme-labs/homelab"] })}, 'Repository not found. Public repos can be pasted; private repos need the GitHub App (Team plan).', ${at(-50)}, ${at(-50)})`);
+
   // Admin views: catalog requests and a week of LLM spend.
   for (const [text, days] of [["Hetzner Cloud", -4], ["hetzner cloud", -2], ["CockroachDB", -3], ["Mailgun", -1]] as const) {
     await ctx.db.run(sql`INSERT INTO catalog_requests (user_id, text, created_at) VALUES (${owner}, ${text}, ${at(days)})`);
