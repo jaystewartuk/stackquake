@@ -108,8 +108,19 @@ export const EventRow: FC<{ e: PublicEvent; summary?: boolean; subject?: boolean
       </time>
       <div class="er-body">
         <a class="er-title" href={`/events/${e.id}`}>
-          {subject && !titleHasSubject(name, e.title) && <><strong>{name}</strong>: </>}
-          {e.title}
+          {/* Every row leads with the subject in bold: prefixed, or the title's own opening words when it already starts with it. */}
+          {!subject ? (
+            e.title
+          ) : titleHasSubject(name, e.title) ? (
+            <>
+              <strong>{e.title.slice(0, name.length)}</strong>
+              {e.title.slice(name.length)}
+            </>
+          ) : (
+            <>
+              <strong>{name}</strong>: {e.title}
+            </>
+          )}
         </a>
         <div class="er-meta">
           <KindPill kind={e.kind} />

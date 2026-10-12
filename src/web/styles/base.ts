@@ -25,7 +25,7 @@ strong,b{font-weight:600}
 small{font-size:var(--text-sm)}
 hr{border:0;border-top:1px solid var(--line);margin:var(--s-6) 0}
 code,kbd,samp,pre{font-family:var(--font-mono);font-size:.92em}
-code{background:var(--sunken);padding:.05em .3em;border-radius:var(--r-1);overflow-wrap:anywhere}
+code{background:var(--sunken);padding:.05em .2em;border-radius:var(--r-1);overflow-wrap:anywhere}
 pre{white-space:pre-wrap;word-break:break-word;background:var(--sunken);padding:var(--s-3);border-radius:var(--r-2);font-size:var(--text-xs);max-height:18rem;overflow:auto}
 blockquote{padding:var(--s-3) var(--s-4);border-left:3px solid var(--line-strong);background:var(--sunken);border-radius:0 var(--r-2) var(--r-2) 0;white-space:pre-wrap;margin-left:0;margin-right:0}
 table{border-collapse:collapse;width:100%;font-size:var(--text-sm)}
@@ -59,6 +59,8 @@ ul.plain.panel{padding:var(--s-1) var(--s-5)}
 ul.plain a{text-decoration:none}ul.plain a:hover{text-decoration:underline}
 .overflow-anywhere{overflow-wrap:anywhere}
 .flush{margin:0}
+/* An address wraps at the @ or anywhere, never at a hyphen that would read as part of it. */
+.email{overflow-wrap:anywhere;hyphens:none;display:inline-block;max-width:100%}
 /* "a · b · c" that wraps between items, never leaving a dot at the start of a line. */
 .dots>span{white-space:nowrap}.dots>span:not(:last-of-type)::after{content:" ·"}
 .grow{flex:1 1 14rem;width:auto}

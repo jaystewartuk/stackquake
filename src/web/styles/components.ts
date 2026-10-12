@@ -98,8 +98,8 @@ fieldset label{display:inline-flex;gap:var(--s-2);align-items:center;font-weight
 .choice label{position:relative;display:inline-flex;align-items:center;gap:var(--s-2);margin:0;min-height:2.25rem;padding:0 var(--s-3);border:1px solid var(--line-strong);border-radius:var(--r-2);background:var(--surface);font-size:var(--text-sm);font-weight:400;cursor:pointer;transition:border-color var(--dur-1) var(--ease)}
 .choice label:hover{border-color:var(--control)}
 .choice input{position:absolute;opacity:0;width:1px;height:1px}
-.choice label:has(:checked){border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:var(--accent-bg);color:var(--fg);font-weight:500}
-@media (max-width:40rem){.choice{display:grid;grid-template-columns:repeat(auto-fit,minmax(6.5rem,1fr))}.choice label{justify-content:center;text-align:center;padding-block:var(--s-1)}}
+.choice label:has(:checked){border-color:var(--fg);box-shadow:inset 0 0 0 1px var(--fg);background:var(--sunken);color:var(--fg);font-weight:500}
+@media (max-width:40rem){.choice{display:grid;grid-template-columns:repeat(auto-fit,minmax(5.5rem,1fr))}.choice label{justify-content:center;text-align:center;padding-block:var(--s-1)}}
 .choice label:has(:focus-visible){outline:2px solid var(--focus);outline-offset:2px}
 
 /* Pick tile (the service picker) */
@@ -150,7 +150,7 @@ fieldset label{display:inline-flex;gap:var(--s-2);align-items:center;font-weight
 .table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r-3);background:var(--surface);margin:0 0 var(--s-4)}
 .table-wrap table{margin:0}
 .table-wrap tr:last-child td{border-bottom:0}
-.table-wrap td{overflow-wrap:anywhere}
+.table-wrap td{overflow-wrap:break-word}
 td.num,th.num{white-space:nowrap;text-align:right;font-family:var(--font-mono);font-variant-numeric:tabular-nums}
 @media (max-width:40rem){
   .table-stack thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
@@ -166,7 +166,7 @@ td.num,th.num{white-space:nowrap;text-align:right;font-family:var(--font-mono);f
 .tabs a{padding:var(--s-2) var(--s-3);color:var(--muted);text-decoration:none;font-size:var(--text-sm);font-weight:500;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-1px}
 .tabs a:hover{color:var(--fg)}
 .tabs a[aria-current]{color:var(--fg);border-bottom-color:var(--accent)}
-.segmented{display:inline-flex;flex-wrap:wrap;padding:2px;background:var(--sunken);border:1px solid var(--line);border-radius:var(--r-2);margin:0 0 var(--s-4);max-width:100%;overflow-x:auto}
+.segmented{display:inline-flex;padding:2px;background:var(--sunken);border:1px solid var(--line);border-radius:var(--r-2);margin:0 0 var(--s-4);max-width:100%;overflow-x:auto}
 .segmented a{padding:var(--s-1) var(--s-3);border-radius:calc(var(--r-2) - 2px);color:var(--muted);text-decoration:none;font-size:var(--text-sm);font-weight:500;white-space:nowrap}
 .segmented a[aria-current]{background:var(--surface);color:var(--fg);box-shadow:var(--shadow-1)}
 
@@ -228,8 +228,8 @@ td.num,th.num{white-space:nowrap;text-align:right;font-family:var(--font-mono);f
 .risk-head{font-size:var(--text-base);line-height:var(--lh-base);margin:var(--s-5) 0 var(--s-1);display:flex;align-items:center;gap:var(--s-2)}
 
 /* Sticky action bar for long forms */
-@media (max-width:40rem){.sticky{flex-wrap:nowrap}.sticky>*{min-width:0}}
 .sticky{position:sticky;bottom:0;z-index:5;display:flex;flex-wrap:wrap;gap:var(--s-3);align-items:center;background:color-mix(in srgb,var(--surface) 94%,transparent);backdrop-filter:blur(6px);padding:var(--s-3) var(--gutter);margin:var(--s-5) calc(-1 * var(--gutter)) 0;border-top:1px solid var(--line);box-shadow:var(--shadow-2)}
+@media (max-width:40rem){.sticky{flex-wrap:nowrap}.sticky>*{min-width:0}}
 
 /* Data table: a row header column */
 .table-wrap th[scope=row]{background:none;color:var(--fg);font-weight:500}
@@ -282,7 +282,8 @@ td.num,th.num{white-space:nowrap;text-align:right;font-family:var(--font-mono);f
 .error-page{padding:var(--s-7) 0 var(--s-6);max-width:var(--measure)}
 .error-page.narrow{max-width:26rem;margin:0 auto;padding-top:var(--s-5)}
 .error-code{display:inline-flex;gap:var(--s-2);align-items:center;font-size:var(--text-sm);color:var(--subtle);margin:0 0 var(--s-3)}
-.error-code svg{color:var(--accent)}
+.error-code svg{color:var(--subtle)}
+.error-page.narrow .actions .btn{flex:1 1 100%}
 .error-page h1{font-size:var(--text-xl);margin-bottom:var(--s-3)}
 .error-body{color:var(--muted)}
 .error-page .actions{display:flex;flex-wrap:wrap;gap:var(--s-2);margin-top:var(--s-5)}
@@ -311,9 +312,8 @@ span.chip{border-style:dashed;color:var(--muted)}
 .dr-date{grid-area:date;white-space:nowrap;text-align:right}
 .dr-flag{display:inline-flex;align-items:center;gap:var(--s-1);color:var(--subtle);font-size:var(--text-xs)}
 .dep-row.is-muted .dr-change,.dep-row.is-muted .dr-change>a{color:var(--subtle)}
-@container (max-width:47.99rem){.dr-change.none{display:none}.dep-row{grid-template-areas:"sev name name" ". change date"}}
-.dr-change:has(>.badge+a){display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--s-2);align-items:baseline}.dr-change>.badge{margin-right:0}
-@container (min-width:48rem){.dep-row{grid-template-columns:.375rem minmax(12rem,1fr) minmax(0,1.5fr) 6.5rem;grid-template-areas:"sev name change date"}}
+@container (max-width:47.99rem){.dr-change.none{display:none}}
+@container (min-width:48rem){.dep-row{grid-template-columns:.375rem minmax(12rem,1fr) minmax(0,1.5fr) 6.5rem;grid-template-areas:"sev name change date"}.dr-change:has(>.badge+a){display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--s-2);align-items:baseline}.dr-change:has(>.badge+a)>.badge{margin-right:0}}
 
 /* Risk groups; "No known risk" folds to its heading */
 .risk-group{margin:0 0 var(--s-2)}
@@ -389,5 +389,6 @@ details.more[open]>summary{margin-bottom:var(--s-2)}
 .member-list li:last-child{border-bottom:0}
 .ml-who{overflow-wrap:anywhere}.ml-who .meta,.ml-who>.badge{display:block;width:fit-content;margin-top:2px}.ml-who time,.ml-who .badge{white-space:nowrap}
 .ml-actions{display:flex;gap:var(--s-1);align-items:center}
+@media (max-width:24rem){.member-list li{grid-template-columns:2rem minmax(0,1fr)}.ml-actions{grid-column:2}}
 
 `;

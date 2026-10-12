@@ -36,7 +36,7 @@ const AdminNav = ({ staging, current }: { staging?: boolean; current: string }) 
 );
 
 const STATUS_TONE: Record<string, "neutral" | "ok" | "watch" | "act" | "info"> = { published: "ok", pending_review: "watch", rejected: "act", pending_llm: "info" };
-const STATUS_LABELS: Record<string, string> = { pending_review: "Pending review", published: "Published", rejected: "Rejected", pending_llm: "Waiting for the LLM" };
+const STATUS_LABELS: Record<string, string> = { pending_review: "Pending review", published: "Published", rejected: "Rejected", pending_llm: "Awaiting LLM" };
 const statusLabel = (s: string) => STATUS_LABELS[s] ?? s.replace("_", " ");
 
 /** One event for review. Outside the queue, the note and the diff fold away so a list of published events stays scannable; `editing` is the card on its own edit page. */
@@ -82,7 +82,8 @@ const EventCard: FC<{ e: Event; csrf: string; actions?: boolean; editing?: boole
       {e.quote && (
         <>
           <Quote text={e.quote} size="sm" href={href ?? undefined} url={href ? undefined : e.quoteUrl} />
-          <p>{e.quoteFound ? <Badge tone="ok" icon="check">Quote found in the source</Badge> : <Badge tone="act" icon="alert-triangle">Quote NOT found in the source</Badge>}</p>
+          {/* Once published, a found quote is the norm; only a missing one is news. */}
+          {!(fold && e.quoteFound) && <p>{e.quoteFound ? <Badge tone="ok" icon="check">Quote found in the source</Badge> : <Badge tone="act" icon="alert-triangle">Quote NOT found in the source</Badge>}</p>}
         </>
       )}
       {fold ? (
@@ -151,8 +152,9 @@ const EventCard: FC<{ e: Event; csrf: string; actions?: boolean; editing?: boole
           {e.status !== "rejected" && (
             <form class="inline" method="post" action={`/admin/events/${e.id}/reject`}>
               <Csrf token={csrf} />
-              <Button variant="danger" size="sm" icon="x">
-                Reject
+              {/* Same route either way; on a published note it withdraws it, so it says so and stays quiet. */}
+              <Button variant={e.status === "published" ? "secondary" : "danger"} size="sm" icon="x">
+                {e.status === "published" ? "Unpublish" : "Reject"}
               </Button>
             </form>
           )}
@@ -394,7 +396,7 @@ adminRoutes.get("/requests", async (c) => {
     <>
       <AdminNav staging={c.env.STAGING_TOOLS === "1"} current="/admin/requests" />
       <h1>Catalog requests</h1>
-      <p class="muted">Free text from the picker that matched no entry. Add the popular ones to catalog/.</p>
+      <p class="muted">Free text from the picker that matched no entry. Add the popular ones to <code>catalog/</code>.</p>
       {list.length === 0 ? (
         <EmptyState title="No requests yet" icon="inbox" />
       ) : (

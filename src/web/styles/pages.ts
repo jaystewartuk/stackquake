@@ -137,7 +137,8 @@ export const PAGES = `
 
 /* Sign in */
 .auth{max-width:26rem;margin:var(--s-5) auto var(--s-6);display:grid;gap:var(--s-2)}
-.auth .auth-mark{color:var(--accent);margin-bottom:var(--s-2)}
+.auth .auth-mark{color:var(--subtle);margin-bottom:var(--s-2)}
+.auth .auth-mark.brand{color:var(--accent)}
 .auth .auth-mark.done{color:var(--ok)}
 .auth>h1+.panel{margin-top:var(--s-3)}
 .auth h1{margin:0}
@@ -148,10 +149,14 @@ export const PAGES = `
 .auth-or{display:flex;align-items:center;gap:var(--s-3);color:var(--subtle);font-size:var(--text-sm);margin:var(--s-2) 0}
 .auth-or::before,.auth-or::after{content:"";flex:1;border-top:1px solid var(--line)}
 .auth-alt{width:100%}
+.split>section>h2:first-child,.split>.main-col>h2:first-child{margin-top:0}
+.compare td{overflow-wrap:normal}.compare td:nth-child(2){min-width:9rem}
+#permalink{font-family:var(--font-mono);font-size:var(--text-sm)}
 .auth-fine{margin-top:var(--s-3)}
 
 /* Legal and reference documents */
 .doc{display:grid;gap:var(--s-4) var(--s-7);grid-template-areas:"head" "toc" "body"}
+.doc:not(:has(.toc)) h1{margin-bottom:0}
 .doc-head{grid-area:head}.doc-head h1{margin-bottom:var(--s-1)}.doc-head p{margin:0}
 .doc .toc{grid-area:toc;font-size:var(--text-sm);border:1px solid var(--line);border-radius:var(--r-3);padding:var(--s-3) var(--s-4);background:var(--surface)}
 .toc .kicker{margin:0 0 var(--s-2)}
@@ -191,7 +196,8 @@ export const PAGES = `
 .all-clear p{margin:var(--s-1) 0 0;color:var(--muted);font-size:var(--text-sm)}
 .panel.project{padding-bottom:var(--s-3)}
 .panel.project .panel-head h2 a{color:var(--fg);text-decoration:none}.panel.project .panel-head h2 a:hover{text-decoration:underline}
-.panel.project .panel-head .meta{display:inline-flex;gap:var(--s-1);align-items:center}
+.panel.project .panel-head .meta{display:block}
+.panel.project .panel-head>.cluster{margin-left:auto}
 .project-pulse{display:grid;gap:var(--s-2);padding:0 0 var(--s-3);border-bottom:1px solid var(--line);margin:0 0 var(--s-1)}
 .project-pulse .status-line .n{font-size:var(--text-base)}
 @media (min-width:48rem){.project-pulse{grid-template-columns:auto minmax(0,1fr);align-items:center;gap:var(--s-6)}}
@@ -232,7 +238,8 @@ export const PAGES = `
 .log{font-family:var(--font-mono);font-size:var(--text-xs);color:var(--subtle);padding-left:1.25rem;margin:var(--s-2) 0 0}
 
 /* Dependency page */
-.dep-status{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-2) var(--s-3);margin:calc(-1 * var(--s-4)) 0 var(--s-5);color:var(--muted)}
+.dep-status>span:last-child{flex:1;min-width:0}
+.dep-status{display:flex;flex-wrap:nowrap;align-items:baseline;gap:var(--s-2) var(--s-3);margin:calc(-1 * var(--s-4)) 0 var(--s-5);color:var(--muted)}
 .source-list.dep-sources li{display:grid;gap:2px}
 .src-kind{font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.06em;font-weight:500;color:var(--subtle)}
 .rail-danger{border-top:1px solid var(--line);padding-top:var(--s-3);margin-top:var(--s-3)}

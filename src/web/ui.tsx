@@ -537,7 +537,7 @@ export const ErrorPage: FC<PropsWithChildren<{ code: number; title: Child; icon?
 /** The narrow, centred column of the sign-in pages and the one-click alert links. */
 export const AuthShell: FC<PropsWithChildren<{ title: string; description?: Child; icon?: IconName; done?: boolean }>> = ({ title, description, icon = "logo", done, children }) => (
   <div class="auth">
-    <Icon name={icon} size={24} class={cx("auth-mark", done && "done")} />
+    <Icon name={icon} size={24} class={cx("auth-mark", done && "done", icon === "logo" && "brand")} />
     <h1>{title}</h1>
     {description && <p class="auth-desc">{description}</p>}
     {children}

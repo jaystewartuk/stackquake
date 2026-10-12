@@ -125,13 +125,13 @@ team.get("/", async (c) => {
                 <li>
                   <Avatar email={m.email} hidden />
                   <span class="ml-who">
-                    {m.email}{" "}
+                    <span class="email">{m.email}</span>{" "}
                     {m.joinedAt ? (
                       <span class="meta">
                         joined <time>{fmtDate(m.joinedAt)}</time>
                       </span>
                     ) : (
-                      <Badge>invited {fmtDate(m.invitedAt)}</Badge>
+                      <Badge>invited <time>{fmtDate(m.invitedAt)}</time></Badge>
                     )}
                   </span>
                   <span class="ml-actions">
@@ -168,7 +168,7 @@ team.get("/", async (c) => {
         </>
       ) : (
         <UpgradePanel title="Share projects with your team" features={TEAM_FEATURES} price={<TeamPrice />}>
-          <p>Teams are part of the Team plan: up to {TEAM_SIZE} people sharing projects and alerts.</p>
+          <p>Share your projects and alerts with the people you work with.</p>
           {members.length > 0 && <p class="meta">Your team's {members.length} member rows are kept, inactive, until you're on Team again.</p>}
         </UpgradePanel>
       )}

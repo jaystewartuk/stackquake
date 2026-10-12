@@ -162,10 +162,10 @@ app.get("/", async (c) => {
                 <>
                   {p.repoFullName && (
                     <span class="repo-name">
-                      <Icon name="github" /> {p.repoFullName}
+                      <Icon name="github" /> <span class="repo">{p.repoFullName}</span>
                     </span>
                   )}
-                  {p.userId !== uid(c) && (p.repoFullName ? " · shared with your team" : "Shared with your team")}
+                  {p.userId !== uid(c) && <span>{p.repoFullName ? " · shared with your team" : "Shared with your team"}</span>}
                 </>
               ) : undefined
             }
@@ -369,7 +369,11 @@ app.get("/projects/:id", async (c) => {
             <>
               <Panel label="Status" class="pulse">
                 <StatusLine act={lv.act} watch={lv.watch} quiet={lv.quiet} />
-                <Trace points={pt} from={now - RECENT_MS} to={now} label={`${pt.length} change${pt.length === 1 ? "" : "s"} to this project's dependencies in the last 90 days`} axis={["90 days ago", "today"]} />
+                {pt.length ? (
+                  <Trace points={pt} from={now - RECENT_MS} to={now} label={`${pt.length} change${pt.length === 1 ? "" : "s"} to this project's dependencies in the last 90 days`} axis={["90 days ago", "today"]} />
+                ) : (
+                  <p class="meta flush">No changes to this project's dependencies in the last 90 days.</p>
+                )}
               </Panel>
               <StackView list={list} now={now} level={2} />
             </>
@@ -384,7 +388,7 @@ app.get("/projects/:id", async (c) => {
               <Field id="name" label="Name" value={project.name} required maxlength={80} />
               <p class="meta">Defaults for every dependency you haven't answered for:</p>
               <ProfileFields profile={project.defaultProfile} />
-              <Button variant="primary">Save</Button>
+              <Button>Save</Button>
             </form>
           </Panel>
         </div>
@@ -708,7 +712,7 @@ app.get("/projects/:id/import", async (c) => {
     "Importing",
     <>
       {fresh && <Onboarding at={1} />}
-      <PageHeader crumbs={[{ href: "/app", label: "Dashboard" }, { href: `/app/projects/${project.id}`, label: project.name }]} title={<>Importing <span class="repo">{imp.repo}</span>…</>} description="Reading its manifests to find the services, runtimes and packages it uses. This usually takes under 30 seconds; the page refreshes itself." />
+      <PageHeader crumbs={[{ href: "/app", label: "Dashboard" }, { href: `/app/projects/${project.id}`, label: project.name }]} title={<>Importing <span class="repo">{imp.repo}…</span></>} description="Reading its manifests to find the services, runtimes and packages it uses. This usually takes under 30 seconds; the page refreshes itself." />
       <div class="import-progress panel" id="import-live">
         {/* Read out on each step change; the checklist below shows the same thing, so it is for screen readers only. */}
         <p class="ps-status visually-hidden" role="status">
@@ -799,11 +803,6 @@ app.get("/deps/:id", async (c) => {
         description={view?.detail || undefined}
       />
       <Flash msg={flash(c)} />
-      {muted && (
-        <Callout tone="info" title={`Muted until ${fmtDate(dep.mutedUntil)}`}>
-          No alerts for this dependency until then. Unmute it under <a href="#alerts-for-it">Alerts for it</a>.
-        </Callout>
-      )}
       {!muted && (
         <p class="dep-status">
           <Severity level={level} />{" "}
@@ -814,6 +813,11 @@ app.get("/deps/:id", async (c) => {
       )}
       <div class="split">
         <div class="main-col">
+          {muted && (
+            <Callout tone="info" title={`Muted until ${fmtDate(dep.mutedUntil)}`}>
+              No alerts for this dependency until then. Unmute it under <a href="#alerts-for-it">Alerts for it</a>.
+            </Callout>
+          )}
           <h2>Changes</h2>
           {evs.length ? (
             <EventList events={evs} subject={false} />
@@ -1008,7 +1012,7 @@ const PlanSection: FC<{ c: WebContext; user: typeof users.$inferSelect; account:
       <Panel title="Plan" id="plan">
         <DataList
           items={[
-            { term: "Plan", value: <Badge tone="info">Team</Badge> },
+            { term: "Current", value: <Badge tone="info">Team</Badge> },
             ...(user.planInterval ? [{ term: "Billed", value: <>{user.planInterval === "year" ? "yearly" : "monthly"}, <span class="num">${user.planInterval === "year" ? PRICES.year : PRICES.month}</span></> }] : []),
             ...(user.planPeriodEnd ? [{ term: user.cancelAtPeriodEnd ? "Ends on" : "Renews on", value: <time>{fmtDate(user.planPeriodEnd)}</time> }] : []),
           ]}
@@ -1035,7 +1039,7 @@ const PlanSection: FC<{ c: WebContext; user: typeof users.$inferSelect; account:
     <Panel title="Plan" id="plan">
       <DataList
         items={[
-          { term: "Plan", value: <Badge>Free</Badge> },
+          { term: "Current", value: <Badge>Free</Badge> },
           {
             term: "Projects",
             value: (

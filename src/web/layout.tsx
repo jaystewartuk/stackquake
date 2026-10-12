@@ -76,7 +76,7 @@ export const SiteHeader: FC<{ user?: User | null; csrf: string; admin?: boolean;
         {user ? (
           <AccountMenu user={user} csrf={csrf} admin={admin} path={path} open={menuOpen} />
         ) : (
-          <ButtonLink href="/signin" size="sm" variant={under("/signin")(path) ? "quiet" : "secondary"}>
+          <ButtonLink href="/signin" size="sm" variant={under("/signin")(path) || under("/auth")(path) ? "quiet" : "secondary"}>
             Sign in
           </ButtonLink>
         )}
@@ -143,6 +143,7 @@ export const Layout: FC<PropsWithChildren<{ title: string; user?: User | null; c
           <nav aria-label="Footer">
             <a href="/pricing">Pricing</a>
             <a href="/catalog">Catalog</a>
+            <a href="/events">Events</a>
             <a href="/events.rss">RSS</a>
             <a href="/terms">Terms</a>
             <a href="/privacy">Privacy</a>

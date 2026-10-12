@@ -107,7 +107,7 @@ auth.post("/auth/email", async (c) => {
     return page(c, "Sign in", <SignInPage c={c} email={email} next={next} error="That doesn't look like an email address." />, { status: 400, noindex: true });
   }
   if (!(await magicLinkAllowed(c, email))) {
-    return page(c, "Slow down", <ErrorPage code={429} icon="clock" title="Too many sign-in emails" actions={<ButtonLink href="/">Home</ButtonLink>}><p>Too many links were requested for this address or from this network. Try again in an hour.</p></ErrorPage>, { status: 429, noindex: true });
+    return page(c, "Slow down", <ErrorPage narrow code={429} icon="clock" title="Too many sign-in emails" actions={<ButtonLink href="/">Home</ButtonLink>}><p>Too many links were requested for this address or from this network. Try again in an hour.</p></ErrorPage>, { status: 429, noindex: true });
   }
   await sendMagicLink(c, email, { next });
   return page(
@@ -116,7 +116,7 @@ auth.post("/auth/email", async (c) => {
     <AuthShell icon="mail" title="Check your email">
       <div class="panel auth-form" role="status">
         <p>
-          We sent a sign-in link to <strong class="overflow-anywhere">{email}</strong>. It works once and expires in 15 minutes.
+          We sent a sign-in link to <strong class="email">{email}</strong>. It works once and expires in 15 minutes.
         </p>
         <p class="meta">Nothing after a few minutes? Check your spam folder, or <a href={`/signin${next !== "/app" ? `?next=${encodeURIComponent(next)}` : ""}`}>ask for another link</a>.</p>
       </div>
@@ -199,7 +199,7 @@ auth.post("/signout", async (c) => {
 // ---------- GitHub OAuth ----------
 
 auth.get("/auth/github", (c) => {
-  if (!c.env.GITHUB_CLIENT_ID) return page(c, "Not available", <ErrorPage code={503} icon="github" title="GitHub sign-in is not configured" actions={<ButtonLink variant="primary" href="/signin" icon="mail">Use an email link instead</ButtonLink>} />, { status: 503, noindex: true });
+  if (!c.env.GITHUB_CLIENT_ID) return page(c, "Not available", <ErrorPage narrow code={503} icon="github" title="GitHub sign-in is not configured" actions={<ButtonLink variant="primary" href="/signin" icon="mail">Use an email link instead</ButtonLink>} />, { status: 503, noindex: true });
   const state = randomToken(16);
   const next = safeNext(c.req.query("next"));
   setCookie(c, OAUTH_COOKIE, `${state}|${next}`, { httpOnly: true, secure: true, sameSite: "Lax", path: "/auth/github", maxAge: 600 });
@@ -214,6 +214,7 @@ auth.get("/auth/github", (c) => {
 
 const OAuthProblem = ({ why }: { why: string }) => (
   <ErrorPage
+    narrow
     code={400}
     icon="github"
     title="GitHub sign-in didn't work"

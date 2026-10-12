@@ -131,13 +131,13 @@ function sourceTarget(s: CatalogSourceSpec): { label: string; href?: string } {
     case "page":
       return { label: s.url.replace(/^https?:\/\/(www\.)?/, ""), href: s.url };
     case "npm":
-      return { label: s.package, href: `https://www.npmjs.com/package/${s.package}` };
+      return { label: `npmjs.com/package/${s.package}`, href: `https://www.npmjs.com/package/${s.package}` };
     case "pypi":
-      return { label: s.package, href: `https://pypi.org/project/${s.package}/` };
+      return { label: `pypi.org/project/${s.package}`, href: `https://pypi.org/project/${s.package}/` };
     case "github_repo":
-      return { label: s.repo, href: `https://github.com/${s.repo}` };
+      return { label: `github.com/${s.repo}`, href: `https://github.com/${s.repo}` };
     case "eol":
-      return { label: s.product, href: `https://endoflife.date/${s.product}` };
+      return { label: `endoflife.date/${s.product}`, href: `https://endoflife.date/${s.product}` };
   }
 }
 type CatalogSourceSpec = (typeof CATALOG)[number]["sources"][number];

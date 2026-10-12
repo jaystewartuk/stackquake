@@ -259,6 +259,7 @@ const Demo: FC<{ p: string }> = ({ p }) => (
     <h2>Table</h2>
     <p class="meta">As on the landing page's comparison: row headers, and a keyboard-scrollable region on phones.</p>
     <DataTable
+      class="compare"
       caption="What each tool tells you about"
       stack={false}
       rowHeader
@@ -273,18 +274,18 @@ const Demo: FC<{ p: string }> = ({ p }) => (
     <Tabs
       label={`Tabs ${p}`}
       items={[
-        { href: "#x", label: "Review queue", current: true },
-        { href: "#x", label: "Blocked sources" },
-        { href: "#x", label: "Catalog requests" },
+        { href: "#x", label: "Events", current: true },
+        { href: "#x", label: "Sources" },
+        { href: "#x", label: "Requests" },
       ]}
     />
     <Tabs
       variant="segmented"
       label={`Segmented ${p}`}
       items={[
-        { href: "#x", label: "pending review", count: 1, current: true },
-        { href: "#x", label: "published", count: 10 },
-        { href: "#x", label: "rejected", count: 1 },
+        { href: "#x", label: "Pending review", count: 1, current: true },
+        { href: "#x", label: "Published", count: 10 },
+        { href: "#x", label: "Rejected", count: 1 },
       ]}
     />
 

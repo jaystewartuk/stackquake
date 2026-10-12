@@ -30,9 +30,7 @@ const NotFound = ({ signedIn }: { signedIn: boolean }) => (
           {signedIn ? "Your dashboard" : "Home"}
         </ButtonLink>
         <ButtonLink href="/catalog">Catalog</ButtonLink>
-        <ButtonLink href="/events" variant="quiet">
-          Recent changes
-        </ButtonLink>
+        <ButtonLink href="/events">Recent changes</ButtonLink>
       </>
     }
   >
