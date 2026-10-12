@@ -264,3 +264,14 @@ Built once in stage 2 as JSX components and CSS in `src/web/styles/*.ts`, then u
 Public pages under 30 KB gzipped HTML+CSS (today 2–6 KB; the CSS may grow to ~12 KB raw), no
 layout shift, Lighthouse mobile performance ≥ 95 and accessibility 100 on public pages, axe clean
 (0 violations) in light and dark, no horizontal overflow at 360 px.
+
+## As built (stage 5)
+
+- Orange is the signal and the one primary action per page, nothing else: selected chips and ticked picker tiles use an
+  ink border and `--sunken` fill; auth marks, error icons and step icons use `--subtle`/`--muted`.
+- Dep rows (`.dep-list`) and alert rows (`.alert-list`) are container-query components: they switch layout at 48rem and
+  30rem of their list's width, not the viewport's.
+- Helpers in `base.ts`: `.dots` (a · b · c lists that never start a line with a dot), `.repo` (repo names in mono that
+  move whole to the next line), `.email`, `.nowrap`, `.flush`.
+- `ErrorPage narrow` keeps errors in the sign-in column for flows that started there; `AuthShell done` marks a success.
+- The page list for every audit is `scripts/ui/lib.mjs`; `npm run ui:keys` checks the keyboard path.

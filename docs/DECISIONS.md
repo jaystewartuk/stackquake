@@ -1031,3 +1031,45 @@ Read this after SPEC.md; where they disagree, this file wins.
   page for close inspection.
 - Stage 4: admin keeps its markup (the catalog-request test pins it) but moves onto Badge, Quote, DiffView, Buttons and
   Field; the edit page now has an h1, which clears the last pre-existing axe finding outside the gallery.
+- Stage 5: the critique ran as four passes of five (later three, then one) read-only reviewer subagents over the
+  screenshots, each pass's fixes committed before the next; stopped when a pass found only a minor wrap issue. Two
+  passes caught regressions from the previous pass's fixes, which is why the final pass checked regressions first.
+- Stage 5: `ui:shots` adds a 360×780 viewport in light only (it checks fit, not colour); `ui:keys` is a new script that
+  tabs through sign-in, new project, a dependency's settings and usage questions and checks each stop's focus ring,
+  position and whether a sticky bar covers it.
+- Stage 5: orange is only the signal and the one primary action per page: event subjects, step and path icons, auth
+  marks, error-page icons, selected chips and ticked picker tiles went neutral (ticked = ink border and sunken fill).
+- Stage 5: `--shadow-1` in dark mode is a transparent shadow, not `none`, because it sits inside shadow lists where
+  `none` invalidated the whole declaration (the upgrade panel and featured plan lost their accent edge in dark).
+- Stage 5: alerts whose match is `unknown` are *watch*, not *act*, as DIRECTION.md's mapping always said; the stage 2
+  helper only looked at the event kind. Presentation only (the query now selects `alerts.match`).
+- Stage 5: dependency and alert rows lay out by their list's width (container queries) rather than the viewport, so
+  they fit in rails, panels and the gallery's half-width columns.
+- Stage 5: event lists drop the "Subject:" prefix when the title already starts with the subject as a whole word, and
+  bold the title's opening words instead, so every row still leads with a bold name.
+- Stage 5: on the landing comparison the Stackquake column comes first, so phones see it without scrolling the table;
+  the vendor quotes follow the table's order.
+- Stage 5: the project page's Danger zone moved after the Repository rail, so on phones the destructive action is last.
+- Stage 5: published events in admin show "Unpublish" (secondary) instead of a red "Reject"; same form and route.
+- Stage 5: /signin stays `noindex` (as before the redesign) and gets a meta description; Lighthouse SEO 100 is met on
+  every indexable public page, and /signin's `is-crawlable` failure is by design.
+- Stage 5: `npm run measure:cpu` fails at its second project because its user is on Free (one project); the CPU
+  comparison in REVIEW.md used a temporary one-project copy on main and on this branch. The script itself is left as is.
+
+### UI redesign: summary (2026-10-12)
+
+- **What**: every page redesigned to one direction, "Seismograph" (docs/design/DIRECTION.md): system fonts, warm greys,
+  orange only as signal, mono for machine facts, act / watch / quiet severities derived from data the app already had,
+  and a 90-day trace of real changes as the signature element. Server-rendered Hono JSX, no client framework, no CSS
+  build step, no third-party requests; every page works without JS.
+- **How it is built**: tokens and styles in `src/web/styles/*.ts` (one inline stylesheet), components in
+  `src/web/ui.tsx` and the view modules (stack-view, alerts-view, events-view), shown in every state at `/__dev/ui`.
+- **Behaviour**: routes, forms, field names, CSRF, redirects, status codes and access rules unchanged; prices, plan
+  limits and legal wording unchanged. User-visible changes are listed in docs/design/REVIEW.md "Risks to check".
+- **Numbers**: axe 0 violations on all 52 shot pages in light and dark (baseline 92 findings); Lighthouse mobile
+  100 / 100 / 100 / 100 on the indexable public pages (baseline best practices 92–96, event note a11y 97); no overflow
+  at 360 px; public pages 12–17 KB gzipped (budget 30 KB); HTML renders cost about 2× the CPU of before (REVIEW.md).
+- **Process**: five unattended stages (audit and direction, foundation, public, app, polish), each a fresh session
+  with `npm run typecheck && npm test` as the check, screenshots and audits under `.ui/` on the devbox. Nothing was
+  deployed or pushed; the branch is for review on the laptop.
+- **Follow-ups**: prompts/09-ui-follow-ups.md.

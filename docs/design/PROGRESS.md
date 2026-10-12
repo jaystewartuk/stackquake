@@ -176,3 +176,36 @@ light and dark, seeded and empty (first run, empty project, no alerts, Free and 
 **Left for stage 5**: remove the legacy class aliases (`.card`, `.pill`, `button.primary`…) now that no app page uses
 them (admin sources/requests still use `ul.plain`); the landing page height at 390 px; the dev gallery's duplicate demo
 landmark; a final pass over copy.
+
+## Stage 5: polish, review and hand-off (2026-10-12)
+
+**Changed**
+- **Critique**: four passes of read-only reviewer subagents over every stage 5 shot (390, 1280 and, new, 360 px; light
+  and dark) next to the baseline, about 140 findings in all, each pass's fixes committed before the next. The last
+  pass found one minor wrap issue, fixed. Highlights: orange back to signal only; dark mode's `--shadow-1: none` was
+  voiding the upgrade panel's and featured plan's accent; the footer sits at the bottom of short pages; "unknown"
+  alerts are watch; event lists no longer repeat the subject and say "Took effect" for past dates; alert-link pages
+  name the dependency and the date; flow errors stay in the sign-in column; dashboard zero counts are hollow and an
+  empty trace is a line of text; the dep page says "muted" once; Danger zone last on the project page; neutral chips
+  and ticked tiles; the Stackquake column first in the landing comparison; admin labels, folds and "Unpublish".
+- **Consistency**: the stage 2 legacy aliases are gone (`.card`, `.pill`, `.flash`, `.cols`, `.row`, `button.primary`,
+  `.btn.big`…) with the other dead selectors (`.stack`, `.grid`, `.mono`, `.wrap.narrow`, `.btn-danger.solid`); inline
+  `style=` attributes became shared classes; admin staging uses Button and Callout; dep and alert rows use container
+  queries. The gallery gained StackView, AlertList, AuthShell, the table form the landing page uses, and a "Long
+  content" section, and its duplicate demo landmarks have unique names.
+- **Scripts**: `ui:shots` adds 360×780 (light); `ui:keys` walks the keyboard path; `ui:peek` takes `PEEK_OUT`.
+- **Review**: docs/design/REVIEW.md (page by page with shot paths, numbers against the baseline, what was left out,
+  risks for the owner); "UI redesign: summary" in docs/DECISIONS.md; prompts/09-ui-follow-ups.md.
+
+**Numbers** (`.ui/audit/stage5/`, `.ui/shots/stage5/`): 260 shots, none with a wrong status, overflow (360, 390 or 1280)
+or console errors. axe: **0 violations on all 52 pages**, light and dark, the gallery included (stage 4: the gallery's
+duplicate landmark). Lighthouse mobile: performance 100, accessibility 100, best practices 100 and SEO 100 on every
+indexable public page (stage 4: catalog SEO 92 from the link named "Go", fixed with its category as hidden text);
+/signin and /app are noindex by design. Keyboard: 0 problems over 98 stops on sign-in, new project, a dependency and
+usage questions, light and dark (one radio scrolled under the sticky bar before the fix). Gzipped HTML+CSS: public
+pages 12.0–17.3 KB, app pages 12.2–16.5 KB. CPU per request (one-project copy of `measure:cpu`, main → branch): home
+2.5–3 → 4.6–8.7 ms, catalog 2.5 → 4.4–6.4, dependency page 5–6.5 → 11.7–13.8 (it loads the whole project to rate one
+row); cron ticks unchanged.
+
+**Left**: see prompts/09-ui-follow-ups.md and REVIEW.md "Left out on purpose" (landing height at 390 px, admin diff
+highlighting, the dep page's CPU, email templates in the old style, `measure:cpu` on a Free user).
