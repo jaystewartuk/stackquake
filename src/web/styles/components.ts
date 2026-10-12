@@ -97,7 +97,7 @@ fieldset label{display:inline-flex;gap:var(--s-2);align-items:center;font-weight
 .choice{display:flex;flex-wrap:wrap;gap:var(--s-2)}
 .choice label{position:relative;display:inline-flex;align-items:center;gap:var(--s-2);margin:0;min-height:2.25rem;padding:0 var(--s-3);border:1px solid var(--line-strong);border-radius:var(--r-2);background:var(--surface);font-size:var(--text-sm);font-weight:400;cursor:pointer;transition:border-color var(--dur-1) var(--ease)}
 .choice label:hover{border-color:var(--control)}
-.choice input{position:absolute;opacity:0;width:1px;height:1px}
+.choice input{position:absolute;opacity:0;width:1px;height:1px;scroll-margin:5rem 0 6rem}
 .choice label:has(:checked){border-color:var(--fg);box-shadow:inset 0 0 0 1px var(--fg);background:var(--sunken);color:var(--fg);font-weight:500}
 .choice label:has(:focus-visible){outline:2px solid var(--focus);outline-offset:2px}
 
@@ -388,7 +388,7 @@ details.more[open]>summary{margin-bottom:var(--s-2)}
 .member-list{list-style:none;padding:0;margin:0 0 var(--s-3)}
 .member-list li{display:grid;grid-template-columns:2rem minmax(0,1fr) auto;gap:var(--s-3);align-items:center;padding:var(--s-2) 0;border-bottom:1px solid var(--line);margin:0}
 .member-list li:last-child{border-bottom:0}
-.ml-who{overflow-wrap:anywhere}.ml-who .meta,.ml-who>.badge{display:block;width:fit-content;margin-top:2px}.ml-who time,.ml-who .badge{white-space:nowrap}
+.ml-who{overflow-wrap:anywhere}.ml-who .email{word-break:normal}.ml-who .meta,.ml-who>.badge{display:block;width:fit-content;margin-top:2px}.ml-who time,.ml-who .badge{white-space:nowrap}
 .ml-actions{display:flex;gap:var(--s-1);align-items:center}
 @media (max-width:21rem){.member-list li{grid-template-columns:2rem minmax(0,1fr)}.ml-actions{grid-column:2}}
 

@@ -94,7 +94,6 @@ export function effectLabel(date: string, now = Date.now()): string {
   return `${date}-99`.slice(0, 10) < fmtDate(now) ? "Took effect" : "Takes effect";
 }
 
-/** The title with the subject in front, unless the title already starts with it ("Deno: Deno runtime…"). */
 /** A title with its ISO dates kept on one line ("2026-04-30" never splits at a hyphen). */
 const Dated: FC<{ text: string }> = ({ text }) => (
   <>
@@ -102,6 +101,7 @@ const Dated: FC<{ text: string }> = ({ text }) => (
   </>
 );
 
+/** Whether a title already opens with its subject as a whole word ("Deno runtime…" for Deno, not "Google…" for Go), so it needn't be prefixed. */
 export const titleHasSubject = (subject: string, title: string) => title.toLowerCase().startsWith(subject.toLowerCase()) && !/[\p{L}\p{N}]/u.test(title[subject.length] ?? "");
 
 /** One change in a list: date in the margin, kind, subject and title, the one-paragraph summary. `subject={false}` on a page about that subject. */

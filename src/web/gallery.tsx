@@ -260,7 +260,7 @@ const Demo: FC<{ p: string }> = ({ p }) => (
     <p class="meta">As on the landing page's comparison: row headers, and a keyboard-scrollable region on phones.</p>
     <DataTable
       class="compare"
-      caption="What each tool tells you about"
+      caption={`What each tool tells you about (${p === "l" ? "light" : "dark"} demo)`}
       stack={false}
       rowHeader
       columns={[{ label: "When…" }, { label: "Stackquake" }, { label: "GitHub" }]}
