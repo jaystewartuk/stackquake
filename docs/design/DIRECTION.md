@@ -200,6 +200,22 @@ Built once in stage 2 as JSX components and CSS in `src/web/styles/*.ts`, then u
   `.hero`/`.band`/`.steps`/`.cat-proof`/`.compare`/`.cite-grid`/`.price-strip`/`.cta-band`, catalog cards,
   `.month-h`, `.note`, `.plans`/`.faq-grid`, `.auth`, `.doc`/`.toc`.
 
+## As built (stage 4)
+
+- Added to `ui.tsx`: Stepper (onboarding steps, `aria-current="step"`; labels of other steps hidden visually under
+  40rem), ProgressSteps (native `<progress>` plus a done/current/todo checklist), UpgradePanel (every 402 and plan
+  limit; `page` makes it the h1), DiffView, AuthShell (moved from auth.tsx), Severity `mark` (shape only, word for
+  screen readers).
+- `stack-view.tsx`: DepRow (mark, name and usage, latest change or the reason it is in its group, date; one line at
+  ≥48rem, two on phones), StackView with folding "No known risk", `levelCounts`. `alerts-view.tsx`: AlertItem (severity
+  word, dep and kind, title linking the note, "Affects you because", delivery as text, "Useful? Yes / No"), AlertList
+  with `top` (act first, rest folded) and the not-affected fold.
+- `app-ui.tsx`: `problemPage()` and `upgradePage()` for the app's error and 402 pages; plan feature lists live in
+  `src/billing/plans.ts`.
+- App layouts in `styles/pages.ts` ("App (stage 4)"): dashboard `.attention`/`.all-clear`/`.project-pulse`, new project
+  `.paths`, picker (sticky search, two tile columns on phones, live "n selected" in the sticky bar), import progress,
+  dep and project pages on `.split` with a rail, settings with an "On this page" rail at ≥64rem, admin `.review`.
+
 ## The pages that matter most
 
 ### 1. Landing `/`

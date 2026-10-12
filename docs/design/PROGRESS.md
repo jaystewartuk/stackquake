@@ -130,3 +130,49 @@ visible. Lighthouse SEO 92 on /catalog is a false positive (`link-text` flags th
 stage's prompt requires (steps, catalog proof, comparison, cited quotes, pricing) cost the height; on phones the
 comparison table scrolls sideways, the vendor quotes are a swipe row and recent changes show 3. Stage 5 can trim
 copy. The one-click alert pages (`/a/…`) and the 402 page are app pages (stage 4). PlanCard is ready for Settings.
+
+## Stage 4: the signed-in app (2026-10-12)
+
+**Changed**
+- **Dashboard** `/app`: "Your stack" with project and dependency counts, the status line and 90-day trace, then **Needs
+  your attention**: alerts act-first (severity word, dependency and kind, the change linking its note, why it affects
+  you, delivery as text, "Useful? Yes / No"), five shown and the rest folded; with nothing open, one calm "Nothing needs
+  you right now" line. Then each project: its own status line and trace, deps as rows grouped by risk (mark, name and
+  usage, latest change or the reason, date), "No known risk" folded to a count, muted deps with a bell-off and dimmed.
+- **New project**: a first-run welcome with an onboarding stepper (start, find, usage, dashboard), the name, then two
+  side-by-side ways in: "Pick from the catalog" (primary) and "Or import a public GitHub repo"; Enter in the repo
+  field now imports. **Picker**: sticky search, common entries first, two tile columns on phones, a live "n selected"
+  in the sticky bar, the import result as a success callout. **Import progress**: the stepper, "Step 3 of 5", a
+  progress bar and the importer's five steps as a checklist, the raw log under Details, "you can leave this page";
+  with JS it updates in place every second and moves on to the picker when done (meta refresh only without JS). A
+  failed import says what failed and offers "Pick services instead". **Usage questions** end with "Save and see the
+  dashboard" when reached from the picker.
+- **Project** and **dependency** pages on the main-and-rail layout: the project's pulse and risk groups beside a
+  Repository panel; a dep's severity and reason under its title, changes (EventList), its alerts, usage questions,
+  and a rail with About, What we watch (each source, kind and last check) and mute / stop watching.
+- **Settings** as panels (Alerts, Email, Slack, Plan, Delete account) with an "On this page" rail at ≥64rem. Plan shows
+  the plan, projects used against the Free limit, what Team adds and the two checkout buttons; Team shows billing
+  interval, renewal and a payment-failed callout. **Team**: members with avatars, "4 of 10 people", invite with an
+  inline field; Free gets the UpgradePanel. **Every 402** (new project limit, CSV export, private repos, Slack) is one
+  UpgradePanel page; app 400/403/404/429/503 pages (billing, GitHub, Slack, email, team, delete) use ErrorPage.
+  **GitHub**: install page in the narrow column, repos as radio tiles. **One-click alert links**: the narrow column,
+  one large confirm button, "Nothing changes until you press the button"; done and bad-link pages to match.
+- **Admin**: review cards as panels with status and kind badges, the quote, "quote found" as a badge, DiffView for
+  before/after, Approve / Edit / Reject as buttons; the edit page has an h1 and real fields; sources and requests
+  in panels. Email templates (src/alerts/render.ts) untouched.
+- Shots: 13 new pages (import progress and failure, onboarding usage, alert-link done and bad link, free team and
+  project, member dashboard and settings, GitHub unavailable…), 52 in all; `npm run ui:peek` for close looks.
+
+**Numbers** (`.ui/audit/stage4/`, `.ui/shots/stage4/`): 208 shots, none with a wrong status, overflow at 390 px or
+console errors. axe: 0 violations on all 35 app, admin and alert-link pages in light and dark (baseline: 1 on each,
+2 on admin edit), and on every public page; the only finding left is the gallery's duplicated demo breadcrumb.
+Lighthouse mobile on `/app`: performance 100, accessibility 100, best practices 100, CLS 0 (stage 3: a11y 100 too;
+the intermediate build's muted-row opacity failed contrast and was fixed). Gzipped HTML+CSS: app pages 11.5–15.9 KB
+(stage 3: 9.5–12.7), public pages up about 2 KB from the shared CSS (home 16.7 KB; budget 30). Keyboard: tabbed through
+dashboard, project, dep, settings, team (owner and Free), picker, first-run new project and the admin queue at 390 px:
+every stop visible and on screen; picker tiles keep clear of the sticky search and action bar. Checked at 390 and 1280,
+light and dark, seeded and empty (first run, empty project, no alerts, Free and member accounts).
+
+**Left for stage 5**: remove the legacy class aliases (`.card`, `.pill`, `button.primary`…) now that no app page uses
+them (admin sources/requests still use `ul.plain`); the landing page height at 390 px; the dev gallery's duplicate demo
+landmark; a final pass over copy.

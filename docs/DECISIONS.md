@@ -1005,3 +1005,29 @@ Read this after SPEC.md; where they disagree, this file wins.
   needed and no third-party URLs are added.
 - Stage 3: the landing page stays above the 3,500 px target at 390 px (6,635 px): the prompt's required sections cost
   it; phones get a sideways-scrolling comparison table, a swipe row of quotes and three recent changes instead of five.
+- Stage 4: the dashboard's "Needs your attention" lists alerts, act before watch and newest first within each, five
+  shown and the rest folded ("n more alerts"); no separate /app/alerts page, since adding a route would change
+  behaviour and the dashboard and dep pages already hold every alert. With none open it says so in one calm line.
+- Stage 4: "No known risk" groups fold to their heading and count (`<details>`, heading inside the summary, so the
+  outline stays); on phones a row with nothing to report hides its "No changes seen" line, so quiet rows are one line.
+- Stage 4: feedback is "Useful? Yes / No" with accessible names "Yes, useful" / "No, not relevant" (visible text first,
+  WCAG 2.5.3); same form, field and values as before.
+- Stage 4: the import progress page keeps its 1-second `<meta refresh>` only inside `<noscript>`; with JS it fetches
+  itself each second (each GET still runs one step) and swaps the progress in place, follows the redirect when done,
+  and reloads if the import failed. Fixes axe's critical `meta-refresh` and stops screen readers re-reading the page;
+  a `role=status` line announces only step changes. Steps are labelled from the importer's own step names.
+- Stage 4: the new-project form gets a hidden first submit button with no `next`, so Enter in the repo field imports
+  (the server already treats "no `next` and a repo" as import) instead of silently opening the picker.
+- Stage 4: the onboarding stepper (start, find, usage, dashboard) shows on a user's first new-project page, the import
+  page, the picker while a project is empty or just imported, and the usage page when reached from the picker (`?msg`).
+- Stage 4: every 402 is one UpgradePanel page (what Team adds, the price from plans.ts, one button to /pricing, a way
+  back); the feature lists moved to src/billing/plans.ts so /pricing, Settings and the 402s say the same thing.
+- Stage 4: 400/403/404/429/503 pages in the app use ErrorPage via `problemPage()` (src/web/app-ui.tsx); the failed
+  import is a 200 as before, so it uses a plain header rather than an error code it doesn't return.
+- Stage 4: the one-click alert-link pages use the sign-in pages' narrow column (AuthShell, now in ui.tsx), one big
+  confirm button and "Nothing changes until you press the button", since mail scanners fetch the GET.
+- Stage 4: the seed adds a held "running" import (its job locked a year ahead, so loading the page neither runs a step
+  nor calls GitHub) and a failed one, to shoot both progress states; `npm run ui:peek` screenshots one viewport of one
+  page for close inspection.
+- Stage 4: admin keeps its markup (the catalog-request test pins it) but moves onto Badge, Quote, DiffView, Buttons and
+  Field; the edit page now has an h1, which clears the last pre-existing axe finding outside the gallery.
