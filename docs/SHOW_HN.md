@@ -51,10 +51,11 @@ whether the notes are blunt enough. Happy to answer anything about the pipeline.
 ## First comment (optional, technical)
 
 Some things that were harder than expected:
-- The Workers Free plan's 10 ms CPU limit per invocation. Every poll is its own small step on a
-  job table; pages are asked for Markdown first (`Accept: text/markdown`, which Cloudflare,
-  Vercel and others answer) and HTML is streamed through HTMLRewriter, stopping when the selector
-  closes. A few marketing pages are still too heavy.
+- CPU per invocation. I built it for the Workers Free plan's 10 ms limit: every poll is its own
+  small step on a job table, pages are asked for Markdown first (`Accept: text/markdown`, which
+  Cloudflare, Vercel and others answer) and HTML is streamed through HTMLRewriter, stopping when
+  the selector closes. Some marketing pages were still too heavy, so it runs on Workers Paid
+  ($5/month) now; p99 is under 100 ms of CPU per invocation.
 - Pricing pages change constantly for no reason. Normalisation plus a "material?" check on the
   diff is what keeps it quiet.
 - A golden set of real announcements (the Deno post, the Bitwarden forum post, a Cloudflare
@@ -63,11 +64,20 @@ Some things that were harder than expected:
 
 ## Before posting (checklist)
 
-- [ ] Landing, pricing, terms and privacy live on stackquake.com (M6).
-- [ ] Golden set passes on production's models; review gate on (SPEC §12).
-- [ ] Sign-up to populated dashboard under 2 minutes in production (timed in M6).
-- [ ] At least a few published events on /events, so the public feed isn't empty.
-- [ ] support@stackquake.com forwards (Cloudflare Email Routing; send it a test message).
+Status 2026-10-13 (docs/DECISIONS.md "Launch").
+
+- [x] Landing, pricing, terms and privacy live on stackquake.com; live billing on (Team $19/$190).
+- [ ] **Business address** in /terms and /privacy (`ADDRESS` in src/web/site.tsx; they say
+      "being set up" until then) and the **ICO data protection fee**. Owner.
+- [x] Golden set passed on production's models in M6; review gate on; review queue empty.
+- [ ] Sign-up to populated dashboard under 2 minutes in production: re-time with a fresh account
+      (new projects now link sources at once; the owner's older project heals at the 06:07 UTC
+      sync on 2026-10-14).
+- [x] Published events on /events (7 on 2026-10-13).
+- [x] support@stackquake.com forwards (owner received a test message, 2026-10-13).
 - [ ] Watch Resend's daily limit (100/day on the free plan): a launch day can pass it with
       magic links alone. Upgrade Resend first if sign-ups look likely to pass ~80 a day.
+- [ ] One live Checkout opened (or bought and refunded by the owner) to prove the restricted key.
+- [ ] "This week Deno announced…": the news is from 2026-10-09; say "Last week" if posting after
+      about 2026-10-16.
 - [ ] Owner online for a few hours after posting to answer comments.
