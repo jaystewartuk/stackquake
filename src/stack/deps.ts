@@ -141,15 +141,23 @@ export async function addCatalogDeps(ctx: Ctx, projectId: number, catalogIds: st
   return rows;
 }
 
-/** Keeps dep links in step with the catalog after entries change (called by syncCatalog). */
-export async function relinkCatalogDeps(ctx: Ctx, catalogIds: string[]): Promise<void> {
-  if (!catalogIds.length) return;
-  const json = JSON.stringify(catalogIds);
+/**
+ * Links every catalog dep to any of its entry's sources it lacks (called by every syncCatalog,
+ * changed entries or not). A sync cut short after storing entries but before relinking left
+ * deps unwatched, and later syncs skip stored entries, so the gap is closed here.
+ */
+export async function linkMissingCatalogDeps(ctx: Ctx): Promise<void> {
   await ctx.db.run(sql`
     INSERT INTO dep_sources (dep_id, source_id)
     SELECT d.id, cs.source_id FROM deps d JOIN catalog_sources cs ON cs.catalog_id = d.catalog_id
-    WHERE d.catalog_id IN (SELECT value FROM json_each(${json}))
+    WHERE NOT EXISTS (SELECT 1 FROM dep_sources ds WHERE ds.dep_id = d.id AND ds.source_id = cs.source_id)
     ON CONFLICT DO NOTHING`);
+}
+
+/** Drops dep links to sources the changed entries no longer use (called by syncCatalog). */
+export async function relinkCatalogDeps(ctx: Ctx, catalogIds: string[]): Promise<void> {
+  if (!catalogIds.length) return;
+  const json = JSON.stringify(catalogIds);
   await ctx.db.run(sql`
     DELETE FROM dep_sources WHERE rowid IN (
       SELECT ds.rowid FROM dep_sources ds

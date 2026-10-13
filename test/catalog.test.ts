@@ -1,7 +1,8 @@
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { syncCatalog, validateEntry, type CatalogEntry } from "../src/catalog/catalog";
 import { CATALOG } from "../src/catalog/entries";
-import { catalogSources, jobs, snapshots, sources } from "../src/db/schema";
+import { catalogSources, deps, depSources, jobs, projects, snapshots, sources } from "../src/db/schema";
 import { pruneSnapshots, runDaily } from "../src/jobs/cron";
 import { snapshotKey } from "../src/watch/poll";
 import { utf8 } from "../src/util";
@@ -47,6 +48,18 @@ describe("catalog", () => {
     expect(await ctx.db.select().from(catalogSources).all()).toHaveLength(1);
     await syncCatalog(ctx, [entry]);
     expect((await ctx.db.select().from(sources).all()).every((s) => s.state === "active")).toBe(true);
+  });
+
+  it("links deps an earlier sync stored the entry for but never linked", async () => {
+    const { ctx } = testCtx();
+    const entry: CatalogEntry = { id: "x", name: "X", category: "hosting", sources: [{ kind: "npm", package: "a" }, { kind: "npm", package: "b" }] };
+    await syncCatalog(ctx, [entry]);
+    // A dep added before that sync, whose relink step never ran (the run was cut short).
+    const [p] = await ctx.db.insert(projects).values({ userId: 1, name: "p", createdAt: 0 }).returning();
+    const [d] = await ctx.db.insert(deps).values({ projectId: p.id, catalogId: "x", origin: "manual", depKey: "catalog:x", createdAt: 0 }).returning();
+    const again = await syncCatalog(ctx, [entry]);
+    expect(again.changedEntries).toBe(0);
+    expect(await ctx.db.select().from(depSources).where(eq(depSources.depId, d.id)).all()).toHaveLength(2);
   });
 });
 

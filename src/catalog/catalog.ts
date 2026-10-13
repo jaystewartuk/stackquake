@@ -3,7 +3,7 @@ import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 import type { Ctx } from "../context";
 import { catalog, catalogSources, sources, type SourceKind } from "../db/schema";
 import { enqueue, pollJobKey } from "../jobs/queue";
-import { relinkCatalogDeps } from "../stack/deps";
+import { linkMissingCatalogDeps, relinkCatalogDeps } from "../stack/deps";
 import { eolUrl, parseEolKey } from "../sources/kinds/eol";
 import { githubUrl } from "../sources/kinds/github";
 import { npmUrl } from "../sources/kinds/npm";
@@ -150,7 +150,7 @@ export function sourceRow(spec: SourceSpec): SourceRow {
 /**
  * Upserts catalog entries and their sources, links them, and queues a first poll for new
  * sources. Catalog sources no entry uses any more are disabled. Idempotent. Entries whose stored
- * copy is identical are skipped, so the daily run costs one query when nothing changed.
+ * copy is identical are skipped, so the daily run costs two queries when nothing changed.
  */
 export async function syncCatalog(ctx: Ctx, entries: CatalogEntry[]): Promise<{ sources: number; created: number; changedEntries: number }> {
   const now = ctx.clock.now();
@@ -162,7 +162,10 @@ export async function syncCatalog(ctx: Ctx, entries: CatalogEntry[]): Promise<{ 
   const ids = new Set(entries.map((e) => e.id));
   const removed = [...stored.keys()].filter((id) => !ids.has(id));
   const countLinked = async () => (await ctx.db.selectDistinct({ id: catalogSources.sourceId }).from(catalogSources).all()).length;
-  if (changed.length === 0 && removed.length === 0) return { sources: await countLinked(), created: 0, changedEntries: 0 };
+  if (changed.length === 0 && removed.length === 0) {
+    await linkMissingCatalogDeps(ctx);
+    return { sources: await countLinked(), created: 0, changedEntries: 0 };
+  }
 
   let created = 0;
   for (const entry of changed) {
@@ -221,6 +224,7 @@ export async function syncCatalog(ctx: Ctx, entries: CatalogEntry[]): Promise<{ 
   }
   // Users' deps on these entries follow the entry's new source list.
   await relinkCatalogDeps(ctx, [...changed.map((e) => e.id), ...removed]);
+  await linkMissingCatalogDeps(ctx);
   // Catalog-made sources that no entry and no user's dep links to any more stop being polled.
   await ctx.db.run(sql`
     UPDATE sources SET state = 'disabled'
