@@ -1094,7 +1094,12 @@ Read this after SPEC.md; where they disagree, this file wins.
   ticks dominate), memory P99 12 MB. The dashboard has no per-route split; compare a full week
   after the redesign with this once there is one.
 - `/admin` is a 404 for the owner in production: they sign in with GitHub as a different address
-  than the one in `ADMIN_EMAILS`. Fix (owner, secret write): add that address to `ADMIN_EMAILS`.
+  than the one in `ADMIN_EMAILS`. Fixed 2026-10-13: the owner put both addresses in production's
+  `ADMIN_EMAILS`; `/admin` opens.
+- Live Stripe (2026-10-13): the account is activated (live keys exist). Live "Include tax in
+  prices" is still **No** (must be Yes), there are no live products, and Managed Payments is not
+  set up. Claude Code's auto mode blocked these dashboard changes and secret writes even with the
+  owner's approval in chat, so they are the owner's (or need a permission rule).
 - `/pricing` in production says "Team opens soon": live billing is still to do (prompt 07 step 3).
 
 ### UI follow-ups done (prompts/09-ui-follow-ups.md items 1–2)
