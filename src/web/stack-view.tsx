@@ -65,6 +65,18 @@ export async function loadDeps(ctx: Ctx, projectList: Project[]): Promise<Map<nu
   if (!projectList.length) return out;
   const ids = projectList.map((p) => p.id);
   const rows = await ctx.db.select().from(deps).where(inArray(deps.projectId, ids)).orderBy(asc(deps.id)).all();
+  const projectsById = new Map(projectList.map((p) => [p.id, p]));
+  for (const v of await depViews(ctx, rows, projectsById)) out.get(v.dep.projectId)!.push(v);
+  return out;
+}
+
+/** One dep's view (its page), without loading the rest of its project. */
+export async function loadDep(ctx: Ctx, project: Project, dep: Dep): Promise<DepView> {
+  return (await depViews(ctx, [dep], new Map([[project.id, project]])))[0]!;
+}
+
+async function depViews(ctx: Ctx, rows: Dep[], projectsById: Map<number, Project>): Promise<DepView[]> {
+  const out: DepView[] = [];
   if (!rows.length) return out;
   const depIds = JSON.stringify(rows.map((d) => d.id));
   const flags = await ctx.db.all<{ dep_id: number; n: number; archived: number; deprecated: number; unlicensed: number }>(sql`
@@ -89,12 +101,11 @@ export async function loadDeps(ctx: Ctx, projectList: Project[]): Promise<Map<nu
     WHERE rn = 1`);
   const f = new Map(flags.map((r) => [r.dep_id, r]));
   const l = new Map(latest.map((r) => [r.dep_id, r]));
-  const projectsById = new Map(projectList.map((p) => [p.id, p]));
   for (const d of rows) {
     const entry = catalogEntry(d.catalogId);
     const fl = f.get(d.id);
     const ev = l.get(d.id);
-    out.get(d.projectId)!.push({
+    out.push({
       dep: d,
       entry,
       name: depName(d, entry),

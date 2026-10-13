@@ -24,7 +24,7 @@ import { EventList, publishedEvents } from "./events-view";
 import { Icon } from "./icons";
 import { Csrf, fmtDate, page, safeHref } from "./layout";
 import { endSession, getAccount, requireUser, type WebContext, type WebEnv } from "./session";
-import { depLevel, depName, levelCounts, loadDeps, projectDeps, RECENT_MS, riskOf, RISK_LABELS, StackView, tracePoints, WATCHED_ECOSYSTEMS } from "./stack-view";
+import { depLevel, depName, levelCounts, loadDep, loadDeps, projectDeps, RECENT_MS, riskOf, RISK_LABELS, StackView, tracePoints, WATCHED_ECOSYSTEMS } from "./stack-view";
 import { Badge, Button, ButtonLink, Callout, Choice, DataList, EmptyState, Field, Flash, InputGroup, PageHeader, Panel, PickTile, ProgressSteps, Severity, StatusLine, Stepper, StickyBar, Trace } from "./ui";
 
 export const app = new Hono<WebEnv>();
@@ -787,9 +787,9 @@ app.get("/deps/:id", async (c) => {
   const muted = dep.mutedUntil && dep.mutedUntil > now;
   const name = depName(dep, entry);
   const assumed = describeProfile(effectiveProfile(dep.profile, project.defaultProfile, dims));
-  const view = (await projectDeps(ctx, project)).find((v) => v.dep.id === dep.id);
-  const level = view ? depLevel(view, now) : "quiet";
-  const risk = view ? riskOf(view, now) : "other";
+  const view = await loadDep(ctx, project, dep);
+  const level = depLevel(view, now);
+  const risk = riskOf(view, now);
   const csrf = c.get("csrf");
   const type = entry ? CATEGORY_LABELS[entry.category] : dep.ecosystem === "eol" ? "Runtime" : `${dep.ecosystem} package`;
   return page(
