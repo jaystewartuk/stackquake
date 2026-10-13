@@ -1088,8 +1088,13 @@ Read this after SPEC.md; where they disagree, this file wins.
   syncs skip stored entries, so Workers, D1 and GitHub Actions stayed unwatched. Every sync now
   inserts any missing dep → catalog source link (`linkMissingCatalogDeps`); production heals on
   the first daily run after deploy. Only projects created before that first sync were affected.
-- Workers CPU per request after the redesign: not read yet (the Cloudflare dashboard needs the
-  owner's sign-in in Chrome).
+- Deployed to staging (e3a80f98) and production (5d8efaac) on 2026-10-13 with the owner's OK.
+- Workers metrics, last 24 hours (2026-10-13, mostly on the redesign's version a138ae63): 3.18k
+  invocations, 0 errors, **0 Exceeded CPU Time Limits**; CPU P50 17 ms, P90 71 ms, P99 97 ms (cron
+  ticks dominate), memory P99 12 MB. The dashboard has no per-route split; compare a full week
+  after the redesign with this once there is one.
+- `/admin` is a 404 for the owner in production: they sign in with GitHub as a different address
+  than the one in `ADMIN_EMAILS`. Fix (owner, secret write): add that address to `ADMIN_EMAILS`.
 - `/pricing` in production says "Team opens soon": live billing is still to do (prompt 07 step 3).
 
 ### UI follow-ups done (prompts/09-ui-follow-ups.md items 1–2)
