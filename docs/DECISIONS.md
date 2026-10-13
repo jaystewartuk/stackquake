@@ -1169,6 +1169,22 @@ on that (`alert-<id>`, `digest-<user>-<day>`, `budget-<date>-<to>`). SES has no 
   for about 15 hours, so a key never needs to outlive that. The keys hold ids, a date and, for the
   budget mail, an admin's address, for at most 3 days.
 
+### Wiring and checks
+- `makeMailer`: SES when both AWS keys are set, else Resend when `RESEND_API_KEY` is set, else the
+  console. With both configured it logs once that SES wins. Only SES gets `IdempotentMailer`.
+- Migration `0006_mail_sends` must be applied before the SES keys are set (`deploy:*` does it).
+- Privacy page: the processors list names "Amazon Web Services (Amazon SES, Ireland)" with Resend
+  as a fallback, the logs line names both, and the transfers paragraph says SES mail stays in the
+  EU while AWS is a US company. Nothing else on the legal pages changed.
+- Tests: SigV4 vectors, request shape (endpoint, region, signed headers, List-Unsubscribe passed
+  through, UTF-8), error mapping, idempotency (repeat key, failed send retried, crash window, failed
+  insert, prune), `makeMailer` precedence. The alert and digest tests are unchanged (they still run
+  against the Resend mock); 312 tests pass.
+- `npm run measure:cpu` now runs deliveries through an SES stub (signing and the `mail_sends`
+  check included): deliver ticks 3.7–6.2 ms against 4.1–5.8 ms with Resend, within run-to-run
+  noise, so no CPU jump from signing. The run's "over the 10 ms" line is the poll phases, as before.
+- Not tried against real SES: that needs the owner's AWS account (checklist step 5).
+
 ### Owner checklist (the owner does these; Claude does none of them)
 - [ ] 1. AWS console, eu-west-1: verify domain identity `stackquake.com` with Easy DKIM (2048-bit);
   add the three `_domainkey` CNAMEs in Cloudflare, DNS only (they don't clash with Resend's records
