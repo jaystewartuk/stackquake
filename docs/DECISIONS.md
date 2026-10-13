@@ -1115,5 +1115,13 @@ Read this after SPEC.md; where they disagree, this file wins.
   use"; Include tax in prices = Yes; product "Stackquake Team" (`prod_PLACEHOLDER`, tax code
   `txcd_10103001`, eligible) with $19/month `team_monthly` (`price_PLACEHOLDER_MONTHLY`,
   default) and $190/year `team_yearly` (`price_PLACEHOLDER_YEARLY`), both USD, tax
-  included. `STRIPE_PRICE_MONTHLY` and `STRIPE_PRICE_YEARLY` set on production. Still to do:
-  webhook, Customer Portal, restricted key, and their two secrets.
+  included. `STRIPE_PRICE_MONTHLY` and `STRIPE_PRICE_YEARLY` set on production.
+- Live webhook `stackquake-production` (`we_PLACEHOLDER`) to
+  `https://stackquake.com/stripe/webhook`, API version 2026-09-30.endive (the only non-preview
+  choice; the handler reads `items.data[0].current_period_end` and the price's recurring interval,
+  both present), events `checkout.session.completed` and `customer.subscription.created|updated|
+  deleted`. Live Customer Portal (default configuration): invoice history; name, email, billing
+  address, phone and tax ID; payment methods; cancel at period end with a reason; switch between
+  the two Team prices with proration. Terms and privacy URLs set in Public details. Still to do:
+  `STRIPE_WEBHOOK_SECRET`, the restricted key `stackquake-production-worker` and
+  `STRIPE_SECRET_KEY` (owner's clicks, so the values never reach Claude).
