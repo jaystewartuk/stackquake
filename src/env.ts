@@ -3,8 +3,10 @@ import { AnthropicLlm } from "./llm/anthropic";
 import type { Llm } from "./llm/llm";
 import { d1Db, R2BlobStore, systemClock } from "./platform/cloudflare";
 import { ConsoleMailer } from "./platform/memory";
+import { IdempotentMailer } from "./platform/idempotent";
 import { DEFAULT_FROM, ResendMailer } from "./platform/resend";
-import type { Http, Mailer } from "./ports";
+import { SesMailer } from "./platform/ses";
+import type { Clock, Db, Http, Mailer } from "./ports";
 
 export interface AppEnv extends Env {
   GITHUB_TOKEN?: string;
@@ -22,7 +24,14 @@ export interface AppEnv extends Env {
   GITHUB_RAW_BASE?: string;
   /** "1" only under `wrangler dev` (set by scripts/poll.mjs). Enables /__dev routes. */
   DEV_ROUTES?: string;
-  /** Resend API key. Unset: mail is printed to the log (ConsoleMailer). */
+  /** Amazon SES (v2 HTTPS API, SigV4): both keys set and SES sends the mail; else Resend; else the log (ConsoleMailer). */
+  AWS_SES_ACCESS_KEY_ID?: string;
+  AWS_SES_SECRET_ACCESS_KEY?: string;
+  /** Default eu-west-1. */
+  AWS_SES_REGION?: string;
+  /** Points the SES client elsewhere (scripts/measure-cpu.mjs uses a local stub). */
+  AWS_SES_API_BASE?: string;
+  /** Resend API key, the fallback while SES is not configured. */
   RESEND_API_KEY?: string;
   /** Sender, e.g. "Stackquake <alerts@stackquake.com>". Before DNS (M5): "Stackquake <onboarding@resend.dev>". */
   MAIL_FROM?: string;
@@ -58,20 +67,36 @@ export function makeLlm(env: AppEnv): Llm {
   return env.ANTHROPIC_API_KEY ? new AnthropicLlm(env.ANTHROPIC_API_KEY, env.ANTHROPIC_BASE_URL ? { baseURL: env.ANTHROPIC_BASE_URL } : {}) : noLlm;
 }
 
-export function makeMailer(env: AppEnv, http: Http): Mailer {
-  return env.RESEND_API_KEY ? new ResendMailer({ apiKey: env.RESEND_API_KEY, from: env.MAIL_FROM || DEFAULT_FROM, http, base: env.RESEND_API_BASE }) : new ConsoleMailer();
+let warnedBoth = false;
+
+/**
+ * SES when both AWS keys are set, else Resend, else the log. SES has no idempotency key, so with
+ * `store` (the D1 and clock of the invocation) it is wrapped in IdempotentMailer; Resend has its own.
+ */
+export function makeMailer(env: AppEnv, http: Http, store?: { db: Db; clock: Clock }): Mailer {
+  const from = env.MAIL_FROM || DEFAULT_FROM;
+  if (env.AWS_SES_ACCESS_KEY_ID && env.AWS_SES_SECRET_ACCESS_KEY) {
+    if (env.RESEND_API_KEY && !warnedBoth) {
+      warnedBoth = true;
+      console.log("[mail] both Amazon SES and Resend are configured; sending with SES (unset the AWS_SES keys to fall back)");
+    }
+    const ses = new SesMailer({ accessKeyId: env.AWS_SES_ACCESS_KEY_ID, secretAccessKey: env.AWS_SES_SECRET_ACCESS_KEY, region: env.AWS_SES_REGION, from, http, base: env.AWS_SES_API_BASE });
+    return store ? new IdempotentMailer(ses, store.db, store.clock) : ses;
+  }
+  return env.RESEND_API_KEY ? new ResendMailer({ apiKey: env.RESEND_API_KEY, from, http, base: env.RESEND_API_BASE }) : new ConsoleMailer();
 }
 
-/** Production wiring: D1, R2, the system clock, global fetch, the Claude API and Resend. */
+/** Production wiring: D1, R2, the system clock, global fetch, the Claude API and Amazon SES (or Resend). */
 export function makeCtx(env: AppEnv): Ctx {
   const http: Http = (req) => fetch(req);
+  const db = d1Db(env.DB);
   return {
-    db: d1Db(env.DB),
+    db,
     blobs: new R2BlobStore(env.SNAPSHOTS),
     clock: systemClock,
     http,
     llm: makeLlm(env),
-    mailer: makeMailer(env, http),
+    mailer: makeMailer(env, http, { db, clock: systemClock }),
     config: configFromEnv(env),
   };
 }

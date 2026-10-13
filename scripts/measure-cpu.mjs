@@ -75,6 +75,7 @@ const stub = createHttpServer((req, res) => {
     const gh = ghRoutes.get(decodeURIComponent(req.url));
     if (gh !== undefined) return res.writeHead(200, { "content-type": typeof gh === "string" ? "text/plain" : "application/json" }).end(typeof gh === "string" ? gh : JSON.stringify(gh));
     if (req.method === "POST" && req.url === "/resend/emails") return res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ id: "stub" }));
+    if (req.method === "POST" && req.url === "/ses/v2/email/outbound-emails") return res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ MessageId: "stub" }));
     if (req.url === "/post") return res.writeHead(200, { "content-type": "text/html; charset=utf-8" }).end(postHtml);
     if (req.method === "POST" && req.url.startsWith("/v1/messages")) {
       const body = JSON.parse(data);
@@ -98,7 +99,7 @@ const wrangler = spawn(
   "npx",
   ["wrangler", "dev", "--test-scheduled", "--port", String(port), "--ip", "127.0.0.1", "--local-upstream", `127.0.0.1:${port}`, "--inspector-port", String(inspectorPort), "--persist-to", persist,
     "--var", `JOBS_PER_TICK:${JOBS_PER_TICK}`, "--var", "DEV_ROUTES:1", "--var", `ANTHROPIC_BASE_URL:http://127.0.0.1:${stubPort}`, "--var", "ANTHROPIC_API_KEY:stub",
-    "--var", `ALERT_JOBS_PER_TICK:${ALERT_JOBS_PER_TICK}`, "--var", `RESEND_API_BASE:http://127.0.0.1:${stubPort}/resend`, "--var", "RESEND_API_KEY:stub", "--var", "LINK_SECRET:measure-link-secret-0123456789",
+    "--var", `ALERT_JOBS_PER_TICK:${ALERT_JOBS_PER_TICK}`, "--var", `AWS_SES_API_BASE:http://127.0.0.1:${stubPort}/ses`, "--var", "AWS_SES_ACCESS_KEY_ID:AKIASTUB", "--var", "AWS_SES_SECRET_ACCESS_KEY:stub", "--var", "LINK_SECRET:measure-link-secret-0123456789",
     "--var", `GITHUB_API_BASE:http://127.0.0.1:${stubPort}/gh`, "--var", `GITHUB_RAW_BASE:http://127.0.0.1:${stubPort}/raw`,
     "--show-interactive-dev-session=false"],
   { stdio: ["ignore", "pipe", "pipe"] },
@@ -221,7 +222,7 @@ for (let i = 0; i < 40; i++) {
   await fetch(`${base}/__dev/due?pipeline=1&within=${24 * 3_600_000}`, { method: "POST" });
 }
 // Alerts: 450 users with Redis; a licence change for the self-hosted ones (fan-out in 3 chunks,
-// then 9 deliveries through a Resend stub) and a pricing change for everyone (held for the
+// then 9 deliveries through an Amazon SES stub: SigV4 signing and the mail_sends check) and a pricing change for everyone (held for the
 // digest). The daily run then queues the digests of the 5 users whose digest day is today.
 await fetch(`${base}/__dev/seed-alerts`, { method: "POST", body: JSON.stringify({ users: 450, affectedEvery: 50, digestUsers: 5 }) });
 await fetch(`${base}/__dev/due?pipeline=1`, { method: "POST" });

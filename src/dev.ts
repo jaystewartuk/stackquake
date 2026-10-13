@@ -180,7 +180,9 @@ devRoutes.post("/session", async (c) => {
 
 /**
  * Sends one sample alert (the Deno note from the golden set) through the configured mailer: with
- * RESEND_API_KEY in .dev.vars, a real email through Resend. Body: {"to": "you@example.com"}.
+ * the AWS_SES keys in .dev.vars, a real email through Amazon SES (the address must be verified
+ * while the account is in the sandbox); else with RESEND_API_KEY, through Resend. The response names
+ * the mailer. Body: {"to": "you@example.com"}.
  */
 devRoutes.post("/test-email", async (c) => {
   const ctx = makeCtx(c.env);

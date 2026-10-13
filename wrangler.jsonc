@@ -46,7 +46,8 @@
     // so the GitHub apps can be swapped without a deploy.
   },
   // Secrets per environment (wrangler secret put [--env staging] / .dev.vars): ANTHROPIC_API_KEY,
-  // RESEND_API_KEY, GITHUB_TOKEN, LINK_SECRET (HMAC for one-click links) and CHANNEL_KEY (32 bytes,
+  // AWS_SES_ACCESS_KEY_ID and AWS_SES_SECRET_ACCESS_KEY (Amazon SES; both set and SES sends the mail,
+  // region eu-west-1 unless the AWS_SES_REGION var says otherwise), RESEND_API_KEY (the fallback), GITHUB_TOKEN, LINK_SECRET (HMAC for one-click links) and CHANNEL_KEY (32 bytes,
   // base64: `openssl rand -base64 32`; encrypts Slack webhook URLs and GitHub installation tokens),
   // ADMIN_EMAILS, GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET (OAuth app for sign-in), and the GitHub
   // App's GITHUB_APP_SLUG, GITHUB_APP_CLIENT_ID, GITHUB_APP_CLIENT_SECRET, GITHUB_APP_PRIVATE_KEY,
