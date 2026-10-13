@@ -1073,3 +1073,28 @@ Read this after SPEC.md; where they disagree, this file wins.
   with `npm run typecheck && npm test` as the check, screenshots and audits under `.ui/` on the devbox. Nothing was
   deployed or pushed; the branch is for review on the laptop.
 - **Follow-ups**: prompts/09-ui-follow-ups.md.
+
+## Launch (started 2026-10-13)
+
+### Production checks (2026-10-13, read-only D1 queries)
+- Sources: 211 active, 0 failing, 0 overdue by an hour; 3 blocked, all known (Bitwarden forum
+  robots.txt; hashicorp.com feed and licence FAQ behind Vercel's checkpoint, M1/M5). Jobs: 211
+  polls, 0 parked. Events: 6 published, 27 rejected, 2 waiting in the review queue (Grafana 13.0
+  EOL at 0.85; a Bun licence-file attribution edit at 0.88 that reads like a non-change).
+  LLM spend $0.26 over three days.
+- **Bug found and fixed**: the owner's project had 2 of 5 services linked to sources (Resend,
+  Stripe). Production's first catalog sync (2026-10-11 06:07, still on Free, 244
+  `exceededResources` that day) stored the entries but never reached the relink step, and later
+  syncs skip stored entries, so Workers, D1 and GitHub Actions stayed unwatched. Every sync now
+  inserts any missing dep → catalog source link (`linkMissingCatalogDeps`); production heals on
+  the first daily run after deploy. Only projects created before that first sync were affected.
+- Workers CPU per request after the redesign: not read yet (the Cloudflare dashboard needs the
+  owner's sign-in in Chrome).
+- `/pricing` in production says "Team opens soon": live billing is still to do (prompt 07 step 3).
+
+### UI follow-ups done (prompts/09-ui-follow-ups.md items 1–2)
+- `npm run measure:cpu` runs to the end again: `/__dev/session` takes `plan: "team"`, and the
+  import step label is read from ProgressSteps' current item.
+- `GET /app/deps/:id` loads only its own dep's view (`loadDep`): 3.73 → 3.10 ms first load,
+  2.85 → 2.44 ms again on a 150-dep project; same HTML byte for byte. Within run-to-run noise
+  (`GET /app` moved 3.5 → 5.4 ms between runs with no change), so small but not nothing.
