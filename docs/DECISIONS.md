@@ -1108,3 +1108,6 @@ Read this after SPEC.md; where they disagree, this file wins.
 - `GET /app/deps/:id` loads only its own dep's view (`loadDep`): 3.73 → 3.10 ms first load,
   2.85 → 2.44 ms again on a 150-dep project; same HTML byte for byte. Within run-to-run noise
   (`GET /app` moved 3.5 → 5.4 ms between runs with no change), so small but not nothing.
+- Review queue cleared 2026-10-13 (owner's OK): Grafana 13.0 EOL approved, the Bun licence-file
+  attribution edit rejected. 7 published, 28 rejected.
+- support@stackquake.com forwarding checked: the owner received a message sent to it.
