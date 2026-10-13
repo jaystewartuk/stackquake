@@ -215,6 +215,15 @@ export const rateLimits = sqliteTable("rate_limits", {
   count: integer("count").notNull(),
 });
 
+/**
+ * Amazon SES has no Idempotency-Key, so IdempotentMailer records each keyed send here after SES
+ * accepts it and skips a second send with the same key. Pruned after 3 days.
+ */
+export const mailSends = sqliteTable("mail_sends", {
+  key: text("key").primaryKey(),
+  sentAt: integer("sent_at").notNull(),
+});
+
 export const HOSTING_VALUES = ["hosted", "self_hosted"] as const;
 export const USE_VALUES = ["commercial", "personal"] as const;
 export const TIER_VALUES = ["free", "paid"] as const;

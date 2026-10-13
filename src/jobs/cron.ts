@@ -12,6 +12,8 @@ import { runTick, type TickReport } from "./runner";
 
 export const KEEP_BODIES = 20;
 const SNAPSHOT_ROW_TTL = 30 * DAY;
+/** Send keys (IdempotentMailer): the runner's backoff retries for about 15 hours, so 3 days is plenty. */
+export const MAIL_SENDS_KEEP = 3 * DAY;
 
 /**
  * Keeps the latest 20 bodies per source (SPEC §5). Bodies are content-addressed and can be shared
@@ -42,14 +44,15 @@ export async function pruneSnapshots(ctx: Ctx): Promise<{ blobsDeleted: number; 
 
 /**
  * Short-lived security records (privacy notice, "How long we keep it"): expired sessions, sign-in
- * and email-change links a day after they expire, and rate-limit counters two days after their
- * window (the longest window is a day).
+ * and email-change links a day after they expire, rate-limit counters two days after their
+ * window (the longest window is a day), and email send keys after three days.
  */
 export async function prunePersonal(ctx: Ctx): Promise<void> {
   const now = ctx.clock.now();
   await ctx.db.run(sql`DELETE FROM sessions WHERE expires_at < ${now}`);
   await ctx.db.run(sql`DELETE FROM magic_links WHERE expires_at < ${now - DAY}`);
   await ctx.db.run(sql`DELETE FROM rate_limits WHERE window_start < ${now - 2 * DAY}`);
+  await ctx.db.run(sql`DELETE FROM mail_sends WHERE sent_at < ${now - MAIL_SENDS_KEEP}`);
 }
 
 /**

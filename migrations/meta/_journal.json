@@ -43,6 +43,13 @@
       "when": 1791684818513,
       "tag": "0005_m6_plans",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1791929362408,
+      "tag": "0006_mail_sends",
+      "breakpoints": true
     }
   ]
 }

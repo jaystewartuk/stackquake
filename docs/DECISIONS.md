@@ -1129,3 +1129,62 @@ Read this after SPEC.md; where they disagree, this file wins.
   (values moved by clipboard only). **Live billing is on**: /pricing shows "$19 monthly" and
   "$190 yearly" to a signed-in Free user and a sign-in button to visitors. No live Checkout
   session or charge made yet.
+
+## Email: Amazon SES (2026-10-13)
+
+Why: Resend's free plan is 100 emails a day and 3,000 a month; SES is about US$0.10 per 1,000 and
+keeps mail in the EU (eu-west-1, like Beckon). Resend stays as the fallback until SES has run
+cleanly for a while. Don't switch providers on launch day: deploy with the SES keys unset.
+
+### Design
+- **SES v2 HTTPS API**, not SMTP and not the AWS SDK (this is a Worker; bundle size and CPU). One
+  signed `POST https://email.<region>.amazonaws.com/v2/email/outbound-emails` per message,
+  `Content.Simple` with Subject, Text and Html (all UTF-8) and `Headers` for List-Unsubscribe and
+  List-Unsubscribe-Post (the v2 API takes up to 15 custom headers on `Simple`, so no hand-built MIME).
+- SigV4 is a pure function with Web Crypto (`src/platform/sigv4.ts`), tested against AWS's published
+  test-suite vectors (`get-vanilla`, query ordering, `post-x-www-form-urlencoded`).
+- Config: secrets `AWS_SES_ACCESS_KEY_ID`, `AWS_SES_SECRET_ACCESS_KEY`; var `AWS_SES_REGION`
+  (default `eu-west-1`); `AWS_SES_API_BASE` for stubs. The sender is `MAIL_FROM || DEFAULT_FROM`.
+- Errors: 429, throttling, limit exceeded, 5xx and network failures are retried by the runner;
+  `MessageRejected`, `MailFromDomainNotVerified`, `BadRequest` and other 4xx are permanent (the
+  alert is `failed`). `AccountSuspended`, `SendingPaused` and credential errors (`UnrecognizedClient`,
+  `InvalidSignature`, `AccessDenied`, `ExpiredToken`…) need the owner, not a different message, so
+  they are **not** permanent (the runner retries for about 15 hours while the owner fixes it) and
+  are logged with `console.error`.
+
+### Idempotency without a provider key
+Resend drops a second send with the same `Idempotency-Key` for 24 hours, and the job runner relies
+on that (`alert-<id>`, `digest-<user>-<day>`, `budget-<date>-<to>`). SES has no such key.
+- Table `mail_sends(key PRIMARY KEY, sent_at)` (migration 0006). `IdempotentMailer`
+  (`src/platform/idempotent.ts`) wraps any Mailer: with a key it looks the key up, skips the send if
+  found, otherwise sends and inserts the row right after the provider accepts. Mail without a key
+  (sign-in links) is not recorded; each is meant to be sent.
+- It is applied to SES only (Resend keeps its own key; the console and memory mailers don't need it).
+- **How it fails:** a crash between SES's 200 and the insert leaves no row, so the retry sends the
+  email a second time. That is deliberate: a duplicate alert is better than a lost one. A failed
+  insert after a successful send is logged and swallowed, so it does not turn into a retry. Two
+  invocations racing on one key could both send; the job claim lock makes that a non-case for
+  alerts and digests, and the budget mail goes to one or two admins once a day.
+- Rows are deleted in the daily run (`prunePersonal`) after 3 days; the runner's backoff retries
+  for about 15 hours, so a key never needs to outlive that. The keys hold ids, a date and, for the
+  budget mail, an admin's address, for at most 3 days.
+
+### Owner checklist (the owner does these; Claude does none of them)
+- [ ] 1. AWS console, eu-west-1: verify domain identity `stackquake.com` with Easy DKIM (2048-bit);
+  add the three `_domainkey` CNAMEs in Cloudflare, DNS only (they don't clash with Resend's records
+  or Email Routing). The owner approves the DNS change; Claude may add them in Chrome if told to.
+- [ ] 2. Optional custom MAIL FROM `bounce.stackquake.com` (MX + SPF TXT), as Beckon's docs/deploy.md.
+- [ ] 3. Request production access (transactional: sign-in links, alerts the user subscribed to,
+  weekly digests; unsubscribe link in every alert and digest; bounces via the account-level
+  suppression list). Until then SES only sends to verified addresses.
+- [ ] 4. IAM user `stackquake-ses-production` allowed only `ses:SendEmail` on the `stackquake.com`
+  identity ARN; an access key (not SMTP credentials). Then
+  `! pbpaste | npx wrangler secret put AWS_SES_ACCESS_KEY_ID` and the same for
+  `AWS_SES_SECRET_ACCESS_KEY`. Staging: its own user and keys (`--env staging`), or it stays on Resend.
+- [ ] 5. After a deploy (owner's OK): sign in by magic link and trigger a test alert (staging, or a
+  real alert; `/__dev/test-email` is local only). In the received mail's original check
+  `dkim=pass header.d=stackquake.com`, `spf=pass`, `dmarc=pass`, not in spam, List-Unsubscribe on the alert.
+- [ ] 6. After a clean week: delete the Resend production key, remove Resend's DNS records (`send`
+  and `rsend` CNAMEs, `resend._domainkey` TXT; keep `_dmarc`), unset `RESEND_API_KEY`, and drop
+  Resend from the privacy page. Then consider DMARC `p=quarantine` (M5).
+- [ ] 7. Watch SES's reputation dashboard: bounces under 5%, complaints under 0.1%.
