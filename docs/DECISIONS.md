@@ -1111,3 +1111,9 @@ Read this after SPEC.md; where they disagree, this file wins.
 - Review queue cleared 2026-10-13 (owner's OK): Grafana 13.0 EOL approved, the Bun licence-file
   attribution edit rejected. 7 published, 28 rejected.
 - support@stackquake.com forwarding checked: the owner received a message sent to it.
+- Live Stripe (2026-10-13, owner's clicks with Claude filling forms): Managed Payments "Ready to
+  use"; Include tax in prices = Yes; product "Stackquake Team" (`prod_PLACEHOLDER`, tax code
+  `txcd_10103001`, eligible) with $19/month `team_monthly` (`price_PLACEHOLDER_MONTHLY`,
+  default) and $190/year `team_yearly` (`price_PLACEHOLDER_YEARLY`), both USD, tax
+  included. `STRIPE_PRICE_MONTHLY` and `STRIPE_PRICE_YEARLY` set on production. Still to do:
+  webhook, Customer Portal, restricted key, and their two secrets.
