@@ -163,11 +163,15 @@ devRoutes.post("/due", async (c) => {
   return c.json({ ok: true });
 });
 
-/** Creates (or finds) a user and a session; returns the cookie value (scripts/measure-cpu.mjs). */
+/**
+ * Creates (or finds) a user and a session; returns the cookie value (scripts/measure-cpu.mjs).
+ * `plan: "team"` puts the user on Team, so a script can create more than one project.
+ */
 devRoutes.post("/session", async (c) => {
   const ctx = makeCtx(c.env);
-  const { email } = await c.req.json<{ email: string }>();
+  const { email, plan } = await c.req.json<{ email: string; plan?: "free" | "team" }>();
   await ctx.db.insert(users).values({ email, createdAt: ctx.clock.now() }).onConflictDoNothing({ target: users.email });
+  if (plan) await ctx.db.update(users).set({ plan, planStatus: plan === "team" ? "active" : "none" }).where(eq(users.email, email));
   const user = (await ctx.db.select().from(users).where(eq(users.email, email)).get())!;
   const token = randomToken();
   await ctx.db.insert(sessions).values({ id: await sha256Hex(token), userId: user.id, expiresAt: ctx.clock.now() + SESSION_MS, createdAt: ctx.clock.now() });

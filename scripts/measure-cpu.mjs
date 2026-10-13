@@ -239,7 +239,8 @@ for (let i = 0; i < 20; i++) {
   rows.push({ phase: "digest", ...r });
 }
 
-// Web: one HTTP request per measurement, profiled the same way as a tick.
+// Web: one HTTP request per measurement, profiled the same way as a tick. The session user is on
+// Team, since it imports two projects (Free allows one).
 async function profileFetch(path, init = {}) {
   await send("Profiler.start");
   const res = await fetch(`${base}${path}`, { redirect: "manual", ...init, headers: { cookie: `sq_session=${session.token}`, ...(init.headers ?? {}) } });
@@ -247,7 +248,7 @@ async function profileFetch(path, init = {}) {
   const { profile } = (await send("Profiler.stop")).result;
   return { status: res.status, location: res.headers.get("location"), body, ...cpuMs(profile) };
 }
-const session = await (await fetch(`${base}/__dev/session`, { method: "POST", body: JSON.stringify({ email: "measure@example.com" }) })).json();
+const session = await (await fetch(`${base}/__dev/session`, { method: "POST", body: JSON.stringify({ email: "measure@example.com", plan: "team" }) })).json();
 const webRows = [];
 const form = (fields) => ({ method: "POST", body: new URLSearchParams({ _csrf: session.csrf, ...fields }), headers: { "content-type": "application/x-www-form-urlencoded", origin: base } });
 let lastProject;
@@ -257,7 +258,7 @@ for (const repo of ["acme/shop", "acme/big"]) {
   webRows.push({ what: `POST /app/projects (${repo})`, ...created });
   for (let i = 0; i < 12; i++) {
     const r = await profileFetch(created.location);
-    const step = /<li>([^<]*)<\/li>\s*<li class="muted">Working/.exec(r.body)?.[1] ?? (r.status === 302 ? "done" : r.body.includes("Import failed") ? "failed" : "");
+    const step = /<li class="current">[\s\S]*?<span>([^<]*)</.exec(r.body)?.[1] ?? (r.status === 302 ? "done" : r.body.includes("Import failed") ? "failed" : "");
     webRows.push({ what: `import ${repo} load ${i + 1}: ${step}`, ...r });
     if (r.status !== 200 || r.body.includes("Import failed")) break;
   }
