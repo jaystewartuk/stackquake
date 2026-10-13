@@ -1122,6 +1122,10 @@ Read this after SPEC.md; where they disagree, this file wins.
   both present), events `checkout.session.completed` and `customer.subscription.created|updated|
   deleted`. Live Customer Portal (default configuration): invoice history; name, email, billing
   address, phone and tax ID; payment methods; cancel at period end with a reason; switch between
-  the two Team prices with proration. Terms and privacy URLs set in Public details. Still to do:
-  `STRIPE_WEBHOOK_SECRET`, the restricted key `stackquake-production-worker` and
-  `STRIPE_SECRET_KEY` (owner's clicks, so the values never reach Claude).
+  the two Team prices with proration. Terms and privacy URLs set in Public details.
+- Restricted key `stackquake-production-worker` (Write on Customers, Checkout Sessions, Customer
+  Portal and Subscriptions, nothing else); Claude filled the form and clicked Create without
+  looking at the result, the owner copied it. All four `STRIPE_*` secrets are on production
+  (values moved by clipboard only). **Live billing is on**: /pricing shows "$19 monthly" and
+  "$190 yearly" to a signed-in Free user and a sign-in button to visitors. No live Checkout
+  session or charge made yet.
