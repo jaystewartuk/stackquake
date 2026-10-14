@@ -75,8 +75,8 @@ Status 2026-10-13 (docs/DECISIONS.md "Launch").
       sync on 2026-10-14).
 - [x] Published events on /events (7 on 2026-10-13).
 - [x] support@stackquake.com forwards (owner received a test message, 2026-10-13).
-- [ ] Watch Resend's daily limit (100/day on the free plan): a launch day can pass it with
-      magic links alone. Upgrade Resend first if sign-ups look likely to pass ~80 a day.
+- [x] Mail volume: Amazon SES since 2026-10-14 (50,000 a day, 14 a second), so launch-day magic
+      links no longer hit Resend's 100-a-day cap. Watch SES bounces (<5%) and complaints (<0.1%).
 - [ ] One live Checkout opened (or bought and refunded by the owner) to prove the restricted key.
 - [ ] "This week Deno announced…": the news is from 2026-10-09; say "Last week" if posting after
       about 2026-10-16.
