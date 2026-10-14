@@ -1213,3 +1213,22 @@ only), `bounce` MX 10 `feedback-smtp.eu-west-1.amazonses.com`, `bounce` TXT
   and `rsend` CNAMEs, `resend._domainkey` TXT; keep `_dmarc`), unset `RESEND_API_KEY`, and drop
   Resend from the privacy page. Then consider DMARC `p=quarantine` (M5).
 - [ ] 7. Watch SES's reputation dashboard: bounces under 5%, complaints under 0.1%.
+
+### Resend removed from the code (2026-10-14, prompt 11)
+- The owner chose to run prompt 11 the same day SES went live, not after the clean week. The code
+  is not deployed until the owner deploys it; until then production still has Resend as a fallback.
+- `src/platform/resend.ts` and `RESEND_API_KEY`/`RESEND_API_BASE` are gone. `makeMailer` is SES when
+  both AWS keys are set, else the console; `DEFAULT_FROM` lives in `ses.ts`. **Once deployed there is no
+  fallback**: if the SES keys are unset or revoked, mail goes to the log and nobody gets it.
+- `IdempotentMailer` now wraps the only real mailer, so `mail_sends` is the only thing that stops a
+  retried step from sending twice.
+- Tests: `mockSes` (test/alert-helpers.ts) replaces `mockResend`. It stubs SES's outbound-emails
+  endpoint behind `SesMailer` + `IdempotentMailer` (as `makeCtx` wires it), maps the SES JSON back to
+  the same `sent` shape, counts attempts in `requests`, and `failWith` returns SES error types. Key
+  assertions read `mail_sends` (`sentKeys`). With the `mail_sends` lookup disabled, the lost-send and
+  retried-digest tests fail, so they still prove something. The Resend-only `makeMailer` cases are
+  dropped: 310 tests pass.
+- Also removed from `scripts/measure-cpu.mjs`, `wrangler.jsonc`, `src/dev.ts` and the Secrets list.
+  Privacy page: Resend is out of the processors list and the logs line; `LEGAL_UPDATED` was not
+  changed (it wasn't for the SES change either).
+- Step 6 is not ticked: the Resend key, DNS records and `RESEND_API_KEY` secrets are the owner's.
