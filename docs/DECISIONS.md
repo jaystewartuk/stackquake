@@ -1209,7 +1209,7 @@ only), `bounce` MX 10 `feedback-smtp.eu-west-1.amazonses.com`, `bounce` TXT
   alert's List-Unsubscribe.) After a deploy (owner's OK): sign in by magic link and trigger a test alert (staging, or a
   real alert; `/__dev/test-email` is local only). In the received mail's original check
   `dkim=pass header.d=stackquake.com`, `spf=pass`, `dmarc=pass`, not in spam, List-Unsubscribe on the alert.
-- [ ] 6. After a clean week: delete the Resend production key, remove Resend's DNS records (`send`
+- [x] 6. (2026-10-14, early by the owner's choice: Resend API keys deleted by the owner; DNS records removed and `RESEND_API_KEY` deleted on both Workers, see below. DMARC is still `p=none`) After a clean week: delete the Resend production key, remove Resend's DNS records (`send`
   and `rsend` CNAMEs, `resend._domainkey` TXT; keep `_dmarc`), unset `RESEND_API_KEY`, and drop
   Resend from the privacy page. Then consider DMARC `p=quarantine` (M5).
 - [ ] 7. Watch SES's reputation dashboard: bounces under 5%, complaints under 0.1%.
@@ -1235,7 +1235,9 @@ only), `bounce` MX 10 `feedback-smtp.eu-west-1.amazonses.com`, `bounce` TXT
 - Deployed by the owner the same night: staging `97d9b068`, production `1c4b44cc` (no migrations
   pending; `/health` OK on both), then `RESEND_API_KEY` deleted on both Workers. Resend's DNS records
   (`send` and `rsend` CNAMEs, `resend._domainkey` TXT) deleted by Claude in Chrome on the owner's
-  word; `_dmarc` and the SES records untouched, checked with `dig`. Left for step 6: the Resend API keys.
+  word; `_dmarc` and the SES records untouched, checked with `dig`. The owner deleted the three Resend
+  API keys (production, staging, dev); the dead `RESEND_API_KEY` line is gone from `.dev.vars`.
+  Checklist step 6 is ticked; DMARC `p=quarantine` is still to consider.
 
 ## Automatic deploys (2026-10-14)
 
