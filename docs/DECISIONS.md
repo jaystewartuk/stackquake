@@ -1250,10 +1250,12 @@ repo's free 2,000 Actions minutes a month cover it (a run is about 2–3 minutes
 - Pushing to `main` is now deploying to production. `npm run deploy:*` still work by hand.
 - `package-lock.json` is committed (it was gitignored with no recorded reason): an automatic
   production deploy should not pick up whatever a caret range resolves to that day.
-- Secret: `CLOUDFLARE_API_TOKEN` (repo secret), a Cloudflare API token from the "Edit Cloudflare
-  Workers" template plus Account → D1 → Edit, limited to the owner's account and the stackquake.com
-  zone. The account ID is in the workflow (not a secret). Worker secrets stay in Cloudflare;
+- Secret: `CLOUDFLARE_API_TOKEN` (repo secret), the Cloudflare token "stackquake GitHub Actions
+  deploy": the "Edit Cloudflare Workers" template unchanged plus Account → D1 → Edit, limited to the
+  owner's account and the stackquake.com zone, no expiry. Created by Claude in Chrome on the owner's
+  word, checked with `/user/tokens/verify`, piped from the clipboard into `gh secret set`. The account ID is in the workflow (not a secret). Worker secrets stay in Cloudflare;
   the workflow never sets them.
-- Checked: a clean clone without `.dev.vars` passes `npm ci`, typecheck and all 310 tests. The
-  deploy job is not proven until its first run (the token is the owner's to create: auto mode
-  blocked Claude from the Cloudflare API-tokens page).
+- Checked: a clean clone without `.dev.vars` passes `npm ci`, typecheck and all 310 tests. First
+  run (38494668023, 2026-10-14): tests green; deploy failed without the token, then on re-run
+  deployed staging `b7532113` and production `ff2dd564`, no migrations pending, `/health` OK on both.
+- A docs-only push also redeploys (same code; harmless). Revisit with `paths-ignore` if it gets noisy.
