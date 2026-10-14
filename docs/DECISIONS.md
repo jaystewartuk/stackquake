@@ -1232,3 +1232,25 @@ only), `bounce` MX 10 `feedback-smtp.eu-west-1.amazonses.com`, `bounce` TXT
   Privacy page: Resend is out of the processors list and the logs line; `LEGAL_UPDATED` was not
   changed (it wasn't for the SES change either).
 - Step 6 is not ticked: the Resend key, DNS records and `RESEND_API_KEY` secrets are the owner's.
+
+## Automatic deploys (2026-10-14)
+
+Why: the owner asked for automatic deployment. **GitHub Actions** (`.github/workflows/ci.yml`), not
+Cloudflare Workers Builds: Actions also gives CI on PRs, runs the D1 migrations as an explicit step,
+gates production on staging in one job, and needs no Cloudflare GitHub app installed. The private
+repo's free 2,000 Actions minutes a month cover it (a run is about 2–3 minutes).
+
+- Every push and PR: `npm ci`, typecheck, tests. A push to `main` then deploys: staging migrations,
+  `wrangler deploy --env staging`, `GET https://staging.stackquake.com/health`; then the same for
+  production. Production never deploys if staging or its health check failed. One deploy at a time
+  (`concurrency: deploy`, queued, never cancelled mid-migration).
+- Pushing to `main` is now deploying to production. `npm run deploy:*` still work by hand.
+- `package-lock.json` is committed (it was gitignored with no recorded reason): an automatic
+  production deploy should not pick up whatever a caret range resolves to that day.
+- Secret: `CLOUDFLARE_API_TOKEN` (repo secret), a Cloudflare API token from the "Edit Cloudflare
+  Workers" template plus Account → D1 → Edit, limited to the owner's account and the stackquake.com
+  zone. The account ID is in the workflow (not a secret). Worker secrets stay in Cloudflare;
+  the workflow never sets them.
+- Checked: a clean clone without `.dev.vars` passes `npm ci`, typecheck and all 310 tests. The
+  deploy job is not proven until its first run (the token is the owner's to create: auto mode
+  blocked Claude from the Cloudflare API-tokens page).
