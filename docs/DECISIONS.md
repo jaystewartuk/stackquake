@@ -1237,7 +1237,13 @@ only), `bounce` MX 10 `feedback-smtp.eu-west-1.amazonses.com`, `bounce` TXT
   (`send` and `rsend` CNAMEs, `resend._domainkey` TXT) deleted by Claude in Chrome on the owner's
   word; `_dmarc` and the SES records untouched, checked with `dig`. The owner deleted the three Resend
   API keys (production, staging, dev); the dead `RESEND_API_KEY` line is gone from `.dev.vars`.
-  Checklist step 6 is ticked; DMARC `p=quarantine` is still to consider.
+  Checklist step 6 is ticked.
+- Authentication checked on the production sign-in email (SES eu-west-1, 2026-10-14 00:16 UTC, received
+  at the owner inbox, headers sent by the owner): `dkim=pass header.d=stackquake.com` (2048-bit), `spf=pass
+  smtp.mailfrom=bounce.stackquake.com` (relaxed-aligned), `dmarc=pass`, delivered to the inbox. SES is the
+  only sender for stackquake.com (apex SPF is Email Routing's, for forwarding), so DMARC can move to
+  `v=DMARC1; p=quarantine; rua=mailto:dmarc@stackquake.com` (reports go to the dmarc@ forward). The DNS
+  edit is the owner's: auto mode blocked Claude from saving it.
 
 ## Automatic deploys (2026-10-14)
 
