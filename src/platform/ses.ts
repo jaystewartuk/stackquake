@@ -4,6 +4,7 @@ import { MailError, type Http, type Mail, type Mailer } from "../ports";
 import { signRequest } from "./sigv4";
 
 export const SES_DEFAULT_REGION = "eu-west-1";
+export const DEFAULT_FROM = "Stackquake <alerts@stackquake.com>";
 
 export interface SesOptions {
   accessKeyId: string;

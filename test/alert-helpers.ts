@@ -1,12 +1,17 @@
-// Builders for alert tests: users with deps, published events, a mocked Resend API and a runner
+// Builders for alert tests: users with deps, published events, a mocked SES API and a runner
 // loop that settles every job except polls.
+import { env } from "cloudflare:test";
 import { eq, sql } from "drizzle-orm";
 import { enqueueFanout } from "../src/alerts/fanout";
 import type { Ctx } from "../src/context";
 import { deps, events, jobs, projects, users, type Dep, type Event, type NewEvent, type Profile, type User } from "../src/db/schema";
 import { runTick } from "../src/jobs/runner";
 import type { Note } from "../src/llm/schemas";
-import { ResendMailer } from "../src/platform/resend";
+import { d1Db } from "../src/platform/cloudflare";
+import { IdempotentMailer } from "../src/platform/idempotent";
+import { FakeClock } from "../src/platform/memory";
+import { DEFAULT_FROM, SesMailer } from "../src/platform/ses";
+import type { Mail } from "../src/ports";
 import { linkSources, upsertDeps } from "../src/stack/deps";
 import { MINUTE } from "../src/util";
 import type { FixtureHttp, testCtx } from "./helpers";
@@ -97,44 +102,73 @@ export async function settle(t: T, maxTicks = 60, step = 6 * MINUTE, strict = tr
 }
 
 export interface SentMail {
-  key: string | null;
   body: { from: string; to: string[]; subject: string; text: string; html?: string; headers?: Record<string, string> };
 }
 
+interface SesBody {
+  FromEmailAddress: string;
+  Destination: { ToAddresses: string[] };
+  Content: { Simple: { Subject: { Data: string }; Body: { Text: { Data: string }; Html?: { Data: string } }; Headers?: { Name: string; Value: string }[] } };
+}
+
+export const SES_URL = "https://email.eu-west-1.amazonaws.com/v2/email/outbound-emails";
+
 /**
- * A stand-in for POST https://api.resend.com/emails that honours Idempotency-Key like Resend: a
- * repeated key is answered without sending again. `requests` counts every call.
+ * A stand-in for SES's POST /v2/email/outbound-emails behind the production wiring: SesMailer
+ * wrapped in IdempotentMailer, so a repeated key is recorded in mail_sends and not sent again.
+ * `sent` is what SES accepted, `requests` counts every send the app attempted. Pass the returned
+ * `clock` to testCtx so mail_sends rows carry the test's time.
  */
-export function mockResend(http: FixtureHttp) {
+export function mockSes(http: FixtureHttp) {
   const sent: SentMail[] = [];
-  const keys = new Set<string>();
   let requests = 0;
-  let failNext: number | null = null;
-  http.set("https://api.resend.com/emails", async (req) => {
-    requests++;
-    if (req.headers.get("authorization") !== "Bearer re_test") return new Response('{"statusCode":401}', { status: 401 });
-    if (failNext !== null) {
-      const status = failNext;
+  let failNext: { status: number; type: string } | null = null;
+  const clock = new FakeClock();
+  http.set(SES_URL, async (req) => {
+    if (!req.headers.get("authorization")?.startsWith("AWS4-HMAC-SHA256 Credential=AKIATEST/")) return new Response('{"message":"bad credentials"}', { status: 403, headers: { "x-amzn-errortype": "UnrecognizedClientException" } });
+    if (failNext) {
+      const { status, type } = failNext;
       failNext = null;
-      return new Response(JSON.stringify({ statusCode: status, name: "error", message: "failure for the test" }), { status });
+      return new Response(JSON.stringify({ message: "failure for the test" }), { status, headers: { "x-amzn-errortype": type } });
     }
-    const key = req.headers.get("idempotency-key");
-    if (key && keys.has(key)) return Response.json({ id: "already" });
-    if (key) keys.add(key);
-    sent.push({ key, body: await req.json() });
-    return Response.json({ id: `email_${sent.length}` });
+    const b = (await req.json()) as SesBody;
+    const { Subject, Body, Headers } = b.Content.Simple;
+    sent.push({
+      body: {
+        from: b.FromEmailAddress,
+        to: b.Destination.ToAddresses,
+        subject: Subject.Data,
+        text: Body.Text.Data,
+        ...(Body.Html ? { html: Body.Html.Data } : {}),
+        ...(Headers ? { headers: Object.fromEntries(Headers.map((h) => [h.Name, h.Value])) } : {}),
+      },
+    });
+    return Response.json({ MessageId: `m-${sent.length}` });
   });
+  const ses = new SesMailer({ accessKeyId: "AKIATEST", secretAccessKey: "secret", from: DEFAULT_FROM, http: http.fetch });
+  const idempotent = new IdempotentMailer(ses, d1Db(env.DB), clock);
   return {
     sent,
+    clock,
     get requests() {
       return requests;
     },
-    failWith(status: number) {
-      failNext = status;
+    /** The next request fails with this status and SES error type (default: InternalFailure for 5xx, else MessageRejected). */
+    failWith(status: number, type = status >= 500 ? "InternalFailure" : "MessageRejected") {
+      failNext = { status, type };
     },
-    mailer: Object.assign(new ResendMailer({ apiKey: "re_test", from: "Stackquake <alerts@stackquake.com>", http: http.fetch }), {
+    mailer: {
+      send(mail: Mail) {
+        requests++;
+        return idempotent.send(mail);
+      },
       /** For test/web.ts lastToken(): the magic-link email goes through the mock too. */
       last: () => sent[sent.length - 1]?.body,
-    }),
+    },
   };
+}
+
+/** Idempotency keys recorded in mail_sends, oldest first. */
+export async function sentKeys(ctx: Ctx): Promise<string[]> {
+  return (await ctx.db.all<{ key: string }>(sql`SELECT key FROM mail_sends ORDER BY sent_at, rowid`)).map((r) => r.key);
 }

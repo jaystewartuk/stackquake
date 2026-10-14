@@ -5,7 +5,7 @@ import { LINK_TTL_MS, signLink } from "../src/alerts/links";
 import { decrypt } from "../src/alerts/secretbox";
 import { alerts, channels, deps, jobs, users } from "../src/db/schema";
 import { DAY } from "../src/util";
-import { addDep, mockResend, publish, settle, sourceId } from "./alert-helpers";
+import { addDep, mockSes, publish, settle, sourceId } from "./alert-helpers";
 import { FixtureHttp, resetDb, TEST_CHANNEL_KEY, TEST_LINK_SECRET } from "./helpers";
 import { Browser, location, webCtx } from "./web";
 
@@ -13,8 +13,8 @@ beforeEach(resetDb);
 
 async function setup() {
   const http = new FixtureHttp();
-  const resend = mockResend(http);
-  const t = await webCtx({ http, mailer: resend.mailer });
+  const ses = mockSes(http);
+  const t = await webCtx({ http, mailer: ses.mailer, clock: ses.clock });
   await t.ctx.db.delete(jobs);
   const b = new Browser(t.ctx);
   await b.signIn("me@example.com");
@@ -23,7 +23,7 @@ async function setup() {
   await publish(t.ctx, await sourceId(t.ctx, "npm", "redis"));
   await settle(t);
   const alert = (await t.ctx.db.select().from(alerts).get())!;
-  return { ...t, resend, b, me, dep, alert };
+  return { ...t, ses, b, me, dep, alert };
 }
 
 const token = (action: Parameters<typeof signLink>[1], id: number, now: number) => signLink(TEST_LINK_SECRET, action, id, now);
@@ -78,7 +78,7 @@ describe("one-click links", () => {
 
   it("the links in the email are signed for this alert", async () => {
     const t = await setup();
-    const mail = t.resend.sent.find((m) => m.body.subject.startsWith("[Stackquake] Redis"))!.body;
+    const mail = t.ses.sent.find((m) => m.body.subject.startsWith("[Stackquake] Redis"))!.body;
     const mute = /Mute this dependency for 90 days: https:\/\/stackquake\.test(\/a\/\S+)/.exec(mail.text)![1];
     await new Browser(t.ctx).post(mute);
     expect((await t.ctx.db.select().from(deps).where(eq(deps.id, t.dep.id)).get())!.mutedUntil).not.toBeNull();

@@ -1,5 +1,5 @@
-// Amazon SES has no Idempotency-Key (Resend drops a second send with the same key for 24 hours),
-// and the job runner relies on that so a retried step cannot email twice. This wrapper keeps the
+// Amazon SES has no Idempotency-Key, and the job runner relies on one so a retried step cannot
+// email twice. This wrapper keeps the
 // keys in D1: checked before sending, written right after the provider accepts the message.
 //
 // It fails towards sending twice, never towards not sending: if the invocation dies between the

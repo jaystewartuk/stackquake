@@ -8,7 +8,7 @@ import { encrypt } from "../src/alerts/secretbox";
 import type { Ctx } from "../src/context";
 import { alerts, channels, deps, events, jobs, users, type Alert, type Job } from "../src/db/schema";
 import { DAY, HOUR } from "../src/util";
-import { addDep, addUser, mockResend, note, publish, settle, sourceId } from "./alert-helpers";
+import { addDep, addUser, mockSes, note, publish, sentKeys, settle, sourceId } from "./alert-helpers";
 import { FixtureHttp, resetDb, TEST_CHANNEL_KEY } from "./helpers";
 import { webCtx } from "./web";
 
@@ -18,10 +18,10 @@ const allAlerts = (t: { ctx: Ctx }): Promise<Alert[]> => t.ctx.db.select().from(
 
 async function setup() {
   const http = new FixtureHttp();
-  const resend = mockResend(http);
-  const t = await webCtx({ http, mailer: resend.mailer });
+  const ses = mockSes(http);
+  const t = await webCtx({ http, mailer: ses.mailer, clock: ses.clock });
   await t.ctx.db.delete(jobs);
-  return { ...t, resend };
+  return { ...t, ses };
 }
 
 const redisNpm = (t: Awaited<ReturnType<typeof setup>>) => sourceId(t.ctx, "npm", "redis");
@@ -42,7 +42,7 @@ describe("fan-out", () => {
     expect(byUser.get(selfHosted.id)).toMatchObject({ match: "affected", status: "sent", channel: "email", because: expect.stringContaining("self-hosted") });
     expect(byUser.get(unsure.id)).toMatchObject({ match: "unknown", status: "sent", because: "We don't know how you use Redis, so we assume it does." });
     expect(byUser.get(hosted.id)).toMatchObject({ match: "not_affected", status: "suppressed", channel: "digest", emailedAt: null });
-    expect(t.resend.sent.map((m) => m.body.to[0]).sort()).toEqual(["self@example.com", "unsure@example.com"]);
+    expect(t.ses.sent.map((m) => m.body.to[0]).sort()).toEqual(["self@example.com", "unsure@example.com"]);
   });
 
   it("makes one alert per user, from the dep that matches best", async () => {
@@ -55,7 +55,7 @@ describe("fan-out", () => {
     const list = await allAlerts(t);
     expect(list).toHaveLength(1);
     expect(list[0]).toMatchObject({ depId: selfHosted.id, match: "affected" });
-    expect(t.resend.sent).toHaveLength(1);
+    expect(t.ses.sent).toHaveLength(1);
   });
 
   it("sends nothing about a muted dependency, and alerts again once the mute ends", async () => {
@@ -67,13 +67,13 @@ describe("fan-out", () => {
     await publish(t.ctx, src);
     await settle(t);
     expect(await allAlerts(t)).toHaveLength(0);
-    expect(t.resend.sent).toHaveLength(0);
+    expect(t.ses.sent).toHaveLength(0);
 
     t.clock.advance(91 * DAY);
     await publish(t.ctx, src, { title: "Another licence change" });
     await settle(t);
     expect(await allAlerts(t)).toHaveLength(1);
-    expect(t.resend.sent).toHaveLength(1);
+    expect(t.ses.sent).toHaveLength(1);
   });
 
   it("holds non-urgent changes for the digest, and urgent ones for users who chose digest only", async () => {
@@ -91,7 +91,7 @@ describe("fan-out", () => {
     expect(await get(b.id, pricing.id)).toMatchObject({ channel: "digest", status: "queued", held: "not_urgent" });
     expect(await get(a.id, licence.id)).toMatchObject({ channel: "email", status: "sent" });
     expect(await get(b.id, licence.id)).toMatchObject({ channel: "digest", status: "queued", held: "digest_only" });
-    expect(t.resend.sent.map((m) => m.body.to[0])).toEqual(["a@example.com"]);
+    expect(t.ses.sent.map((m) => m.body.to[0])).toEqual(["a@example.com"]);
   });
 
   it("for a feed several entries share, only matches entries whose keywords appear in the event", async () => {
@@ -149,43 +149,43 @@ describe("idempotence", () => {
     expect(deliver).toHaveLength(1);
     await deliverStep(t.ctx, deliver[0]);
     await deliverStep(t.ctx, deliver[0]);
-    expect(t.resend.sent).toHaveLength(1);
-    expect(t.resend.requests).toBe(1);
-    expect(t.resend.sent[0].key).toBe(`alert-${(await allAlerts(t))[0].id}`);
+    expect(t.ses.sent).toHaveLength(1);
+    expect(t.ses.requests).toBe(1);
+    expect(await sentKeys(t.ctx)).toEqual([`alert-${(await allAlerts(t))[0].id}`]);
     expect(e.id).toBeGreaterThan(0);
   });
 
-  it("a send whose result was lost is retried with the same Idempotency-Key, so Resend sends it once", async () => {
+  it("a send whose result was lost is retried with the same idempotency key, so it is sent once", async () => {
     const t = await setup();
     const u = await addUser(t.ctx, "lost@example.com");
     await addDep(t.ctx, u.id, { catalogId: "redis" });
     await publish(t.ctx, await redisNpm(t));
     await settle(t);
     const [a] = await allAlerts(t);
-    // As if the invocation died after Resend accepted the email but before emailed_at was written.
+    // As if the invocation died after SES accepted the email but before emailed_at was written.
     await t.ctx.db.update(alerts).set({ status: "queued", emailedAt: null, sentAt: null }).where(eq(alerts.id, a.id));
     await deliverStep(t.ctx, { payload: { alertId: a.id } } as unknown as Job);
-    expect(t.resend.requests).toBe(2);
-    expect(t.resend.sent).toHaveLength(1);
+    expect(t.ses.requests).toBe(2);
+    expect(t.ses.sent).toHaveLength(1);
     expect((await allAlerts(t))[0]).toMatchObject({ status: "sent" });
   });
 
-  it("a temporary Resend failure is retried; a permanent one marks the alert failed", async () => {
+  it("a temporary SES failure is retried; a permanent one marks the alert failed", async () => {
     const t = await setup();
     const u = await addUser(t.ctx, "flaky@example.com");
     await addDep(t.ctx, u.id, { catalogId: "redis" });
     const src = await redisNpm(t);
     await publish(t.ctx, src);
-    t.resend.failWith(500);
+    t.ses.failWith(500);
     await settle(t);
-    expect(t.resend.sent).toHaveLength(1);
+    expect(t.ses.sent).toHaveLength(1);
     expect((await allAlerts(t))[0]).toMatchObject({ status: "sent" });
 
     await publish(t.ctx, src, { title: "Second licence change" });
-    t.resend.failWith(422);
+    t.ses.failWith(400);
     await settle(t);
     const second = (await allAlerts(t)).find((a) => a.status !== "sent")!;
-    expect(second).toMatchObject({ status: "failed", error: expect.stringContaining("resend 422") });
+    expect(second).toMatchObject({ status: "failed", error: expect.stringContaining("ses 400 MessageRejected") });
   });
 });
 
@@ -207,12 +207,12 @@ describe("rate limit (SPEC §7.5)", () => {
       ["email", "sent", null],
       ["digest", "queued", "rate_limit"],
     ]);
-    expect(t.resend.sent).toHaveLength(3);
+    expect(t.ses.sent).toHaveLength(3);
 
     t.clock.advance(DAY);
     await publish(t.ctx, await sourceId(t.ctx, "npm", "redis"), { title: "redis: another licence change" });
     await settle(t);
-    expect(t.resend.sent).toHaveLength(4);
+    expect(t.ses.sent).toHaveLength(4);
   });
 });
 
@@ -237,7 +237,7 @@ describe("Slack delivery", () => {
     const t = await withSlack();
     await publish(t.ctx, await redisNpm(t));
     await settle(t);
-    expect(t.resend.sent).toHaveLength(1);
+    expect(t.ses.sent).toHaveLength(1);
     expect(t.posts).toHaveLength(1);
     const msg = t.posts[0] as { text: string; blocks: { type: string }[] };
     expect(msg.text).toBe("Redis: Licence moves to SSPL");
@@ -252,11 +252,11 @@ describe("Slack delivery", () => {
     await publish(t.ctx, src);
     // Fan-out, then delivery: email sent, Slack fails and the step waits for its retry.
     await settle(t, 2, 0, false);
-    expect(t.resend.sent).toHaveLength(1);
+    expect(t.ses.sent).toHaveLength(1);
     expect((await allAlerts(t))[0]).toMatchObject({ status: "queued", emailedAt: expect.any(Number), slackAt: null, slackTryAt: null });
     t.answer(200);
     await settle(t);
-    expect(t.resend.sent).toHaveLength(1);
+    expect(t.ses.sent).toHaveLength(1);
     expect(t.posts).toHaveLength(2);
     expect((await allAlerts(t))[0]).toMatchObject({ status: "sent", slackAt: expect.any(Number) });
 
@@ -301,11 +301,11 @@ describe("weekly digest", () => {
     await publish(t.ctx, src, { note: note({ kind: "pricing", title: "Redis Cloud prices up" }) });
     await publish(t.ctx, src, { title: "Self-hosted licence change", note: note({ title: "Self-hosted licence change", applies_when: { hosting: ["self_hosted"], use: [], tier: [] } }) });
     await settle(t);
-    expect(t.resend.sent).toHaveLength(0);
+    expect(t.ses.sent).toHaveLength(0);
 
     await runDigest(t);
-    expect(t.resend.sent).toHaveLength(1);
-    const m = t.resend.sent[0].body;
+    expect(t.ses.sent).toHaveLength(1);
+    const m = t.ses.sent[0].body;
     expect(m.subject).toBe("[Stackquake] Weekly digest: 1 change that affects you");
     expect(m.text).toContain("Redis: Redis Cloud prices up");
     expect(m.text).toContain("1 change we watched that doesn't affect you:");
@@ -316,28 +316,28 @@ describe("weekly digest", () => {
 
     // The daily run again on the same day: nothing more.
     await runDigest(t);
-    expect(t.resend.sent).toHaveLength(1);
+    expect(t.ses.sent).toHaveLength(1);
   });
 
   it("sends 'all quiet' for the first digest of the month, then skips quiet weeks and carries suppressed changes", async () => {
     const t = await setup();
     await digestUser(t);
     await runDigest(t);
-    expect(t.resend.sent.map((m) => m.body.subject)).toEqual(["[Stackquake] Weekly digest: all quiet"]);
+    expect(t.ses.sent.map((m) => m.body.subject)).toEqual(["[Stackquake] Weekly digest: all quiet"]);
 
     // A week later (still October): only a change that doesn't affect them. No digest.
     t.clock.advance(7 * DAY);
     await publish(t.ctx, await redisNpm(t), { note: note({ applies_when: { hosting: ["self_hosted"], use: [], tier: [] } }) });
     await settle(t);
     await runDigest(t);
-    expect(t.resend.sent).toHaveLength(1);
+    expect(t.ses.sent).toHaveLength(1);
     expect((await allAlerts(t))[0]).toMatchObject({ status: "suppressed", digestAt: null });
 
     // Next month's first digest goes out and mentions it.
     t.clock.advance(28 * DAY); // Saturday 2026-11-14
     await runDigest(t);
-    expect(t.resend.sent).toHaveLength(2);
-    expect(t.resend.sent[1].body.text).toContain("1 change we watched that doesn't affect you");
+    expect(t.ses.sent).toHaveLength(2);
+    expect(t.ses.sent[1].body.text).toContain("1 change we watched that doesn't affect you");
   });
 
   it("is idempotent: a retried digest renders the same set and reuses its key", async () => {
@@ -354,9 +354,9 @@ describe("weekly digest", () => {
     await settle(t);
     await enqueueDigests(t.ctx);
     await settle(t);
-    expect(t.resend.requests).toBe(2);
-    expect(t.resend.sent).toHaveLength(1);
-    expect(t.resend.sent[0].key).toBe(`digest-${u.id}-2026-10-10`);
+    expect(t.ses.requests).toBe(2);
+    expect(t.ses.sent).toHaveLength(1);
+    expect(await sentKeys(t.ctx)).toEqual([`digest-${u.id}-2026-10-10`]);
     // The newer change was not swept into the already-sent digest; it waits for the next one.
     const newer = (await allAlerts(t)).find((a) => a.digestAt === null)!;
     expect(newer).toMatchObject({ status: "queued", channel: "digest" });
@@ -381,7 +381,7 @@ describe("withdrawn events", () => {
     await fanoutStep(t.ctx, fanout);
     await t.ctx.db.update(events).set({ status: "rejected" }).where(eq(events.id, e.id));
     await settle(t);
-    expect(t.resend.sent).toHaveLength(0);
+    expect(t.ses.sent).toHaveLength(0);
     expect((await allAlerts(t))[0]).toMatchObject({ status: "failed" });
   });
 });

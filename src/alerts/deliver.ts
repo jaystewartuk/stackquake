@@ -3,7 +3,7 @@
 // statements one at a time), so two deliveries for the same user can never both take the 3rd slot.
 //
 // Never twice: each target records its own timestamp, so a retry skips what already went out.
-// Email carries an Idempotency-Key, so a send whose result was lost is dropped by Resend on retry.
+// Email carries an Idempotency-Key, so a send whose result was lost is dropped on retry (IdempotentMailer).
 // A Slack post has no such key: one that started and never recorded a result is not repeated.
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { teamPlanSql } from "../billing/plans";

@@ -1,4 +1,4 @@
-// SPEC §11 E2, E3 and E4, end to end in Miniflare with the LLM and Resend mocked. Users sign in
+// SPEC §11 E2, E3 and E4, end to end in Miniflare with the LLM and SES mocked. Users sign in
 // and build their stacks through the web app; the watcher, pipeline, fan-out and delivery run as
 // cron ticks.
 import { eq } from "drizzle-orm";
@@ -12,7 +12,7 @@ import { npmUrl } from "../src/sources/kinds/npm";
 import { HOUR } from "../src/util";
 import { recordEvent } from "../src/watch/events";
 import { getSource, pollSource } from "../src/watch/poll";
-import { mockResend, note, settle, sourceId } from "./alert-helpers";
+import { mockSes, note, sentKeys, settle, sourceId } from "./alert-helpers";
 import { FixtureHttp, resetDb } from "./helpers";
 import { ADMIN, Browser, location, webCtx } from "./web";
 
@@ -20,10 +20,10 @@ beforeEach(resetDb);
 
 async function setup() {
   const http = new FixtureHttp();
-  const resend = mockResend(http);
-  const t = await webCtx({ http, mailer: resend.mailer });
+  const ses = mockSes(http);
+  const t = await webCtx({ http, mailer: ses.mailer, clock: ses.clock });
   await t.ctx.db.delete(jobs);
-  return { ...t, resend };
+  return { ...t, ses };
 }
 type T = Awaited<ReturnType<typeof setup>>;
 
@@ -60,7 +60,7 @@ describe("E2: a source change becomes an email for an affected user and a suppre
     const t = await setup();
     const alice = await userWithRedis(t, "alice@example.com", "self_hosted");
     const bob = await userWithRedis(t, "bob@example.com", "hosted");
-    const signInMails = t.resend.sent.length;
+    const signInMails = t.ses.sent.length;
     t.llm.on("summarise", json(note({ title: "Redis client licence moves to SSPL", applies_when: SELF_HOSTED_ONLY, who_is_not_affected: "People using Redis Cloud." })));
 
     const raw = await licenceChange(t);
@@ -71,7 +71,7 @@ describe("E2: a source change becomes an email for an affected user and a suppre
     expect(e).toMatchObject({ status: "published", kind: "license", quoteFound: true });
 
     // One email, to Alice only.
-    const mails = t.resend.sent.slice(signInMails);
+    const mails = t.ses.sent.slice(signInMails);
     expect(mails).toHaveLength(1);
     const m = mails[0].body;
     expect(m.to).toEqual(["alice@example.com"]);
@@ -84,7 +84,7 @@ describe("E2: a source change becomes an email for an affected user and a suppre
     expect(m.text).toContain("Summary, not legal advice; read the source.");
     expect(m.html).toContain("<blockquote");
     expect(m.headers?.["List-Unsubscribe"]).toMatch(/^<https:\/\/stackquake\.test\/a\/d\d+\./);
-    expect(mails[0].key).toMatch(/^alert-\d+$/);
+    expect(await sentKeys(t.ctx)).toEqual([expect.stringMatching(/^alert-\d+$/)]);
 
     const list = await getAlerts(t);
     expect(list).toHaveLength(2);
@@ -113,7 +113,7 @@ describe("E3: a note whose quote is not in the source stays in review and sends 
   it("holds it, then delivers once an admin approves it", async () => {
     const t = await setup();
     await userWithRedis(t, "alice@example.com", "self_hosted");
-    const before = t.resend.sent.length;
+    const before = t.ses.sent.length;
     t.llm.on("summarise", json(note({ quote: "Redis is now closed source for everyone.", applies_when: SELF_HOSTED_ONLY })));
     const raw = await licenceChange(t);
     await settle(t);
@@ -122,14 +122,14 @@ describe("E3: a note whose quote is not in the source stays in review and sends 
     expect(e).toMatchObject({ status: "pending_review", quoteFound: false, reviewReason: expect.stringContaining("quote not found") });
     expect(await getAlerts(t)).toHaveLength(0);
     expect(await t.ctx.db.select().from(jobs).where(eq(jobs.kind, "fanout")).all()).toHaveLength(0);
-    expect(t.resend.sent.length).toBe(before);
+    expect(t.ses.sent.length).toBe(before);
 
     // A person's approval publishes it and fans it out.
     const admin = new Browser(t.ctx);
     await admin.signIn(ADMIN);
     expect((await admin.post(`/admin/events/${e.id}/approve`)).status).toBe(302);
     await settle(t);
-    expect(t.resend.sent.slice(before + 1).map((m) => m.body.to[0])).toEqual(["alice@example.com"]);
+    expect(t.ses.sent.slice(before + 1).map((m) => m.body.to[0])).toEqual(["alice@example.com"]);
   });
 });
 
@@ -154,7 +154,7 @@ describe("E4: with the weekly LLM budget exceeded, classify pauses and the admin
     await spend(t, 25); // budget $10
     t.llm.defaults = { summarise: json(note()) };
     await runDaily(t.ctx, CATALOG);
-    const budgetMail = t.resend.sent.find((m) => m.body.subject.includes("LLM spend"))!;
+    const budgetMail = t.ses.sent.find((m) => m.body.subject.includes("LLM spend"))!;
     expect(budgetMail.body.to).toEqual([ADMIN]);
     expect(budgetMail.body.subject).toBe("[Stackquake] LLM spend $25.00 in 7 days (budget $10.00)");
     expect(budgetMail.body.text).toContain("classify steps are paused");
@@ -189,7 +189,7 @@ describe("E4: with the weekly LLM budget exceeded, classify pauses and the admin
     const t = await setup();
     await spend(t, 15);
     await runDaily(t.ctx, CATALOG);
-    expect(t.resend.sent.filter((m) => m.body.subject.includes("LLM spend"))).toHaveLength(1);
+    expect(t.ses.sent.filter((m) => m.body.subject.includes("LLM spend"))).toHaveLength(1);
     t.llm.on("classify", json({ kind: "other", confidence: 0.95, effective_date: null, one_line: "News.", quote: "" }));
     await feedItem(t);
     await runPipeline(t);
@@ -200,6 +200,6 @@ describe("E4: with the weekly LLM budget exceeded, classify pauses and the admin
     const t = await setup();
     await spend(t, 9);
     await runDaily(t.ctx, CATALOG);
-    expect(t.resend.sent).toHaveLength(0);
+    expect(t.ses.sent).toHaveLength(0);
   });
 });

@@ -36,7 +36,7 @@ export interface Mail {
   html?: string;
   /** Extra headers (List-Unsubscribe). */
   headers?: Record<string, string>;
-  /** A second send with the same key does nothing (Resend: 24 hours; SES: IdempotentMailer's mail_sends), so a retried step cannot send twice. */
+  /** A second send with the same key does nothing (IdempotentMailer's mail_sends), so a retried step cannot send twice. */
   idempotencyKey?: string;
 }
 
@@ -51,7 +51,7 @@ export class MailError extends Error {
   }
 }
 
-/** Outbound email: Amazon SES or Resend in production (src/platform/ses.ts, resend.ts), console in development, memory in tests. */
+/** Outbound email: Amazon SES in production (src/platform/ses.ts), console in development, memory in tests. */
 export interface Mailer {
   send(mail: Mail): Promise<void>;
 }

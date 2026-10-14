@@ -5,7 +5,7 @@ import { handleEvent, verifyWebhook, type StripeConfig, type StripeEvent } from 
 import { alerts, channels, jobs, projects, teamMembers, users } from "../src/db/schema";
 import { handlePush } from "../src/github/webhook";
 import { encrypt } from "../src/alerts/secretbox";
-import { addDep, addUser, mockResend, note, publish, settle, sourceId } from "./alert-helpers";
+import { addDep, addUser, mockSes, note, publish, settle, sourceId } from "./alert-helpers";
 import { FixtureHttp, resetDb, TEST_CHANNEL_KEY } from "./helpers";
 import { Browser, location, webCtx } from "./web";
 
@@ -15,11 +15,11 @@ const STRIPE: StripeConfig = { secretKey: "rk_test_x", webhookSecret: "whsec_tes
 
 async function setup() {
   const http = new FixtureHttp();
-  const resend = mockResend(http);
-  const t = await webCtx({ http, mailer: resend.mailer });
+  const ses = mockSes(http);
+  const t = await webCtx({ http, mailer: ses.mailer, clock: ses.clock });
   t.ctx.config.stripe = STRIPE;
   await t.ctx.db.delete(jobs);
-  return { ...t, resend };
+  return { ...t, ses };
 }
 
 async function signedIn(t: Awaited<ReturnType<typeof setup>>, email: string) {
@@ -97,7 +97,7 @@ describe("Free plan limits", () => {
     await publish(t.ctx, await sourceId(t.ctx, "npm", "redis"));
     await settle(t);
     expect(posts).toBe(0);
-    expect(t.resend.sent).toHaveLength(1);
+    expect(t.ses.sent).toHaveLength(1);
   });
 
   it("stops push re-imports of private repos when the owner is not on Team", async () => {
@@ -235,7 +235,7 @@ describe("teams", () => {
     await owner.b.post(`/app/projects/${project.id}/services`, { ids: "redis", shown: "redis" });
 
     expect(location(await owner.b.post("/app/team/invite", { email: "Dev@Acme.test" }))).toBe("/app/team?msg=invited");
-    expect(t.resend.sent.at(-1)!.body).toMatchObject({ to: ["dev@acme.test"], subject: "owner@acme.test invited you to their Stackquake team" });
+    expect(t.ses.sent.at(-1)!.body).toMatchObject({ to: ["dev@acme.test"], subject: "owner@acme.test invited you to their Stackquake team" });
     expect((await owner.b.post("/app/team/invite", { email: "dev@acme.test" })).status).toBe(400);
 
     // Someone else signed in cannot accept an invite for another address.
@@ -256,7 +256,7 @@ describe("teams", () => {
 
     await publish(t.ctx, await sourceId(t.ctx, "npm", "redis"));
     await settle(t);
-    const sentTo = t.resend.sent.filter((m) => m.body.subject.startsWith("[Stackquake]")).flatMap((m) => m.body.to).sort();
+    const sentTo = t.ses.sent.filter((m) => m.body.subject.startsWith("[Stackquake]")).flatMap((m) => m.body.to).sort();
     expect(sentTo).toEqual(["dev@acme.test", "owner@acme.test"]);
 
     await setPlan(t, owner.me.id, "free");

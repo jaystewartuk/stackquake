@@ -3,7 +3,7 @@
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { events, jobs, users } from "../src/db/schema";
-import { addDep, mockResend } from "./alert-helpers";
+import { addDep, mockSes } from "./alert-helpers";
 import { FixtureHttp, resetDb } from "./helpers";
 import { ADMIN, Browser, location, testEnv, webCtx } from "./web";
 
@@ -20,8 +20,8 @@ describe("staging tools", () => {
 
   it("sample event → approve → tick → a real alert email", async () => {
     const http = new FixtureHttp();
-    const resend = mockResend(http);
-    const { ctx } = await webCtx({ http, mailer: resend.mailer });
+    const ses = mockSes(http);
+    const { ctx } = await webCtx({ http, mailer: ses.mailer, clock: ses.clock });
     await ctx.db.delete(jobs);
     const b = new Browser(ctx, testEnv({ STAGING_TOOLS: "1" }));
     await b.signIn(ADMIN);
@@ -37,7 +37,7 @@ describe("staging tools", () => {
 
     await b.post(`/admin/events/${e.id}/approve`);
     for (let i = 0; i < 4; i++) expect((await b.post("/admin/staging/run", { task: "tick" })).status).toBe(302);
-    const alert = resend.sent.find((m) => m.body.subject.includes("[Test] Cloudflare Workers"));
+    const alert = ses.sent.find((m) => m.body.subject.includes("[Test] Cloudflare Workers"));
     expect(alert?.body.to).toEqual([ADMIN]);
     expect(alert?.body.text).toContain("Staging test");
   });
