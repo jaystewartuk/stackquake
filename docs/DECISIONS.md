@@ -1233,8 +1233,9 @@ only), `bounce` MX 10 `feedback-smtp.eu-west-1.amazonses.com`, `bounce` TXT
   changed (it wasn't for the SES change either).
 - Step 6 is not ticked: the Resend key, DNS records and `RESEND_API_KEY` secrets are the owner's.
 - Deployed by the owner the same night: staging `97d9b068`, production `1c4b44cc` (no migrations
-  pending; `/health` OK on both), then `RESEND_API_KEY` deleted on both Workers. Left for step 6:
-  the Resend API keys and Resend's DNS records.
+  pending; `/health` OK on both), then `RESEND_API_KEY` deleted on both Workers. Resend's DNS records
+  (`send` and `rsend` CNAMEs, `resend._domainkey` TXT) deleted by Claude in Chrome on the owner's
+  word; `_dmarc` and the SES records untouched, checked with `dig`. Left for step 6: the Resend API keys.
 
 ## Automatic deploys (2026-10-14)
 
@@ -1251,8 +1252,11 @@ repo's free 2,000 Actions minutes a month cover it (a run is about 2–3 minutes
 - `package-lock.json` is committed (it was gitignored with no recorded reason): an automatic
   production deploy should not pick up whatever a caret range resolves to that day.
 - Secret: `CLOUDFLARE_API_TOKEN` (repo secret), the Cloudflare token "stackquake GitHub Actions
-  deploy": the "Edit Cloudflare Workers" template unchanged plus Account → D1 → Edit, limited to the
-  owner's account and the stackquake.com zone, no expiry. Created by Claude in Chrome on the owner's
+  deploy", limited to the owner's account and the stackquake.com zone, no expiry. Created from the
+  "Edit Cloudflare Workers" template plus D1, then trimmed the same night to what deploys use:
+  Account · Workers Scripts · Edit, Account · D1 · Edit, Account · Account Settings · Read,
+  Zone · Workers Routes · Edit. Run 38496376725 deployed with the trimmed token (staging `d6d633f4`,
+  production `4e132d72`, `/health` OK). Created by Claude in Chrome on the owner's
   word, checked with `/user/tokens/verify`, piped from the clipboard into `gh secret set`. The account ID is in the workflow (not a secret). Worker secrets stay in Cloudflare;
   the workflow never sets them.
 - Checked: a clean clone without `.dev.vars` passes `npm ci`, typecheck and all 310 tests. First
