@@ -1232,6 +1232,9 @@ only), `bounce` MX 10 `feedback-smtp.eu-west-1.amazonses.com`, `bounce` TXT
   Privacy page: Resend is out of the processors list and the logs line; `LEGAL_UPDATED` was not
   changed (it wasn't for the SES change either).
 - Step 6 is not ticked: the Resend key, DNS records and `RESEND_API_KEY` secrets are the owner's.
+- Deployed by the owner the same night: staging `97d9b068`, production `1c4b44cc` (no migrations
+  pending; `/health` OK on both), then `RESEND_API_KEY` deleted on both Workers. Left for step 6:
+  the Resend API keys and Resend's DNS records.
 
 ## Automatic deploys (2026-10-14)
 

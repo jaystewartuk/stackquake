@@ -54,6 +54,6 @@ jobs:
         run: curl -fsS --retry 5 --retry-delay 3 --retry-all-errors https://staging.stackquake.com/health
 
       - name: Production
-        run: npm run db:migrate:production && npx wrangler deploy
+        run: npm run db:migrate:production && npx wrangler deploy --env=""
       - name: Production health
         run: curl -fsS --retry 5 --retry-delay 3 --retry-all-errors https://stackquake.com/health
