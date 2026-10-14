@@ -587,7 +587,7 @@ site.get("/privacy", (c) =>
       <h2 id="who-else-handles-data">Who else handles data</h2>
       <ul>
         <li>Cloudflare (hosting, database, storage, request logs and our email forwarding)</li>
-        <li>Amazon Web Services (Amazon SES, Ireland) for sending email: your address and the alert's content. Resend is a fallback while we move over.</li>
+        <li>Amazon Web Services (Amazon SES, Ireland) for sending email: your address and the alert's content.</li>
         <li>GitHub (sign-in and repo import, when you use them)</li>
         <li>Slack (your alerts, if you connect a webhook)</li>
         <li>Anthropic (the language model that writes notes; it only sees public vendor text, never your data)</li>
@@ -601,7 +601,7 @@ site.get("/privacy", (c) =>
         <li>Account, projects, alerts and Slack connection: until you delete your account, then removed at once (and from backups within 30 days).</li>
         <li>Sessions: 30 days at most. Sign-in links: expire after 15 minutes and are deleted a day later. Rate-limit counters: deleted within two days.</li>
         <li>Team invites: until accepted, declined or cancelled.</li>
-        <li>Host request logs and email delivery logs: kept by Cloudflare, Amazon SES and Resend for a short period (days, not months).</li>
+        <li>Host request logs and email delivery logs: kept by Cloudflare and Amazon SES for a short period (days, not months).</li>
         <li>Billing records: kept by Stripe and Link, and by us where tax law requires, for up to six years.</li>
       </ul>
 
