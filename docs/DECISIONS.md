@@ -1209,7 +1209,7 @@ only), `bounce` MX 10 `feedback-smtp.eu-west-1.amazonses.com`, `bounce` TXT
   alert's List-Unsubscribe.) After a deploy (owner's OK): sign in by magic link and trigger a test alert (staging, or a
   real alert; `/__dev/test-email` is local only). In the received mail's original check
   `dkim=pass header.d=stackquake.com`, `spf=pass`, `dmarc=pass`, not in spam, List-Unsubscribe on the alert.
-- [x] 6. (2026-10-14, early by the owner's choice: Resend API keys deleted by the owner; DNS records removed and `RESEND_API_KEY` deleted on both Workers, see below. DMARC is still `p=none`) After a clean week: delete the Resend production key, remove Resend's DNS records (`send`
+- [x] 6. (2026-10-14, early by the owner's choice: Resend API keys deleted by the owner; DNS records removed and `RESEND_API_KEY` deleted on both Workers, see below. DMARC moved to `p=quarantine` the same night) After a clean week: delete the Resend production key, remove Resend's DNS records (`send`
   and `rsend` CNAMEs, `resend._domainkey` TXT; keep `_dmarc`), unset `RESEND_API_KEY`, and drop
   Resend from the privacy page. Then consider DMARC `p=quarantine` (M5).
 - [ ] 7. Watch SES's reputation dashboard: bounces under 5%, complaints under 0.1%.
@@ -1242,8 +1242,9 @@ only), `bounce` MX 10 `feedback-smtp.eu-west-1.amazonses.com`, `bounce` TXT
   at the owner inbox, headers sent by the owner): `dkim=pass header.d=stackquake.com` (2048-bit), `spf=pass
   smtp.mailfrom=bounce.stackquake.com` (relaxed-aligned), `dmarc=pass`, delivered to the inbox. SES is the
   only sender for stackquake.com (apex SPF is Email Routing's, for forwarding), so DMARC can move to
-  `v=DMARC1; p=quarantine; rua=mailto:dmarc@stackquake.com` (reports go to the dmarc@ forward). The DNS
-  edit is the owner's: auto mode blocked Claude from saving it.
+  `v=DMARC1; p=quarantine; rua=mailto:dmarc@stackquake.com` (reports go to the dmarc@ forward). The owner
+  saved it the same night (auto mode blocked Claude); 1.1.1.1 and 8.8.8.8 both return it. `p=reject`
+  can follow once a few weeks of reports show only SES, all passing.
 
 ## Automatic deploys (2026-10-14)
 
