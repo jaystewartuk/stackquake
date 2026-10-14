@@ -1203,7 +1203,9 @@ only), `bounce` MX 10 `feedback-smtp.eu-west-1.amazonses.com`, `bounce` TXT
   `AWS_SES_SECRET_ACCESS_KEY`. Staging: its own user and keys (`--env staging`), or it stays on Resend.
 - [ ] 5. (2026-10-14 staging: deployed bfb6ddd2 with migration 0006, keys of `stackquake-ses-staging` set by
   piping `aws iam create-access-key` into `wrangler secret put`; a magic link arrived and worked, and SES
-  recorded the delivery. Production and the alert's List-Unsubscribe still to check.) After a deploy (owner's OK): sign in by magic link and trigger a test alert (staging, or a
+  recorded the delivery. Production: deployed 780b9824 with migration 0006 the same night, then the keys of
+  `stackquake-ses-production` set the same way, so **production sends through SES from 2026-10-14**.
+  Still to check: a production sign-in's headers and the first alert's List-Unsubscribe.) After a deploy (owner's OK): sign in by magic link and trigger a test alert (staging, or a
   real alert; `/__dev/test-email` is local only). In the received mail's original check
   `dkim=pass header.d=stackquake.com`, `spf=pass`, `dmarc=pass`, not in spam, List-Unsubscribe on the alert.
 - [ ] 6. After a clean week: delete the Resend production key, remove Resend's DNS records (`send`
