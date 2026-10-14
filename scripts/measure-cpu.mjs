@@ -74,7 +74,6 @@ const stub = createHttpServer((req, res) => {
   req.on("end", () => {
     const gh = ghRoutes.get(decodeURIComponent(req.url));
     if (gh !== undefined) return res.writeHead(200, { "content-type": typeof gh === "string" ? "text/plain" : "application/json" }).end(typeof gh === "string" ? gh : JSON.stringify(gh));
-    if (req.method === "POST" && req.url === "/resend/emails") return res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ id: "stub" }));
     if (req.method === "POST" && req.url === "/ses/v2/email/outbound-emails") return res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ MessageId: "stub" }));
     if (req.url === "/post") return res.writeHead(200, { "content-type": "text/html; charset=utf-8" }).end(postHtml);
     if (req.method === "POST" && req.url.startsWith("/v1/messages")) {

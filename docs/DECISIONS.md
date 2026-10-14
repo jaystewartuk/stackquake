@@ -632,7 +632,7 @@ Read this after SPEC.md; where they disagree, this file wins.
   `CHANNEL_KEY` (generated fresh per environment), `ADMIN_EMAILS` (a secret so the owner's address
   stays out of the repo), `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET` (OAuth app "Stackquake" and
   "Stackquake (staging)", one callback each), and the GitHub App's five (below).
-  `RESEND_API_KEY`: see "Email".
+  `AWS_SES_ACCESS_KEY_ID`/`AWS_SES_SECRET_ACCESS_KEY`: see "Email: Amazon SES".
 - **Expiry dates to renew**: Anthropic keys and GitHub tokens on 2027-10-10. Nothing else expires.
 - Secrets were moved by clipboard (`pbpaste | wrangler secret put`) or generated and piped, so none
   was printed in a terminal or chat.
