@@ -1185,15 +1185,19 @@ on that (`alert-<id>`, `digest-<user>-<day>`, `budget-<date>-<to>`). SES has no 
   noise, so no CPU jump from signing. The run's "over the 10 ms" line is the poll phases, as before.
 - Not tried against real SES: that needs the owner's AWS account (checklist step 5).
 
-### Owner checklist (the owner does these; Claude does none of them)
-- [ ] 1. AWS console, eu-west-1: verify domain identity `stackquake.com` with Easy DKIM (2048-bit);
+### Owner checklist
+The prompt made these the owner's; on 2026-10-14 the owner asked Claude to do 1–4 with the AWS CLI and
+Chrome, as for Beckon. DNS: three `<token>._domainkey` CNAMEs to `<token>.dkim.amazonses.com` (DNS
+only), `bounce` MX 10 `feedback-smtp.eu-west-1.amazonses.com`, `bounce` TXT
+`v=spf1 include:amazonses.com ~all`; no clash with Resend, Email Routing or `_dmarc`.
+- [x] 1. (2026-10-14, AWS CLI + Cloudflare in Chrome, owner's go-ahead; DKIM verification pending at the time of writing) AWS console, eu-west-1: verify domain identity `stackquake.com` with Easy DKIM (2048-bit);
   add the three `_domainkey` CNAMEs in Cloudflare, DNS only (they don't clash with Resend's records
   or Email Routing). The owner approves the DNS change; Claude may add them in Chrome if told to.
-- [ ] 2. Optional custom MAIL FROM `bounce.stackquake.com` (MX + SPF TXT), as Beckon's docs/deploy.md.
-- [ ] 3. Request production access (transactional: sign-in links, alerts the user subscribed to,
+- [x] 2. (2026-10-14, MAIL FROM verified) Optional custom MAIL FROM `bounce.stackquake.com` (MX + SPF TXT), as Beckon's docs/deploy.md.
+- [x] 3. (Already granted on the account for Beckon: eu-west-1, 50,000 a day, 14 a second) Request production access (transactional: sign-in links, alerts the user subscribed to,
   weekly digests; unsubscribe link in every alert and digest; bounces via the account-level
   suppression list). Until then SES only sends to verified addresses.
-- [ ] 4. IAM user `stackquake-ses-production` allowed only `ses:SendEmail` on the `stackquake.com`
+- [ ] 4. (2026-10-14: users `stackquake-ses-production` and `stackquake-ses-staging` created with inline policy `ses-send-stackquake`; no access keys yet, they are created and piped straight into `wrangler secret put` after the deploy) IAM user `stackquake-ses-production` allowed only `ses:SendEmail` on the `stackquake.com`
   identity ARN; an access key (not SMTP credentials). Then
   `! pbpaste | npx wrangler secret put AWS_SES_ACCESS_KEY_ID` and the same for
   `AWS_SES_SECRET_ACCESS_KEY`. Staging: its own user and keys (`--env staging`), or it stays on Resend.
